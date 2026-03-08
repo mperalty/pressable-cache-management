@@ -319,17 +319,50 @@ class PCM_Playbook_Renderer {
         $escaped = preg_replace( '/`([^`]+)`/', '<code>$1</code>', $escaped );
 
         $escaped = preg_replace_callback(
-            '/(?:^|\n)-\s+(.+?)(?=\n[^-]|\n\z)/s',
+            '/(?:^|\n)((?:\d+\.\s+[^\n]+(?:\n|$))+)/',
             static function ( $matches ) {
-                $items = preg_split( '/\n-\s+/', trim( $matches[0] ) );
-                $items = array_filter( array_map( 'trim', $items ) );
+                $lines = preg_split( '/\n+/', trim( $matches[1] ) );
+                $items = array();
+
+                foreach ( $lines as $line ) {
+                    if ( preg_match( '/^\d+\.\s+(.+)$/', trim( $line ), $item_match ) ) {
+                        $items[] = $item_match[1];
+                    }
+                }
+
+                if ( empty( $items ) ) {
+                    return $matches[0];
+                }
+
+                $out = '<ol>';
+                foreach ( $items as $item ) {
+                    $out .= '<li>' . $item . '</li>';
+                }
+                $out .= '</ol>';
+
+                return "\n" . $out . "\n";
+            },
+            $escaped
+        );
+
+        $escaped = preg_replace_callback(
+            '/(?:^|\n)((?:-\s+[^\n]+(?:\n|$))+)/',
+            static function ( $matches ) {
+                $lines = preg_split( '/\n+/', trim( $matches[1] ) );
+                $items = array();
+
+                foreach ( $lines as $line ) {
+                    if ( preg_match( '/^-\s+(.+)$/', trim( $line ), $item_match ) ) {
+                        $items[] = $item_match[1];
+                    }
+                }
+
                 if ( empty( $items ) ) {
                     return $matches[0];
                 }
 
                 $out = '<ul>';
                 foreach ( $items as $item ) {
-                    $item = preg_replace( '/^-\s+/', '', $item );
                     $out .= '<li>' . $item . '</li>';
                 }
                 $out .= '</ul>';
@@ -339,6 +372,8 @@ class PCM_Playbook_Renderer {
             $escaped
         );
 
+        $escaped = wpautop( $escaped );
+
         return wp_kses(
             $escaped,
             array(
@@ -347,6 +382,9 @@ class PCM_Playbook_Renderer {
                 'h4'     => array(),
                 'strong' => array(),
                 'code'   => array(),
+                'p'      => array(),
+                'br'     => array(),
+                'ol'     => array(),
                 'ul'     => array(),
                 'li'     => array(),
             )
