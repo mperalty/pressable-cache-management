@@ -1853,46 +1853,86 @@ https://example.com/OLD/"></textarea>
         <h3 class="pcm-card-title">🧹 <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Tune active mode, cooldown, deferred execution, and inspect queued job outcomes.', 'pressable_cache_management' ); ?></p>
         <p style="margin:0 0 10px;color:#6b7280;font-size:12px;"><?php echo esc_html__( 'Smart Purge Strategy batches and sequences cache purge events to reduce cache stampedes and unnecessary invalidations. In shadow mode, jobs are recorded but not executed so you can review impact safely. In active mode, jobs execute with cooldown/defer controls to smooth purge load.', 'pressable_cache_management' ); ?></p>
-        <form method="post" style="margin-bottom:12px;">
+        <form method="post" class="pcm-sp-settings-form">
             <?php wp_nonce_field( 'pcm_smart_purge_settings_action', 'pcm_smart_purge_settings_nonce' ); ?>
             <input type="hidden" name="pcm_smart_purge_settings_submit" value="1" />
-            <label style="display:block;margin-bottom:8px;">
-                <input type="checkbox" name="pcm_smart_purge_active_mode" value="1" <?php checked( (bool) get_option( 'pcm_smart_purge_active_mode', false ), true ); ?> />
-                <?php echo esc_html__( 'Enable active purge execution mode', 'pressable_cache_management' ); ?>
-            </label>
-            <label style="display:block;margin-bottom:8px;">
-                <input type="checkbox" name="pcm_smart_purge_enable_prewarm" value="1" <?php checked( (bool) get_option( 'pcm_smart_purge_enable_prewarm', false ), true ); ?> />
-                <?php echo esc_html__( 'Enable post-purge URL prewarm', 'pressable_cache_management' ); ?>
-            </label>
-            <label style="display:block;margin-bottom:8px;">
-                <?php echo esc_html__( 'Cooldown seconds', 'pressable_cache_management' ); ?>
-                <input type="number" min="15" max="3600" name="pcm_smart_purge_cooldown_seconds" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_cooldown_seconds', 120 ) ); ?>" />
-            </label>
-            <label style="display:block;margin-bottom:8px;">
-                <?php echo esc_html__( 'Deferred execution seconds', 'pressable_cache_management' ); ?>
-                <input type="number" min="0" max="3600" name="pcm_smart_purge_defer_seconds" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_defer_seconds', 60 ) ); ?>" />
-            </label>
-            <label style="display:block;margin-bottom:8px;">
-                <?php echo esc_html__( 'Prewarm URLs per job cap', 'pressable_cache_management' ); ?>
-                <input type="number" min="1" max="100" name="pcm_smart_purge_prewarm_url_cap" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_url_cap', 10 ) ); ?>" />
-            </label>
-            <label style="display:block;margin-bottom:8px;">
-                <?php echo esc_html__( 'Prewarm batch size (concurrency)', 'pressable_cache_management' ); ?>
-                <input type="number" min="1" max="20" name="pcm_smart_purge_prewarm_batch_size" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_batch_size', 3 ) ); ?>" />
-            </label>
-            <label style="display:block;margin-bottom:8px;">
-                <?php echo esc_html__( 'Repeat hits for priority URLs', 'pressable_cache_management' ); ?>
-                <input type="number" min="1" max="5" name="pcm_smart_purge_prewarm_repeat_hits" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_repeat_hits', 2 ) ); ?>" />
-            </label>
-            <label style="display:block;margin-bottom:8px;">
-                <?php echo esc_html__( 'Important URLs (one per line or comma-separated)', 'pressable_cache_management' ); ?>
-                <textarea name="pcm_smart_purge_important_urls" rows="4" style="width:100%;max-width:520px;"><?php echo esc_textarea( (string) get_option( 'pcm_smart_purge_important_urls', '' ) ); ?></textarea>
-            </label>
+            <div class="pcm-sp-settings-section">
+                <h4><?php echo esc_html__( 'Mode', 'pressable_cache_management' ); ?></h4>
+                <label class="pcm-sp-checkbox-row">
+                    <input type="checkbox" name="pcm_smart_purge_active_mode" value="1" <?php checked( (bool) get_option( 'pcm_smart_purge_active_mode', false ), true ); ?> />
+                    <span>
+                        <strong><?php echo esc_html__( 'Enable active purge execution mode', 'pressable_cache_management' ); ?></strong>
+                        <small><?php echo esc_html__( 'When disabled, Smart Purge runs in shadow mode: jobs are queued and logged for review, but no cache purges are executed.', 'pressable_cache_management' ); ?></small>
+                    </span>
+                </label>
+            </div>
+
+            <div class="pcm-sp-settings-section">
+                <h4><?php echo esc_html__( 'Timing', 'pressable_cache_management' ); ?></h4>
+                <div class="pcm-sp-two-col-grid">
+                    <label class="pcm-sp-field-label">
+                        <span><?php echo esc_html__( 'Cooldown', 'pressable_cache_management' ); ?></span>
+                        <span class="pcm-sp-number-wrap">
+                            <input type="number" min="15" max="3600" name="pcm_smart_purge_cooldown_seconds" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_cooldown_seconds', 120 ) ); ?>" />
+                            <span class="pcm-sp-unit"><?php echo esc_html__( 'seconds', 'pressable_cache_management' ); ?></span>
+                        </span>
+                    </label>
+                    <label class="pcm-sp-field-label">
+                        <span><?php echo esc_html__( 'Deferred execution', 'pressable_cache_management' ); ?></span>
+                        <span class="pcm-sp-number-wrap">
+                            <input type="number" min="0" max="3600" name="pcm_smart_purge_defer_seconds" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_defer_seconds', 60 ) ); ?>" />
+                            <span class="pcm-sp-unit"><?php echo esc_html__( 'seconds', 'pressable_cache_management' ); ?></span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="pcm-sp-settings-section">
+                <h4><?php echo esc_html__( 'Prewarm', 'pressable_cache_management' ); ?></h4>
+                <label class="pcm-sp-checkbox-row">
+                    <input type="checkbox" name="pcm_smart_purge_enable_prewarm" value="1" <?php checked( (bool) get_option( 'pcm_smart_purge_enable_prewarm', false ), true ); ?> />
+                    <span>
+                        <strong><?php echo esc_html__( 'Enable post-purge URL prewarm', 'pressable_cache_management' ); ?></strong>
+                        <small><?php echo esc_html__( 'Automatically request selected URLs after each purge to rebuild cache quickly.', 'pressable_cache_management' ); ?></small>
+                    </span>
+                </label>
+                <div class="pcm-sp-two-col-grid">
+                    <label class="pcm-sp-field-label">
+                        <span><?php echo esc_html__( 'URL cap per job', 'pressable_cache_management' ); ?></span>
+                        <small><?php echo esc_html__( 'Maximum number of URLs warmed after a single purge event.', 'pressable_cache_management' ); ?></small>
+                        <span class="pcm-sp-number-wrap">
+                            <input type="number" min="1" max="100" name="pcm_smart_purge_prewarm_url_cap" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_url_cap', 10 ) ); ?>" />
+                            <span class="pcm-sp-unit"><?php echo esc_html__( 'URLs', 'pressable_cache_management' ); ?></span>
+                        </span>
+                    </label>
+                    <label class="pcm-sp-field-label">
+                        <span><?php echo esc_html__( 'Batch size', 'pressable_cache_management' ); ?></span>
+                        <small><?php echo esc_html__( 'How many prewarm requests are sent concurrently.', 'pressable_cache_management' ); ?></small>
+                        <span class="pcm-sp-number-wrap">
+                            <input type="number" min="1" max="20" name="pcm_smart_purge_prewarm_batch_size" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_batch_size', 3 ) ); ?>" />
+                            <span class="pcm-sp-unit"><?php echo esc_html__( 'requests', 'pressable_cache_management' ); ?></span>
+                        </span>
+                    </label>
+                    <label class="pcm-sp-field-label">
+                        <span><?php echo esc_html__( 'Repeat hits', 'pressable_cache_management' ); ?></span>
+                        <small><?php echo esc_html__( 'Extra warm passes for important URLs to stabilize hot paths.', 'pressable_cache_management' ); ?></small>
+                        <span class="pcm-sp-number-wrap">
+                            <input type="number" min="1" max="5" name="pcm_smart_purge_prewarm_repeat_hits" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_repeat_hits', 2 ) ); ?>" />
+                            <span class="pcm-sp-unit"><?php echo esc_html__( 'hits', 'pressable_cache_management' ); ?></span>
+                        </span>
+                    </label>
+                </div>
+                <label class="pcm-sp-field-label">
+                    <span><?php echo esc_html__( 'Important URLs (one per line or comma-separated)', 'pressable_cache_management' ); ?></span>
+                    <small><?php echo esc_html__( 'Paste one URL per line. These URLs get priority warming after cache purges.', 'pressable_cache_management' ); ?></small>
+                    <textarea name="pcm_smart_purge_important_urls" rows="4"><?php echo esc_textarea( (string) get_option( 'pcm_smart_purge_important_urls', '' ) ); ?></textarea>
+                </label>
+            </div>
             <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save Smart Purge Settings', 'pressable_cache_management' ); ?></button>
         </form>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-            <div>
-                <h4 style="margin:8px 0;"><?php echo esc_html__( 'Queue Summary', 'pressable_cache_management' ); ?></h4>
+        <div class="pcm-sp-insights-grid">
+            <div class="pcm-sp-insight-card">
+                <h4><?php echo esc_html__( 'Queue Summary', 'pressable_cache_management' ); ?></h4>
                 <?php
                 $pcm_sp_storage = class_exists( 'PCM_Smart_Purge_Storage' ) ? new PCM_Smart_Purge_Storage() : null;
                 $pcm_sp_jobs = $pcm_sp_storage ? $pcm_sp_storage->get_jobs() : array();
@@ -1930,8 +1970,8 @@ https://example.com/OLD/"></textarea>
                     <li><strong><?php echo esc_html__( 'Average warm latency (ms)', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( $prewarm_avg_latency ); ?></li>
                 </ul>
             </div>
-            <div>
-                <h4 style="margin:8px 0;"><?php echo esc_html__( 'Recent Impact Outcomes', 'pressable_cache_management' ); ?></h4>
+            <div class="pcm-sp-insight-card">
+                <h4><?php echo esc_html__( 'Recent Impact Outcomes', 'pressable_cache_management' ); ?></h4>
                 <div style="max-height:200px;overflow:auto;font-size:12px;">
                     <?php if ( empty( $pcm_sp_outcomes ) ) : ?>
                         <em><?php echo esc_html__( 'No outcomes captured yet.', 'pressable_cache_management' ); ?></em>
@@ -1948,7 +1988,9 @@ https://example.com/OLD/"></textarea>
                     <?php endif; ?>
                 </div>
 
-                <h4 style="margin:12px 0 8px;"><?php echo esc_html__( 'Recent Prewarm Logs', 'pressable_cache_management' ); ?></h4>
+            </div>
+            <div class="pcm-sp-insight-card pcm-sp-insight-card-full">
+                <h4><?php echo esc_html__( 'Recent Prewarm Logs', 'pressable_cache_management' ); ?></h4>
                 <div style="max-height:200px;overflow:auto;font-size:12px;">
                     <?php
                     $prewarm_logs = array();
@@ -2681,6 +2723,26 @@ https://example.com/OLD/"></textarea>
     .pcm-diagnosis-card dd{margin:4px 0 0;color:#111827;word-break:break-word}
     .pcm-diagnosis-section{border-top:1px solid #e5e7eb;padding-top:8px}
     .pcm-diagnosis-section strong{display:block;margin-bottom:4px}
+    .pcm-sp-settings-form{margin-bottom:16px;display:flex;flex-direction:column;gap:14px}
+    .pcm-sp-settings-section{border-top:1px solid #e5e7eb;padding-top:12px;display:flex;flex-direction:column;gap:10px}
+    .pcm-sp-settings-section:first-of-type{border-top:none;padding-top:0}
+    .pcm-sp-settings-section h4{margin:0;font-size:13px;color:#111827}
+    .pcm-sp-checkbox-row{display:flex;align-items:flex-start;gap:10px;color:#111827}
+    .pcm-sp-checkbox-row input{margin-top:2px}
+    .pcm-sp-checkbox-row span{display:flex;flex-direction:column;gap:3px}
+    .pcm-sp-checkbox-row small,.pcm-sp-field-label small{color:#6b7280;font-size:12px;line-height:1.4}
+    .pcm-sp-two-col-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .pcm-sp-field-label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#111827}
+    .pcm-sp-number-wrap{display:flex;align-items:center;gap:8px;max-width:320px}
+    .pcm-sp-number-wrap input[type='number']{width:120px;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;background:#fff;color:#111827}
+    .pcm-sp-number-wrap input[type='number']::-webkit-outer-spin-button,
+    .pcm-sp-number-wrap input[type='number']::-webkit-inner-spin-button{opacity:1;height:22px}
+    .pcm-sp-unit{font-size:12px;color:#6b7280;font-weight:600}
+    .pcm-sp-field-label textarea{width:100%;max-width:620px;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;line-height:1.4}
+    .pcm-sp-insights-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .pcm-sp-insight-card{border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#f8fafc}
+    .pcm-sp-insight-card h4{margin:0 0 8px;font-size:13px;color:#111827}
+    .pcm-sp-insight-card-full{grid-column:1 / -1}
     .pcm-timing-grid{display:grid;gap:6px}
     .pcm-timing-row{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:8px;font-size:12px;color:#374151}
     .pcm-timing-track{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}
@@ -2690,7 +2752,7 @@ https://example.com/OLD/"></textarea>
     @keyframes pcm-pulse{0%{opacity:.35}50%{opacity:1}100%{opacity:.35}}
     .pcm-wrap .nav-tab:focus-visible,.pcm-wrap button:focus-visible,.pcm-wrap a:focus-visible,.pcm-wrap input:focus-visible,.pcm-wrap select:focus-visible,.pcm-wrap textarea:focus-visible{outline:2px solid #03fcc2;outline-offset:2px}
     @media (max-width:1024px){.pcm-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-    @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-card div[style*='grid-template-columns:1fr 1fr']{display:block !important}.pcm-advisor-grid{grid-template-columns:1fr !important}.pcm-diagnosis-grid{grid-template-columns:1fr}}
+    @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-card div[style*='grid-template-columns:1fr 1fr']{display:block !important}.pcm-advisor-grid{grid-template-columns:1fr !important}.pcm-diagnosis-grid{grid-template-columns:1fr}.pcm-sp-two-col-grid,.pcm-sp-insights-grid{grid-template-columns:1fr}.pcm-sp-number-wrap{max-width:100%}}
 
     code { background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:11.5px;color:#dd3a03; }
     </style>
