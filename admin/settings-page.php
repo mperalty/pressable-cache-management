@@ -543,15 +543,50 @@ function pressable_cache_management_display_settings_page() {
                 playbookWrap.innerHTML = '';
                 return;
             }
-            var html = '<ul style="margin:0;padding-left:18px;">';
-            findings.slice(0, 25).forEach(function(row){
-                var sev = row.severity || 'warning';
+
+            var grouped = {};
+            findings.forEach(function(row){
                 var rule = row.rule_id || 'unknown_rule';
-                var url = row.url || '';
-                var playbook = row.playbook_lookup || {};
-                html += '<li><strong>[' + escapeHtml(sev) + ']</strong> ' + escapeHtml(rule) + '<br><span style="font-size:12px;color:#6b7280;">' + escapeHtml(url) + '</span>';
-                if (playbook.available) {
-                    html += '<br><button type="button" class="button button-small" data-action="open-playbook" data-rule-id="' + escapeHtml(rule) + '">Open playbook</button>';
+                var sev = row.severity || 'warning';
+                var key = rule + '|' + sev;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        rule: rule,
+                        severity: sev,
+                        urls: [],
+                        playbook: row.playbook_lookup || {}
+                    };
+                }
+                if (row.url) {
+                    grouped[key].urls.push(row.url);
+                }
+                if (!grouped[key].playbook.available && row.playbook_lookup && row.playbook_lookup.available) {
+                    grouped[key].playbook = row.playbook_lookup;
+                }
+            });
+
+            var html = '<ul style="margin:0;padding-left:18px;">';
+            Object.keys(grouped).slice(0, 25).forEach(function(key){
+                var group = grouped[key];
+                var uniqueUrls = [];
+                var seen = {};
+                group.urls.forEach(function(url){
+                    if (!seen[url]) {
+                        seen[url] = true;
+                        uniqueUrls.push(url);
+                    }
+                });
+
+                html += '<li><strong>[' + escapeHtml(group.severity) + ']</strong> ' + escapeHtml(group.rule);
+                if (uniqueUrls.length) {
+                    html += '<ul style="margin:6px 0 8px;padding-left:18px;">';
+                    uniqueUrls.forEach(function(url){
+                        html += '<li><span style="font-size:12px;color:#6b7280;">' + escapeHtml(url) + '</span></li>';
+                    });
+                    html += '</ul>';
+                }
+                if (group.playbook.available) {
+                    html += '<button type="button" class="button button-small" data-action="open-playbook" data-rule-id="' + escapeHtml(group.rule) + '">Open playbook</button>';
                 }
                 html += '</li>';
             });
@@ -689,6 +724,7 @@ function pressable_cache_management_display_settings_page() {
     <div class="pcm-card" id="pcm-feature-object-cache-intelligence" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
+        <p style="margin:0 0 10px;color:#6b7280;font-size:12px;"><?php echo esc_html__( 'Data source: we first read the active object-cache drop-in stats (global $wp_object_cache), then fall back to PHP Memcached extension stats when available. Evictions can show n/a when the provider does not expose that metric; memory pressure can show 0% when memory limit bytes are unavailable.', 'pressable_cache_management' ); ?></p>
         <p>
             <button type="button" class="button" id="pcm-oci-refresh-btn"><?php echo esc_html__( 'Refresh diagnostics', 'pressable_cache_management' ); ?></button>
             <span id="pcm-oci-summary" style="margin-left:10px;color:#374151;"></span>
@@ -731,12 +767,22 @@ function pressable_cache_management_display_settings_page() {
             }
 
             summaryEl.textContent = 'Health: ' + (snapshot.health || 'unknown') + ' | Provider: ' + (snapshot.provider || 'n/a');
+            var evictionsText = (snapshot.evictions == null ? 'n/a' : snapshot.evictions);
+            var memoryText = (snapshot.memory_pressure == null ? 'n/a' : snapshot.memory_pressure + '%');
+            var memoryNote = '';
+            if (snapshot.memory_pressure === 0 && (!snapshot.bytes_limit || Number(snapshot.bytes_limit) <= 0)) {
+                memoryNote = ' <span style="color:#6b7280;">(provider did not report memory limit bytes)</span>';
+            }
+            var evictionNote = snapshot.evictions == null
+                ? ' <span style="color:#6b7280;">(provider did not report eviction counters)</span>'
+                : '';
+
             latestEl.innerHTML = [
                 '<ul style="margin:0;padding-left:18px;">',
                 '<li><strong>Status</strong>: ' + (snapshot.status || 'unknown') + '</li>',
                 '<li><strong>Hit Ratio</strong>: ' + (snapshot.hit_ratio == null ? 'n/a' : snapshot.hit_ratio + '%') + '</li>',
-                '<li><strong>Evictions</strong>: ' + (snapshot.evictions == null ? 'n/a' : snapshot.evictions) + '</li>',
-                '<li><strong>Memory Pressure</strong>: ' + (snapshot.memory_pressure == null ? 'n/a' : snapshot.memory_pressure + '%') + '</li>',
+                '<li><strong>Evictions</strong>: ' + evictionsText + evictionNote + '</li>',
+                '<li><strong>Memory Pressure</strong>: ' + memoryText + memoryNote + '</li>',
                 '<li><strong>Captured</strong>: ' + snapshot.taken_at + '</li>',
                 '</ul>'
             ].join('');
@@ -832,13 +878,20 @@ function pressable_cache_management_display_settings_page() {
             if (!snapshot || !snapshot.taken_at) {
                 latestEl.innerHTML = '<em>No OPcache snapshot data yet.</em>';
                 summaryEl.textContent = 'No OPcache diagnostics available.';
-                return;
+                return false;
+            }
+
+            if (!snapshot.enabled) {
+                summaryEl.textContent = 'Health: ' + (snapshot.health || 'unknown') + ' | Enabled: no';
+                latestEl.innerHTML = '<em>OPcache is disabled on this runtime. Snapshot details and trend history are hidden until OPcache is enabled.</em>';
+                trendEl.innerHTML = '<em>OPcache is disabled, so trend history is unavailable.</em>';
+                return false;
             }
 
             var mem = snapshot.memory || {};
             var stats = snapshot.statistics || {};
 
-            summaryEl.textContent = 'Health: ' + (snapshot.health || 'unknown') + ' | Enabled: ' + (snapshot.enabled ? 'yes' : 'no');
+            summaryEl.textContent = 'Health: ' + (snapshot.health || 'unknown') + ' | Enabled: yes';
             latestEl.innerHTML = [
                 '<ul style="margin:0;padding-left:18px;">',
                 '<li><strong>Health</strong>: ' + (snapshot.health || 'unknown') + '</li>',
@@ -848,6 +901,7 @@ function pressable_cache_management_display_settings_page() {
                 '<li><strong>Captured</strong>: ' + snapshot.taken_at + '</li>',
                 '</ul>'
             ].join('');
+            return true;
         }
 
         function renderTrends(points) {
@@ -873,7 +927,7 @@ function pressable_cache_management_display_settings_page() {
         function loadSnapshot(refresh) {
             return post({ action: 'pcm_opcache_snapshot', nonce: nonce, refresh: refresh ? '1' : '0' })
                 .then(function(payload){
-                    renderLatest(payload && payload.success ? payload.data.snapshot : null);
+                    return renderLatest(payload && payload.success ? payload.data.snapshot : null);
                 });
         }
 
@@ -887,14 +941,27 @@ function pressable_cache_management_display_settings_page() {
         refreshBtn.addEventListener('click', function(){
             refreshBtn.disabled = true;
             summaryEl.textContent = 'Refreshing OPcache…';
-            Promise.all([loadSnapshot(true), loadTrends()])
+            loadSnapshot(true)
+                .then(function(enabled){
+                    if (enabled) {
+                        return loadTrends();
+                    }
+                    return null;
+                })
                 .catch(function(){ summaryEl.textContent = 'Unable to refresh OPcache diagnostics.'; })
                 .finally(function(){ refreshBtn.disabled = false; });
         });
 
-        Promise.all([loadSnapshot(false), loadTrends()]).catch(function(){
-            summaryEl.textContent = 'Unable to load OPcache diagnostics.';
-        });
+        loadSnapshot(false)
+            .then(function(enabled){
+                if (enabled) {
+                    return loadTrends();
+                }
+                return null;
+            })
+            .catch(function(){
+                summaryEl.textContent = 'Unable to load OPcache diagnostics.';
+            });
     })();
     </script>
     <?php endif; ?>
@@ -903,6 +970,13 @@ function pressable_cache_management_display_settings_page() {
     <div class="pcm-card" id="pcm-feature-redirect-assistant" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">↪ <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Discover candidates, edit rules, run dry-run simulation, then export or import redirect payloads.', 'pressable_cache_management' ); ?></p>
+        <ul style="margin:0 0 12px 18px;color:#6b7280;font-size:12px;">
+            <li><?php echo esc_html__( 'Discover Candidates: paste legacy and canonical URLs, then auto-generate starter redirect rules.', 'pressable_cache_management' ); ?></li>
+            <li><?php echo esc_html__( 'Load Saved Rules: pull your currently stored redirect rules into the JSON editor.', 'pressable_cache_management' ); ?></li>
+            <li><?php echo esc_html__( 'Save Rules: validates and stores JSON rules (wildcard/regex requires confirmation checkbox).', 'pressable_cache_management' ); ?></li>
+            <li><?php echo esc_html__( 'Dry-run Simulation: test URLs against the current rule set without changing production behavior.', 'pressable_cache_management' ); ?></li>
+            <li><?php echo esc_html__( 'Build Export / Import: generate deployable payloads or import JSON metadata back into this site.', 'pressable_cache_management' ); ?></li>
+        </ul>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
@@ -1053,6 +1127,7 @@ https://example.com/OLD/"></textarea>
     <div class="pcm-card" id="pcm-feature-smart-purge-strategy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧹 <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Tune active mode, cooldown, deferred execution, and inspect queued job outcomes.', 'pressable_cache_management' ); ?></p>
+        <p style="margin:0 0 10px;color:#6b7280;font-size:12px;"><?php echo esc_html__( 'Smart Purge Strategy batches and sequences cache purge events to reduce cache stampedes and unnecessary invalidations. In shadow mode, jobs are recorded but not executed so you can review impact safely. In active mode, jobs execute with cooldown/defer controls to smooth purge load.', 'pressable_cache_management' ); ?></p>
         <form method="post" style="margin-bottom:12px;">
             <?php wp_nonce_field( 'pcm_smart_purge_settings_action', 'pcm_smart_purge_settings_nonce' ); ?>
             <input type="hidden" name="pcm_smart_purge_settings_submit" value="1" />
