@@ -1,18 +1,29 @@
 /*PCM_PLAYBOOK_META
-{"playbook_id":"pb_query_utm","version":"1.0.0","severity":"warning","title":"UTM Parameter Normalization","rule_ids":["query_noise_utm","query_noise_utm_campaign"],"audiences":["site_owner","developer","host_support"]}
+{"playbook_id":"pb_query_utm","version":"1.1.0","severity":"warning","title":"UTM Parameter Normalization","rule_ids":["query_noise_utm","query_noise_utm_campaign"],"audiences":["site_owner","developer","host_support"]}
 PCM_PLAYBOOK_META*/
 # UTM Parameter Normalization
 
 ## Problem summary
-UTM params create non-canonical variants.
+UTM parameters generate many URL variants with identical content, reducing cache efficiency.
 
-## Quick Fix
-- Redirect UTM variants to canonical path.
+## Step-by-step remediation
+1. **Collect sample URLs**
+   - Gather common URLs with `utm_source`, `utm_medium`, `utm_campaign`, etc.
 
-## Technical
-- Implement normalization in custom redirects ruleset.
-- Keep marketing attribution independent from page response variance.
+2. **Define canonical behavior**
+   - Decide the clean destination URL for each affected route.
 
-## Verify
-- Test sample UTM URLs and confirm canonical destination.
+3. **Implement normalization redirects**
+   - Strip UTM parameters for caching/canonicalization.
+   - Keep campaign attribution in analytics tools, not response variance.
 
+4. **Validate for marketing teams**
+   - Confirm analytics still records campaign/source data as expected.
+
+5. **Re-test caching**
+   - Check fewer variant cache entries and better hit-rate stability.
+
+## Verify success
+- UTM variants resolve to canonical URLs.
+- Marketing attribution remains intact.
+- Cache fragmentation warning is resolved.
