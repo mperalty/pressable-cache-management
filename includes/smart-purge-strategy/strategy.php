@@ -54,6 +54,73 @@ function pcm_smart_purge_defer_window() {
 }
 
 /**
+ * Whether URL prewarm is enabled.
+ *
+ * @return bool
+ */
+function pcm_smart_purge_is_prewarm_enabled() {
+    return (bool) get_option( 'pcm_smart_purge_enable_prewarm', false );
+}
+
+/**
+ * Max prewarm URLs per job.
+ *
+ * @return int
+ */
+function pcm_smart_purge_prewarm_url_cap() {
+    $cap = (int) get_option( 'pcm_smart_purge_prewarm_url_cap', 10 );
+
+    return max( 1, min( 100, $cap ) );
+}
+
+/**
+ * Batch size for prewarm requests.
+ *
+ * @return int
+ */
+function pcm_smart_purge_prewarm_batch_size() {
+    $size = (int) get_option( 'pcm_smart_purge_prewarm_batch_size', 3 );
+
+    return max( 1, min( 20, $size ) );
+}
+
+/**
+ * Repeat hits for priority URLs.
+ *
+ * @return int
+ */
+function pcm_smart_purge_prewarm_repeat_hits() {
+    $hits = (int) get_option( 'pcm_smart_purge_prewarm_repeat_hits', 2 );
+
+    return max( 1, min( 5, $hits ) );
+}
+
+/**
+ * Important URLs configured by operators.
+ *
+ * @return array
+ */
+function pcm_smart_purge_important_urls() {
+    $raw = (string) get_option( 'pcm_smart_purge_important_urls', '' );
+    if ( '' === trim( $raw ) ) {
+        return array();
+    }
+
+    $pieces = preg_split( '/[\r\n,]+/', $raw );
+    if ( ! is_array( $pieces ) ) {
+        return array();
+    }
+
+    return array_values(
+        array_filter(
+            array_unique(
+                array_map( 'esc_url_raw', array_map( 'trim', $pieces ) )
+            )
+        )
+    );
+}
+
+/**
  * Event + queue storage abstraction.
  */
 class PCM_Smart_Purge_Storage {
@@ -148,11 +215,12 @@ class PCM_Smart_Purge_Recommendation_Engine {
         );
 
         if ( 'post' === $object_type && $object_id > 0 ) {
-            $url = get_permalink( $object_id );
+            $related_urls = $this->collect_related_urls_for_post( $object_id, $event );
 
             $recommendation = array(
                 'scope'            => 'related_urls',
-                'targets'          => array_filter( array( $url, home_url( '/' ) ) ),
+                'targets'          => $related_urls,
+                'prewarm_targets'  => $related_urls,
                 'reason'           => 'Post update detected. Purge post URL and homepage before escalating to global.',
                 'estimated_impact' => 'medium',
             );
@@ -166,12 +234,69 @@ class PCM_Smart_Purge_Recommendation_Engine {
             $recommendation = array(
                 'scope'            => 'single_url',
                 'targets'          => array_filter( array( $target ) ),
+                'prewarm_targets'  => array_filter( array( $target, home_url( '/' ) ) ),
                 'reason'           => 'Comment mutation detected. Purge the affected post URL only.',
                 'estimated_impact' => 'low',
             );
         }
 
+        if ( empty( $recommendation['prewarm_targets'] ) ) {
+            $recommendation['prewarm_targets'] = isset( $recommendation['targets'] ) ? (array) $recommendation['targets'] : array();
+        }
+
         return $recommendation;
+    }
+
+    /**
+     * @param int   $post_id Post ID.
+     * @param array $event Event payload.
+     *
+     * @return array
+     */
+    protected function collect_related_urls_for_post( $post_id, $event ) {
+        $urls = array();
+
+        $canonical = get_permalink( $post_id );
+        if ( $canonical ) {
+            $urls[] = $canonical;
+        }
+
+        $urls[] = home_url( '/' );
+
+        $post = get_post( $post_id );
+        if ( $post && ! is_wp_error( $post ) ) {
+            $archive = get_post_type_archive_link( $post->post_type );
+            if ( $archive ) {
+                $urls[] = $archive;
+            }
+
+            $taxonomies = get_object_taxonomies( $post->post_type, 'names' );
+            if ( is_array( $taxonomies ) ) {
+                foreach ( $taxonomies as $taxonomy ) {
+                    if ( ! in_array( $taxonomy, array( 'category', 'post_tag' ), true ) ) {
+                        continue;
+                    }
+
+                    $terms = wp_get_post_terms( $post_id, $taxonomy, array( 'number' => 3 ) );
+                    if ( is_wp_error( $terms ) || empty( $terms ) ) {
+                        continue;
+                    }
+
+                    foreach ( $terms as $term ) {
+                        $term_url = get_term_link( $term );
+                        if ( ! is_wp_error( $term_url ) ) {
+                            $urls[] = $term_url;
+                        }
+                    }
+                }
+            }
+        }
+
+        $urls = array_merge( $urls, pcm_smart_purge_important_urls() );
+
+        $urls = apply_filters( 'pcm_smart_purge_collect_related_urls', $urls, $post_id, $event );
+
+        return array_values( array_filter( array_unique( array_map( 'esc_url_raw', (array) $urls ) ) ) );
     }
 }
 
@@ -190,7 +315,10 @@ class PCM_Smart_Purge_Job_Queue {
         $jobs      = $this->storage->get_jobs();
         $targets   = isset( $recommendation['targets'] ) ? (array) $recommendation['targets'] : array();
         $normalized_targets = array_values( array_unique( array_map( 'esc_url_raw', $targets ) ) );
+        $prewarm_targets = isset( $recommendation['prewarm_targets'] ) ? (array) $recommendation['prewarm_targets'] : $targets;
+        $prewarm_targets = array_values( array_unique( array_map( 'esc_url_raw', $prewarm_targets ) ) );
         sort( $normalized_targets );
+        sort( $prewarm_targets );
 
         $dedupe_key = hash( 'sha256', wp_json_encode( array(
             'scope'   => isset( $recommendation['scope'] ) ? $recommendation['scope'] : 'global',
@@ -222,6 +350,22 @@ class PCM_Smart_Purge_Job_Queue {
             'job_id'           => 'job_' . wp_generate_uuid4(),
             'scope'            => isset( $recommendation['scope'] ) ? sanitize_key( $recommendation['scope'] ) : 'global',
             'targets_json'     => $normalized_targets,
+            'prewarm_targets'  => $prewarm_targets,
+            'prewarm_attempts_per_url' => array(),
+            'prewarm_status'   => array(
+                'state'                => 'pending',
+                'warmed_url_count'     => 0,
+                'failure_count'        => 0,
+                'average_latency_ms'   => 0,
+                'logs'                 => array(),
+                'last_run_at'          => null,
+            ),
+            'throttle_profile' => array(
+                'max_urls_per_run' => pcm_smart_purge_prewarm_url_cap(),
+                'batch_size'       => pcm_smart_purge_prewarm_batch_size(),
+                'delay_ms'         => 150,
+                'jitter_ms'        => 75,
+            ),
             'reason'           => isset( $recommendation['reason'] ) ? sanitize_text_field( $recommendation['reason'] ) : '',
             'estimated_impact' => isset( $recommendation['estimated_impact'] ) ? sanitize_key( $recommendation['estimated_impact'] ) : 'unknown',
             'status'           => 'queued',
@@ -268,6 +412,9 @@ class PCM_Smart_Purge_Queue_Runner {
 
             if ( pcm_smart_purge_is_active_mode() ) {
                 $this->execute_job( $job );
+                $prewarm_results = $this->execute_prewarm_stage( $job );
+                $jobs[ $index ]['prewarm_status'] = isset( $prewarm_results['summary'] ) ? $prewarm_results['summary'] : array();
+                $jobs[ $index ]['prewarm_attempts_per_url'] = isset( $prewarm_results['attempts_per_url'] ) ? $prewarm_results['attempts_per_url'] : array();
                 $jobs[ $index ]['status'] = 'executed';
             } else {
                 $jobs[ $index ]['status'] = 'shadowed';
@@ -287,12 +434,123 @@ class PCM_Smart_Purge_Queue_Runner {
                     'notes'             => pcm_smart_purge_is_active_mode()
                         ? 'Active mode executed scoped purge hooks.'
                         : 'Shadow mode only; job recorded without changing current purge behavior.',
+                    'prewarm'           => isset( $jobs[ $index ]['prewarm_status'] ) ? $jobs[ $index ]['prewarm_status'] : array(),
                     'timestamp'         => current_time( 'mysql', true ),
                 )
             );
         }
 
         $this->storage->save_jobs( $jobs );
+    }
+
+    /**
+     * @param array $job Job payload.
+     *
+     * @return array
+     */
+    protected function execute_prewarm_stage( $job ) {
+        $default_summary = array(
+            'state'              => 'disabled',
+            'warmed_url_count'   => 0,
+            'failure_count'      => 0,
+            'average_latency_ms' => 0,
+            'logs'               => array(),
+            'last_run_at'        => current_time( 'mysql', true ),
+        );
+
+        if ( ! pcm_smart_purge_is_prewarm_enabled() ) {
+            return array(
+                'summary'          => $default_summary,
+                'attempts_per_url' => array(),
+            );
+        }
+
+        $targets = isset( $job['prewarm_targets'] ) && is_array( $job['prewarm_targets'] ) ? $job['prewarm_targets'] : array();
+        $targets = array_values( array_filter( array_unique( array_map( 'esc_url_raw', $targets ) ) ) );
+
+        $throttle = isset( $job['throttle_profile'] ) && is_array( $job['throttle_profile'] ) ? $job['throttle_profile'] : array();
+        $max_urls = isset( $throttle['max_urls_per_run'] ) ? absint( $throttle['max_urls_per_run'] ) : pcm_smart_purge_prewarm_url_cap();
+        $batch_size = isset( $throttle['batch_size'] ) ? absint( $throttle['batch_size'] ) : pcm_smart_purge_prewarm_batch_size();
+        $delay_ms = isset( $throttle['delay_ms'] ) ? absint( $throttle['delay_ms'] ) : 150;
+        $jitter_ms = isset( $throttle['jitter_ms'] ) ? absint( $throttle['jitter_ms'] ) : 75;
+        $repeat_hits = pcm_smart_purge_prewarm_repeat_hits();
+
+        $targets = array_slice( $targets, 0, max( 1, $max_urls ) );
+        $priority_targets = array_slice( $targets, 0, min( 2, count( $targets ) ) );
+        $logs = array();
+        $attempts = array();
+        $successes = 0;
+        $failures = 0;
+        $latency_total = 0;
+        $latency_samples = 0;
+
+        $chunks = array_chunk( $targets, max( 1, $batch_size ) );
+
+        foreach ( $chunks as $chunk ) {
+            foreach ( $chunk as $url ) {
+                $hits = in_array( $url, $priority_targets, true ) ? $repeat_hits : 1;
+                for ( $i = 1; $i <= $hits; $i++ ) {
+                    $request_args = apply_filters(
+                        'pcm_smart_purge_prewarm_request_args',
+                        array(
+                            'timeout'             => 5,
+                            'redirection'         => 2,
+                            'sslverify'           => false,
+                            'user-agent'          => 'PCM-Smart-Purge-Prewarm/1.0',
+                            'headers'             => array( 'Cache-Control' => 'no-cache' ),
+                            'blocking'            => true,
+                        ),
+                        $url,
+                        $job
+                    );
+
+                    $start = microtime( true );
+                    $response = wp_remote_get( $url, $request_args );
+                    $latency = (int) round( ( microtime( true ) - $start ) * 1000 );
+
+                    $status_code = is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response );
+                    $success = ! is_wp_error( $response ) && $status_code >= 200 && $status_code < 400;
+
+                    if ( ! isset( $attempts[ $url ] ) ) {
+                        $attempts[ $url ] = 0;
+                    }
+                    $attempts[ $url ]++;
+
+                    if ( $success ) {
+                        $successes++;
+                    } else {
+                        $failures++;
+                    }
+
+                    $latency_total += $latency;
+                    $latency_samples++;
+
+                    $logs[] = array(
+                        'url'         => $url,
+                        'attempt'     => $i,
+                        'success'     => $success,
+                        'status_code' => $status_code,
+                        'latency_ms'  => $latency,
+                        'error'       => is_wp_error( $response ) ? $response->get_error_message() : '',
+                        'timestamp'   => current_time( 'mysql', true ),
+                    );
+                }
+            }
+
+            usleep( ( $delay_ms + wp_rand( 0, $jitter_ms ) ) * 1000 );
+        }
+
+        return array(
+            'summary' => array(
+                'state'              => 'completed',
+                'warmed_url_count'   => $successes,
+                'failure_count'      => $failures,
+                'average_latency_ms' => $latency_samples > 0 ? round( $latency_total / $latency_samples, 2 ) : 0,
+                'logs'               => array_slice( $logs, -20 ),
+                'last_run_at'        => current_time( 'mysql', true ),
+            ),
+            'attempts_per_url' => $attempts,
+        );
     }
 
     /**
@@ -507,12 +765,22 @@ function pcm_smart_purge_handle_settings_post() {
     check_admin_referer( 'pcm_smart_purge_settings_action', 'pcm_smart_purge_settings_nonce' );
 
     $active   = ! empty( $_POST['pcm_smart_purge_active_mode'] );
+    $enable_prewarm = ! empty( $_POST['pcm_smart_purge_enable_prewarm'] );
     $cooldown = isset( $_POST['pcm_smart_purge_cooldown_seconds'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_cooldown_seconds'] ) ) : 120;
     $defer    = isset( $_POST['pcm_smart_purge_defer_seconds'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_defer_seconds'] ) ) : 60;
+    $prewarm_cap = isset( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ) : 10;
+    $prewarm_batch_size = isset( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ) : 3;
+    $prewarm_repeat_hits = isset( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ) : 2;
+    $important_urls = isset( $_POST['pcm_smart_purge_important_urls'] ) ? sanitize_textarea_field( wp_unslash( $_POST['pcm_smart_purge_important_urls'] ) ) : '';
 
     update_option( 'pcm_smart_purge_active_mode', $active ? 1 : 0, false );
+    update_option( 'pcm_smart_purge_enable_prewarm', $enable_prewarm ? 1 : 0, false );
     update_option( 'pcm_smart_purge_cooldown_seconds', max( 15, min( 3600, $cooldown ) ), false );
     update_option( 'pcm_smart_purge_defer_seconds', max( 0, min( 3600, $defer ) ), false );
+    update_option( 'pcm_smart_purge_prewarm_url_cap', max( 1, min( 100, $prewarm_cap ) ), false );
+    update_option( 'pcm_smart_purge_prewarm_batch_size', max( 1, min( 20, $prewarm_batch_size ) ), false );
+    update_option( 'pcm_smart_purge_prewarm_repeat_hits', max( 1, min( 5, $prewarm_repeat_hits ) ), false );
+    update_option( 'pcm_smart_purge_important_urls', $important_urls, false );
 }
 add_action( 'admin_init', 'pcm_smart_purge_handle_settings_post' );
 
