@@ -339,8 +339,6 @@ class PCM_Playbook_Renderer {
             $escaped
         );
 
-        $escaped = nl2br( $escaped );
-
         return wp_kses(
             $escaped,
             array(
@@ -351,7 +349,6 @@ class PCM_Playbook_Renderer {
                 'code'   => array(),
                 'ul'     => array(),
                 'li'     => array(),
-                'br'     => array(),
             )
         );
     }
