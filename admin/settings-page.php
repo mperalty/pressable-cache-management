@@ -1256,12 +1256,32 @@ https://example.com/OLD/"></textarea>
                 <?php echo esc_html__( 'Enable active purge execution mode', 'pressable_cache_management' ); ?>
             </label>
             <label style="display:block;margin-bottom:8px;">
+                <input type="checkbox" name="pcm_smart_purge_enable_prewarm" value="1" <?php checked( (bool) get_option( 'pcm_smart_purge_enable_prewarm', false ), true ); ?> />
+                <?php echo esc_html__( 'Enable post-purge URL prewarm', 'pressable_cache_management' ); ?>
+            </label>
+            <label style="display:block;margin-bottom:8px;">
                 <?php echo esc_html__( 'Cooldown seconds', 'pressable_cache_management' ); ?>
                 <input type="number" min="15" max="3600" name="pcm_smart_purge_cooldown_seconds" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_cooldown_seconds', 120 ) ); ?>" />
             </label>
             <label style="display:block;margin-bottom:8px;">
                 <?php echo esc_html__( 'Deferred execution seconds', 'pressable_cache_management' ); ?>
                 <input type="number" min="0" max="3600" name="pcm_smart_purge_defer_seconds" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_defer_seconds', 60 ) ); ?>" />
+            </label>
+            <label style="display:block;margin-bottom:8px;">
+                <?php echo esc_html__( 'Prewarm URLs per job cap', 'pressable_cache_management' ); ?>
+                <input type="number" min="1" max="100" name="pcm_smart_purge_prewarm_url_cap" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_url_cap', 10 ) ); ?>" />
+            </label>
+            <label style="display:block;margin-bottom:8px;">
+                <?php echo esc_html__( 'Prewarm batch size (concurrency)', 'pressable_cache_management' ); ?>
+                <input type="number" min="1" max="20" name="pcm_smart_purge_prewarm_batch_size" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_batch_size', 3 ) ); ?>" />
+            </label>
+            <label style="display:block;margin-bottom:8px;">
+                <?php echo esc_html__( 'Repeat hits for priority URLs', 'pressable_cache_management' ); ?>
+                <input type="number" min="1" max="5" name="pcm_smart_purge_prewarm_repeat_hits" value="<?php echo esc_attr( (int) get_option( 'pcm_smart_purge_prewarm_repeat_hits', 2 ) ); ?>" />
+            </label>
+            <label style="display:block;margin-bottom:8px;">
+                <?php echo esc_html__( 'Important URLs (one per line or comma-separated)', 'pressable_cache_management' ); ?>
+                <textarea name="pcm_smart_purge_important_urls" rows="4" style="width:100%;max-width:520px;"><?php echo esc_textarea( (string) get_option( 'pcm_smart_purge_important_urls', '' ) ); ?></textarea>
             </label>
             <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save Smart Purge Settings', 'pressable_cache_management' ); ?></button>
         </form>
@@ -1275,17 +1295,34 @@ https://example.com/OLD/"></textarea>
                 $queued = 0;
                 $executed = 0;
                 $shadowed = 0;
+                $warmed_urls = 0;
+                $prewarm_failures = 0;
+                $prewarm_latency_total = 0;
+                $prewarm_latency_samples = 0;
                 foreach ( (array) $pcm_sp_jobs as $job ) {
                     $status = isset( $job['status'] ) ? $job['status'] : 'queued';
                     if ( 'queued' === $status ) { $queued++; }
                     if ( 'executed' === $status ) { $executed++; }
                     if ( 'shadowed' === $status ) { $shadowed++; }
+
+                    if ( ! empty( $job['prewarm_status'] ) && is_array( $job['prewarm_status'] ) ) {
+                        $warmed_urls += isset( $job['prewarm_status']['warmed_url_count'] ) ? (int) $job['prewarm_status']['warmed_url_count'] : 0;
+                        $prewarm_failures += isset( $job['prewarm_status']['failure_count'] ) ? (int) $job['prewarm_status']['failure_count'] : 0;
+                        if ( isset( $job['prewarm_status']['average_latency_ms'] ) ) {
+                            $prewarm_latency_total += (float) $job['prewarm_status']['average_latency_ms'];
+                            $prewarm_latency_samples++;
+                        }
+                    }
                 }
+                $prewarm_avg_latency = $prewarm_latency_samples > 0 ? round( $prewarm_latency_total / $prewarm_latency_samples, 2 ) : 0;
                 ?>
                 <ul style="margin:0;padding-left:18px;">
                     <li><strong><?php echo esc_html__( 'Queued', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( $queued ); ?></li>
                     <li><strong><?php echo esc_html__( 'Executed', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( $executed ); ?></li>
                     <li><strong><?php echo esc_html__( 'Shadowed', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( $shadowed ); ?></li>
+                    <li><strong><?php echo esc_html__( 'Warmed URLs', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( $warmed_urls ); ?></li>
+                    <li><strong><?php echo esc_html__( 'Prewarm failures', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( $prewarm_failures ); ?></li>
+                    <li><strong><?php echo esc_html__( 'Average warm latency (ms)', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( $prewarm_avg_latency ); ?></li>
                 </ul>
             </div>
             <div>
@@ -1300,6 +1337,38 @@ https://example.com/OLD/"></textarea>
                                     <strong><?php echo esc_html( isset( $row['job_id'] ) ? $row['job_id'] : 'job' ); ?></strong>
                                     — Δhit <?php echo esc_html( isset( $row['observed_impact']['hit_ratio_delta'] ) ? $row['observed_impact']['hit_ratio_delta'] : 'n/a' ); ?>,
                                     Δevict <?php echo esc_html( isset( $row['observed_impact']['evictions_delta'] ) ? $row['observed_impact']['evictions_delta'] : 'n/a' ); ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
+
+                <h4 style="margin:12px 0 8px;"><?php echo esc_html__( 'Recent Prewarm Logs', 'pressable_cache_management' ); ?></h4>
+                <div style="max-height:200px;overflow:auto;font-size:12px;">
+                    <?php
+                    $prewarm_logs = array();
+                    foreach ( array_reverse( (array) $pcm_sp_jobs ) as $job ) {
+                        if ( empty( $job['prewarm_status']['logs'] ) || ! is_array( $job['prewarm_status']['logs'] ) ) {
+                            continue;
+                        }
+
+                        foreach ( $job['prewarm_status']['logs'] as $log ) {
+                            $log['job_id'] = isset( $job['job_id'] ) ? $job['job_id'] : 'job';
+                            $prewarm_logs[] = $log;
+                        }
+                    }
+                    ?>
+                    <?php if ( empty( $prewarm_logs ) ) : ?>
+                        <em><?php echo esc_html__( 'No prewarm logs captured yet.', 'pressable_cache_management' ); ?></em>
+                    <?php else : ?>
+                        <ul style="margin:0;padding-left:18px;">
+                            <?php foreach ( array_slice( $prewarm_logs, 0, 20 ) as $log ) : ?>
+                                <li>
+                                    <strong><?php echo esc_html( isset( $log['job_id'] ) ? $log['job_id'] : 'job' ); ?></strong>
+                                    — <?php echo esc_html( isset( $log['url'] ) ? $log['url'] : '' ); ?>
+                                    (<?php echo esc_html( ! empty( $log['success'] ) ? 'ok' : 'fail' ); ?>,
+                                    <?php echo esc_html( isset( $log['status_code'] ) ? (int) $log['status_code'] : 0 ); ?>,
+                                    <?php echo esc_html( isset( $log['latency_ms'] ) ? (float) $log['latency_ms'] : 0 ); ?>ms)
                                 </li>
                             <?php endforeach; ?>
                         </ul>
