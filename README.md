@@ -102,6 +102,42 @@ Examples of toggles available through WordPress filters:
 - `pcm_enable_guided_playbooks`
 - `pcm_enable_security_privacy`
 
+### Durable Origin Microcache (`pcm_enable_durable_origin_microcache`)
+
+This module is intentionally **opt-in** and **integration-driven**. Enabling it shows the dashboard card, but the counters stay at zero until code paths actually call the microcache API.
+
+How it works today:
+
+- `pcm_microcache_get_or_build( $key, $builder, $ttl, $tags )` is the core primitive.
+- It only caches anonymous-safe requests (logged-in requests and unsafe cookie variants are rejected by default).
+- On fresh entry it records a **hit**.
+- On missing entry it records a **miss** and stores a new artifact.
+- On expired-but-within-SWR-window entry it serves stale content, records **SWR**, and schedules async rebuild.
+- Tag invalidation events are recorded when post/taxonomy/manual purge hooks run.
+
+Why you may see all zeros:
+
+- Module is disabled (`pcm_enable_durable_origin_microcache` false).
+- You only tested while logged in / with personalization cookies.
+- No frontend code is calling `pcm_microcache_get_or_build()` yet for your route.
+- You have not hit the included public demo endpoint enough to produce traffic.
+
+Quick validation checklist:
+
+1. Enable **Durable Origin Microcache** in plugin settings.
+2. Make two anonymous requests to:
+   - `/wp-admin/admin-ajax.php?action=pcm_microcache_public_health`
+3. Expected telemetry after second request:
+   - misses >= 1
+   - hits >= 1
+4. Edit a post or term; confirm an invalidation event appears in the deep-dive card.
+
+Production adoption guidance:
+
+- Wrap expensive but deterministic anonymous payload builders with `pcm_microcache_get_or_build()`.
+- Use stable keys and attach tags that map to content dependencies (`post_{id}`, `post_type_{type}`, `taxonomy_{tax}`).
+- Keep personalized/session variants out unless you intentionally opt in via `pcm_microcache_allow_personalized_request`.
+
 ---
 
 ## Installation
