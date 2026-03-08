@@ -1452,6 +1452,17 @@ function pcm_ajax_cacheability_route_diagnosis() {
         wp_send_json_error( array( 'message' => 'No diagnosis found for URL.' ), 404 );
     }
 
+    $findings_for_url = array_values(
+        array_filter(
+            (array) $repository->list_findings( $run_id ),
+            function( $finding ) use ( $url ) {
+                return isset( $finding['url'] ) && esc_url_raw( $finding['url'] ) === esc_url_raw( $url );
+            }
+        )
+    );
+
+    $diagnosis = pcm_cacheability_enrich_diagnosis_from_findings( $diagnosis, $findings_for_url );
+
     wp_send_json_success(
         array(
             'run_id'     => $run_id,
@@ -1461,3 +1472,135 @@ function pcm_ajax_cacheability_route_diagnosis() {
     );
 }
 add_action( 'wp_ajax_pcm_cacheability_route_diagnosis', 'pcm_ajax_cacheability_route_diagnosis' );
+
+/**
+ * Backfill route diagnosis hints from findings when diagnosis trace is unavailable.
+ *
+ * @param array $diagnosis Route diagnosis payload.
+ * @param array $findings Findings for the same run + URL.
+ *
+ * @return array
+ */
+function pcm_cacheability_enrich_diagnosis_from_findings( $diagnosis, $findings ) {
+    $diagnosis = is_array( $diagnosis ) ? $diagnosis : array();
+    $decoded   = isset( $diagnosis['diagnosis'] ) && is_array( $diagnosis['diagnosis'] ) ? $diagnosis['diagnosis'] : array();
+    $trace     = isset( $decoded['decision_trace'] ) && is_array( $decoded['decision_trace'] ) ? $decoded['decision_trace'] : array();
+
+    $trace = wp_parse_args(
+        $trace,
+        array(
+            'edge_bypass_reasons'     => array(),
+            'batcache_bypass_reasons' => array(),
+            'poisoning_signals'       => array(),
+            'route_risk_labels'       => array(),
+        )
+    );
+
+    foreach ( (array) $findings as $finding ) {
+        $rule_id   = isset( $finding['rule_id'] ) ? sanitize_key( $finding['rule_id'] ) : '';
+        $evidence  = isset( $finding['evidence'] ) && is_array( $finding['evidence'] ) ? $finding['evidence'] : array();
+        $headers   = isset( $evidence['headers'] ) && is_array( $evidence['headers'] ) ? $evidence['headers'] : array();
+
+        if ( 'anonymous_set_cookie' === $rule_id && isset( $headers['set-cookie'] ) ) {
+            $set_cookie_lines = is_array( $headers['set-cookie'] ) ? $headers['set-cookie'] : array( $headers['set-cookie'] );
+
+            if ( ! pcm_cacheability_trace_has_reason( $trace['batcache_bypass_reasons'], 'set_cookie_present' ) ) {
+                $trace['batcache_bypass_reasons'][] = array(
+                    'reason'   => 'set_cookie_present',
+                    'evidence' => array_slice( array_values( array_filter( array_map( 'sanitize_text_field', $set_cookie_lines ) ) ), 0, 5 ),
+                );
+            }
+
+            foreach ( $set_cookie_lines as $line ) {
+                $line  = sanitize_text_field( (string) $line );
+                $parts = explode( '=', $line, 2 );
+                $name  = sanitize_key( strtolower( trim( $parts[0] ) ) );
+
+                if ( '' === $name ) {
+                    continue;
+                }
+
+                if ( ! pcm_cacheability_trace_has_poison_signal( $trace['poisoning_signals'], 'cookie', $name ) ) {
+                    $trace['poisoning_signals'][] = array(
+                        'type'     => 'cookie',
+                        'key'      => $name,
+                        'evidence' => $line,
+                    );
+                }
+            }
+        }
+
+        if ( 'cache_control_not_public' === $rule_id && isset( $headers['cache-control'] ) ) {
+            $value = is_array( $headers['cache-control'] ) ? implode( ', ', $headers['cache-control'] ) : (string) $headers['cache-control'];
+            if ( ! pcm_cacheability_trace_has_reason( $trace['edge_bypass_reasons'], 'cache_control_non_public' ) ) {
+                $trace['edge_bypass_reasons'][] = array(
+                    'reason'   => 'cache_control_non_public',
+                    'evidence' => sanitize_text_field( $value ),
+                );
+            }
+        }
+    }
+
+    if ( ! empty( $trace['batcache_bypass_reasons'] ) && ! pcm_cacheability_trace_has_risk_label( $trace['route_risk_labels'], 'fragile' ) ) {
+        $trace['route_risk_labels'][] = array(
+            'label'    => 'fragile',
+            'evidence' => 'Bypass indicators detected in route findings',
+        );
+    }
+
+    $decoded['decision_trace'] = $trace;
+    $diagnosis['diagnosis']    = $decoded;
+
+    return $diagnosis;
+}
+
+/**
+ * @param array  $reasons Reason list.
+ * @param string $reason  Reason key.
+ *
+ * @return bool
+ */
+function pcm_cacheability_trace_has_reason( $reasons, $reason ) {
+    foreach ( (array) $reasons as $row ) {
+        if ( isset( $row['reason'] ) && sanitize_key( (string) $row['reason'] ) === sanitize_key( $reason ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @param array  $signals Signal list.
+ * @param string $type    Signal type.
+ * @param string $key     Signal key.
+ *
+ * @return bool
+ */
+function pcm_cacheability_trace_has_poison_signal( $signals, $type, $key ) {
+    foreach ( (array) $signals as $signal ) {
+        if ( isset( $signal['type'], $signal['key'] )
+            && sanitize_key( (string) $signal['type'] ) === sanitize_key( $type )
+            && sanitize_key( (string) $signal['key'] ) === sanitize_key( $key ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @param array  $labels Label list.
+ * @param string $label  Label key.
+ *
+ * @return bool
+ */
+function pcm_cacheability_trace_has_risk_label( $labels, $label ) {
+    foreach ( (array) $labels as $item ) {
+        if ( isset( $item['label'] ) && sanitize_key( (string) $item['label'] ) === sanitize_key( $label ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
