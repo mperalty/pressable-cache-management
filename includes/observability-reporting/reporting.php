@@ -37,6 +37,8 @@ class PCM_Metric_Registry {
             'opcache_memory_pressure'   => array( 'unit' => 'percent', 'source' => 'opcache_awareness' ),
             'opcache_restarts'          => array( 'unit' => 'count', 'source' => 'opcache_awareness' ),
             'batcache_hits'             => array( 'unit' => 'count', 'source' => 'runtime_headers' ),
+            'high_memcache_sensitivity_routes_24h' => array( 'unit' => 'count', 'source' => 'object_cache_intelligence' ),
+            'high_memcache_sensitivity_routes_7d'  => array( 'unit' => 'count', 'source' => 'object_cache_intelligence' ),
         );
     }
 
@@ -462,6 +464,9 @@ function pcm_reporting_daily_rollup() {
 
     $rollups->write_rollup( 'batcache_hits', (float) pcm_reporting_latest_batcache_hits() );
 
+    $rollups->write_rollup( 'high_memcache_sensitivity_routes_24h', (float) pcm_reporting_high_memcache_sensitivity_routes( '24h' ) );
+    $rollups->write_rollup( 'high_memcache_sensitivity_routes_7d', (float) pcm_reporting_high_memcache_sensitivity_routes( '7d' ) );
+
     $storage = new PCM_Metric_Rollup_Storage();
     $storage->cleanup( (int) get_option( 'pcm_reporting_retention_days', 90 ) );
 }
@@ -525,6 +530,21 @@ function pcm_reporting_latest_purge_frequency() {
  */
 function pcm_reporting_latest_batcache_hits() {
     return (int) get_option( 'pcm_batcache_hits_24h', 0 );
+}
+
+/**
+ * @param string $range 24h|7d|30d
+ *
+ * @return int
+ */
+function pcm_reporting_high_memcache_sensitivity_routes( $range = '24h' ) {
+    if ( ! function_exists( 'pcm_object_cache_memcache_sensitivity_summary' ) ) {
+        return 0;
+    }
+
+    $summary = pcm_object_cache_memcache_sensitivity_summary( $range );
+
+    return isset( $summary['high_route_count'] ) ? (int) $summary['high_route_count'] : 0;
 }
 
 /**

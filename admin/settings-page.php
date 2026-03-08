@@ -452,6 +452,10 @@ function pressable_cache_management_display_settings_page() {
                 <div id="pcm-advisor-findings" style="font-size:13px;color:#111827;max-height:220px;overflow:auto;"></div>
             </div>
         </div>
+        <div style="margin-top:14px;">
+            <h4 style="margin:8px 0;"><?php echo esc_html__( 'Memcache Sensitivity (Top Routes)', 'pressable_cache_management' ); ?></h4>
+            <div id="pcm-advisor-memcache-sensitive" style="font-size:13px;color:#111827;max-height:200px;overflow:auto;"></div>
+        </div>
         <div id="pcm-advisor-playbook" style="margin-top:14px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;display:none;"></div>
     </div>
     <script>
@@ -462,6 +466,7 @@ function pressable_cache_management_display_settings_page() {
         var scoreWrap = document.getElementById('pcm-advisor-template-scores');
         var findingsWrap = document.getElementById('pcm-advisor-findings');
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
+        var sensitivityWrap = document.getElementById('pcm-advisor-memcache-sensitive');
 
         function post(bodyObj) {
             var params = new URLSearchParams();
@@ -601,15 +606,48 @@ function pressable_cache_management_display_settings_page() {
             findingsWrap.innerHTML = html;
         }
 
+
+        function renderSensitivity(payload) {
+            var topRoutes = payload && payload.data && Array.isArray(payload.data.top_routes) ? payload.data.top_routes : [];
+            var summary = payload && payload.data && payload.data.summary ? payload.data.summary : {};
+
+            if (!topRoutes.length) {
+                sensitivityWrap.innerHTML = '<em>No route sensitivity data yet.</em>';
+                return;
+            }
+
+            var html = '';
+            html += '<p style="margin:0 0 8px;color:#4b5563;">High-sensitivity routes: 24h=' + Number(summary.high_24h || 0) + ', 7d=' + Number(summary.high_7d || 0) + '</p>';
+            html += '<ul style="margin:0;padding-left:18px;">';
+            topRoutes.forEach(function(row){
+                var metrics = row.metrics || {};
+                var reasons = Array.isArray(metrics.reasons) ? metrics.reasons.join(', ') : '';
+                html += '<li><strong>' + escapeHtml(row.route || row.url || 'unknown') + '</strong> '
+                    + '<span style="text-transform:uppercase;font-size:11px;border:1px solid #d1d5db;padding:1px 4px;border-radius:4px;">' + escapeHtml(row.memcache_sensitivity || 'low') + '</span>'
+                    + ' — score ' + Number(metrics.score || 0)
+                    + ', hit ' + (metrics.hit_ratio === null || typeof metrics.hit_ratio === 'undefined' ? 'n/a' : Number(metrics.hit_ratio).toFixed(2) + '%')
+                    + ', evictions ' + (metrics.evictions === null || typeof metrics.evictions === 'undefined' ? 'n/a' : Number(metrics.evictions))
+                    + (reasons ? '<br><span style="font-size:12px;color:#6b7280;">Signals: ' + escapeHtml(reasons) + '</span>' : '')
+                    + '</li>';
+            });
+            html += '</ul>';
+            sensitivityWrap.innerHTML = html;
+        }
+
         function loadRunDetails(runId) {
             return Promise.all([
                 post({ action: 'pcm_cacheability_scan_results', nonce: nonce, run_id: String(runId) }),
-                post({ action: 'pcm_cacheability_scan_findings', nonce: nonce, run_id: String(runId) })
+                post({ action: 'pcm_cacheability_scan_findings', nonce: nonce, run_id: String(runId) }),
+                post({ action: 'pcm_route_memcache_sensitivity', nonce: nonce, run_id: String(runId) })
             ]).then(function(payloads){
                 var resultsPayload = payloads[0];
                 var findingsPayload = payloads[1];
+                var sensitivityPayload = payloads[2];
                 renderScores(resultsPayload && resultsPayload.success ? resultsPayload.data.results : []);
                 renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
+                renderSensitivity(sensitivityPayload && sensitivityPayload.success ? sensitivityPayload : {});
+            }).catch(function(){
+                renderSensitivity({});
             });
         }
 
@@ -1261,7 +1299,7 @@ https://example.com/OLD/"></textarea>
                 action: 'pcm_reporting_trends',
                 nonce: nonce,
                 range: rangeEl.value,
-                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope']
+                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(render).catch(function(){ render({ error: 'trend_load_failed' }); });
         });
 
@@ -1271,7 +1309,7 @@ https://example.com/OLD/"></textarea>
                 nonce: nonce,
                 format: format,
                 range: rangeEl.value,
-                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope']
+                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(function(res){
                 render(res);
                 if (res && res.success && res.data && res.data.content) {
