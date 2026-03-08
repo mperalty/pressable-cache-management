@@ -357,6 +357,7 @@ class PCM_Smart_Purge_Job_Queue {
                 'warmed_url_count'     => 0,
                 'failure_count'        => 0,
                 'average_latency_ms'   => 0,
+                'target_outcomes'      => array(),
                 'logs'                 => array(),
                 'last_run_at'          => null,
             ),
@@ -418,6 +419,11 @@ class PCM_Smart_Purge_Queue_Runner {
                 $jobs[ $index ]['status'] = 'executed';
             } else {
                 $jobs[ $index ]['status'] = 'shadowed';
+                if ( empty( $jobs[ $index ]['prewarm_status'] ) || ! is_array( $jobs[ $index ]['prewarm_status'] ) ) {
+                    $jobs[ $index ]['prewarm_status'] = array();
+                }
+                $jobs[ $index ]['prewarm_status']['state'] = 'shadowed';
+                $jobs[ $index ]['prewarm_status']['last_run_at'] = current_time( 'mysql', true );
             }
 
             $jobs[ $index ]['executed_at'] = current_time( 'mysql', true );
@@ -454,6 +460,7 @@ class PCM_Smart_Purge_Queue_Runner {
             'warmed_url_count'   => 0,
             'failure_count'      => 0,
             'average_latency_ms' => 0,
+            'target_outcomes'    => array(),
             'logs'               => array(),
             'last_run_at'        => current_time( 'mysql', true ),
         );
@@ -479,10 +486,9 @@ class PCM_Smart_Purge_Queue_Runner {
         $priority_targets = array_slice( $targets, 0, min( 2, count( $targets ) ) );
         $logs = array();
         $attempts = array();
-        $successes = 0;
-        $failures = 0;
         $latency_total = 0;
         $latency_samples = 0;
+        $target_outcomes = array();
 
         $chunks = array_chunk( $targets, max( 1, $batch_size ) );
 
@@ -495,9 +501,8 @@ class PCM_Smart_Purge_Queue_Runner {
                         array(
                             'timeout'             => 5,
                             'redirection'         => 2,
-                            'sslverify'           => false,
                             'user-agent'          => 'PCM-Smart-Purge-Prewarm/1.0',
-                            'headers'             => array( 'Cache-Control' => 'no-cache' ),
+                            'headers'             => array( 'Accept' => 'text/html,*/*;q=0.8' ),
                             'blocking'            => true,
                         ),
                         $url,
@@ -516,11 +521,30 @@ class PCM_Smart_Purge_Queue_Runner {
                     }
                     $attempts[ $url ]++;
 
-                    if ( $success ) {
-                        $successes++;
-                    } else {
-                        $failures++;
+                    if ( ! isset( $target_outcomes[ $url ] ) ) {
+                        $target_outcomes[ $url ] = array(
+                            'attempts'         => 0,
+                            'success'          => false,
+                            'failure_count'    => 0,
+                            'status_code'      => 0,
+                            'average_latency_ms' => 0,
+                            'error'            => '',
+                        );
                     }
+
+                    $target_outcomes[ $url ]['attempts']++;
+                    if ( $success ) {
+                        $target_outcomes[ $url ]['success'] = true;
+                        $target_outcomes[ $url ]['error']   = '';
+                    } else {
+                        $target_outcomes[ $url ]['failure_count']++;
+                        $target_outcomes[ $url ]['error'] = is_wp_error( $response ) ? $response->get_error_message() : '';
+                    }
+
+                    $target_outcomes[ $url ]['status_code'] = $status_code;
+                    $prev_avg = (float) $target_outcomes[ $url ]['average_latency_ms'];
+                    $prev_attempts = max( 1, (int) $target_outcomes[ $url ]['attempts'] );
+                    $target_outcomes[ $url ]['average_latency_ms'] = round( ( ( $prev_avg * ( $prev_attempts - 1 ) ) + $latency ) / $prev_attempts, 2 );
 
                     $latency_total += $latency;
                     $latency_samples++;
@@ -537,15 +561,29 @@ class PCM_Smart_Purge_Queue_Runner {
                 }
             }
 
-            usleep( ( $delay_ms + wp_rand( 0, $jitter_ms ) ) * 1000 );
+            $sleep_us = ( $delay_ms + wp_rand( 0, $jitter_ms ) ) * 1000;
+            if ( $sleep_us > 0 ) {
+                usleep( $sleep_us );
+            }
+        }
+
+        $warmed_url_count = 0;
+        $failure_count = 0;
+        foreach ( $target_outcomes as $target_outcome ) {
+            if ( ! empty( $target_outcome['success'] ) ) {
+                $warmed_url_count++;
+            } else {
+                $failure_count++;
+            }
         }
 
         return array(
             'summary' => array(
                 'state'              => 'completed',
-                'warmed_url_count'   => $successes,
-                'failure_count'      => $failures,
+                'warmed_url_count'   => $warmed_url_count,
+                'failure_count'      => $failure_count,
                 'average_latency_ms' => $latency_samples > 0 ? round( $latency_total / $latency_samples, 2 ) : 0,
+                'target_outcomes'    => $target_outcomes,
                 'logs'               => array_slice( $logs, -20 ),
                 'last_run_at'        => current_time( 'mysql', true ),
             ),
