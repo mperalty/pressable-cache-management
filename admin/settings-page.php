@@ -1197,10 +1197,15 @@ https://example.com/OLD/"></textarea>
     </div>
     <?php endif; ?>
 
-    <?php if ( $is_settings_tab && function_exists( 'pcm_reporting_is_enabled' ) ) : ?>
+    <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card" id="pcm-feature-observability-reporting" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
+        <?php if ( ! function_exists( 'pcm_reporting_is_enabled' ) || ! pcm_reporting_is_enabled() ) : ?>
+        <p style="margin:0;padding:10px 12px;border-left:4px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:0 6px 6px 0;">
+            <?php echo esc_html__( 'Observability is currently disabled because Caching Suite features are turned off. Enable Caching Suite features above to load trends and exports.', 'pressable_cache_management' ); ?>
+        </p>
+        <?php else : ?>
         <p>
             <select id="pcm-report-range">
                 <option value="24h">24h</option>
@@ -1283,9 +1288,10 @@ https://example.com/OLD/"></textarea>
         document.getElementById('pcm-report-load').click();
     })();
     </script>
+        <?php endif; ?>
     <?php endif; ?>
 
-    <?php if ( $is_settings_tab && function_exists( 'pcm_security_privacy_is_enabled' ) && pcm_security_privacy_is_enabled() ) : ?>
+    <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card" id="pcm-feature-security-privacy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Permissions, Safety & Privacy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
