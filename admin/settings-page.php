@@ -182,6 +182,9 @@ function pressable_cache_management_display_settings_page() {
     if ( ! current_user_can('manage_options') ) return;
 
     $tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : null;
+    $is_object_tab   = ( null === $tab );
+    $is_deep_dive_tab = ( 'deep_dive_tab' === $tab );
+    $is_settings_tab  = ( 'settings_tab' === $tab );
 
     if ( isset( $_POST['pcm_caching_suite_toggle_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pcm_caching_suite_toggle_nonce'] ) ), 'pcm_toggle_caching_suite_features' ) ) {
         $enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
@@ -208,14 +211,18 @@ function pressable_cache_management_display_settings_page() {
     <!-- ── Tabs ── -->
     <nav class="nav-tab-wrapper" style="margin-bottom:28px;">
         <a href="admin.php?page=pressable_cache_management"
-           class="nav-tab <?php echo $tab === null ? 'nav-tab-active' : ''; ?>">Object Cache</a>
+           class="nav-tab <?php echo $is_object_tab ? 'nav-tab-active' : ''; ?>">Object Cache</a>
         <a href="admin.php?page=pressable_cache_management&tab=edge_cache_settings_tab"
            class="nav-tab <?php echo $tab === 'edge_cache_settings_tab' ? 'nav-tab-active' : ''; ?>">Edge Cache</a>
+        <a href="admin.php?page=pressable_cache_management&tab=deep_dive_tab"
+           class="nav-tab <?php echo $is_deep_dive_tab ? 'nav-tab-active' : ''; ?>">Deep Dive</a>
+        <a href="admin.php?page=pressable_cache_management&tab=settings_tab"
+           class="nav-tab <?php echo $is_settings_tab ? 'nav-tab-active' : ''; ?>">Settings</a>
         <a href="admin.php?page=pressable_cache_management&tab=remove_pressable_branding_tab"
            class="nav-tab nav-tab-hidden <?php echo $tab === 'remove_pressable_branding_tab' ? 'nav-tab-active' : ''; ?>">Branding</a>
     </nav>
 
-    <?php if ( $tab === null ) :
+    <?php if ( $is_object_tab || $is_deep_dive_tab || $is_settings_tab ) :
         $options = get_option('pressable_cache_management_options');
 
         // Batcache status badge
@@ -231,6 +238,7 @@ function pressable_cache_management_display_settings_page() {
         $bc_class  = $bc_status === 'active' ? 'active' : 'broken';
     ?>
 
+    <?php if ( $is_deep_dive_tab ) : ?>
     <div class="pcm-card" style="margin-bottom:20px;">
         <h3 class="pcm-card-title">🧩 <?php echo esc_html__( 'Caching Suite Features', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Enable or disable all advanced Caching Suite diagnostics and remediation modules from one place.', 'pressable_cache_management' ); ?></p>
@@ -246,7 +254,9 @@ function pressable_cache_management_display_settings_page() {
             </span>
         </form>
     </div>
+    <?php endif; ?>
 
+    <?php if ( $is_object_tab ) : ?>
     <!-- Header: logo + status badge -->
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
         <div>
@@ -415,7 +425,9 @@ function pressable_cache_management_display_settings_page() {
     </div>
 
 
-    <?php if ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) : ?>
+    <?php endif; ?>
+
+    <?php if ( $is_deep_dive_tab && function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) : ?>
     <div class="pcm-card" style="margin-bottom:20px;">
         <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0; color:#4b5563;"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
@@ -673,7 +685,7 @@ function pressable_cache_management_display_settings_page() {
         loadLatestRun();
     })();
     </script>
-    <?php if ( function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) : ?>
+    <?php if ( $is_deep_dive_tab && function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) : ?>
     <div class="pcm-card" id="pcm-feature-object-cache-intelligence" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
@@ -778,7 +790,7 @@ function pressable_cache_management_display_settings_page() {
     </script>
     <?php endif; ?>
 
-    <?php if ( function_exists( 'pcm_opcache_awareness_is_enabled' ) && pcm_opcache_awareness_is_enabled() ) : ?>
+    <?php if ( $is_deep_dive_tab && function_exists( 'pcm_opcache_awareness_is_enabled' ) && pcm_opcache_awareness_is_enabled() ) : ?>
     <div class="pcm-card" id="pcm-feature-opcache-awareness" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📦 <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review OPcache memory pressure, restart patterns, and recommendations.', 'pressable_cache_management' ); ?></p>
@@ -887,7 +899,7 @@ function pressable_cache_management_display_settings_page() {
     </script>
     <?php endif; ?>
 
-    <?php if ( function_exists( 'pcm_redirect_assistant_is_enabled' ) && pcm_redirect_assistant_is_enabled() ) : ?>
+    <?php if ( $is_deep_dive_tab && function_exists( 'pcm_redirect_assistant_is_enabled' ) && pcm_redirect_assistant_is_enabled() ) : ?>
     <div class="pcm-card" id="pcm-feature-redirect-assistant" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">↪ <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Discover candidates, edit rules, run dry-run simulation, then export or import redirect payloads.', 'pressable_cache_management' ); ?></p>
@@ -1037,7 +1049,7 @@ https://example.com/OLD/"></textarea>
     </script>
     <?php endif; ?>
 
-    <?php if ( function_exists( 'pcm_smart_purge_is_enabled' ) && pcm_smart_purge_is_enabled() ) : ?>
+    <?php if ( $is_deep_dive_tab && function_exists( 'pcm_smart_purge_is_enabled' ) && pcm_smart_purge_is_enabled() ) : ?>
     <div class="pcm-card" id="pcm-feature-smart-purge-strategy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧹 <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Tune active mode, cooldown, deferred execution, and inspect queued job outcomes.', 'pressable_cache_management' ); ?></p>
@@ -1103,7 +1115,7 @@ https://example.com/OLD/"></textarea>
     </div>
     <?php endif; ?>
 
-    <?php if ( function_exists( 'pcm_reporting_is_enabled' ) && pcm_reporting_is_enabled() ) : ?>
+    <?php if ( $is_settings_tab && function_exists( 'pcm_reporting_is_enabled' ) && pcm_reporting_is_enabled() ) : ?>
     <div class="pcm-card" id="pcm-feature-observability-reporting" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
@@ -1191,7 +1203,7 @@ https://example.com/OLD/"></textarea>
     </script>
     <?php endif; ?>
 
-    <?php if ( function_exists( 'pcm_security_privacy_is_enabled' ) && pcm_security_privacy_is_enabled() ) : ?>
+    <?php if ( $is_settings_tab && function_exists( 'pcm_security_privacy_is_enabled' ) && pcm_security_privacy_is_enabled() ) : ?>
     <div class="pcm-card" id="pcm-feature-security-privacy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Permissions, Safety & Privacy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
@@ -1293,6 +1305,8 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php endif; ?>
+
+    <?php if ( $is_object_tab ) : ?>
 
     <!-- ── 2-column grid ── -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
@@ -1537,6 +1551,8 @@ https://example.com/OLD/"></textarea>
         });
     })();
     </script>
+
+    <?php endif; ?>
 
     <?php elseif ( $tab === 'edge_cache_settings_tab' ) : ?>
 
