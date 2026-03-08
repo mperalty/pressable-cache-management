@@ -571,7 +571,7 @@ function pressable_cache_management_display_settings_page() {
             <button type="button" class="button button-primary" id="pcm-advisor-run-btn"><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
             <span id="pcm-advisor-run-status" style="margin-left:10px;color:#374151;"></span>
         </p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="pcm-advisor-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Template Scores', 'pressable_cache_management' ); ?></h4>
                 <div id="pcm-advisor-template-scores" style="font-size:13px;color:#111827;"></div>
@@ -583,7 +583,7 @@ function pressable_cache_management_display_settings_page() {
         </div>
         <div style="margin-top:14px;">
             <h4 style="margin:8px 0;"><?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?></h4>
-            <div id="pcm-advisor-diagnosis" style="font-size:13px;color:#111827;border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb;"><em><?php echo esc_html__( 'Select a route from findings to view diagnosis.', 'pressable_cache_management' ); ?></em></div>
+            <div id="pcm-advisor-diagnosis" class="pcm-advisor-diagnosis" style="font-size:13px;color:#111827;border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb;"><em><?php echo esc_html__( 'Select a route from findings to view diagnosis.', 'pressable_cache_management' ); ?></em></div>
         </div>
         <div id="pcm-advisor-playbook" style="margin-top:14px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;display:none;"></div>
     </div>
@@ -614,12 +614,16 @@ function pressable_cache_management_display_settings_page() {
                 agg[type].count += 1;
             });
 
-            var html = '<ul style="margin:0;padding-left:18px;">';
+            var html = '<div class="pcm-score-list">';
             Object.keys(agg).sort().forEach(function(type){
                 var avg = Math.round(agg[type].total / Math.max(1, agg[type].count));
-                html += '<li><strong>' + type + '</strong>: ' + avg + '/100 (' + agg[type].count + ' URLs)</li>';
+                var scoreClass = avg > 80 ? 'is-good' : (avg >= 50 ? 'is-warn' : 'is-bad');
+                html += '<div class="pcm-score-item">'
+                    + '<div class="pcm-score-meta"><strong>' + escapeHtml(type) + '</strong><span>' + agg[type].count + ' URLs</span></div>'
+                    + '<div class="pcm-score-bar"><span class="pcm-score-fill ' + scoreClass + '" style="width:' + Math.max(0, Math.min(100, avg)) + '%;"></span><span class="pcm-score-value">' + avg + '/100</span></div>'
+                    + '</div>';
             });
-            html += '</ul>';
+            html += '</div>';
 
             html += '<div style="margin-top:8px;font-size:12px;color:#6b7280;">Sampled routes:</div><ul style="margin:4px 0 0;padding-left:18px;max-height:120px;overflow:auto;">';
             results.slice(0, 20).forEach(function(row){
@@ -635,8 +639,40 @@ function pressable_cache_management_display_settings_page() {
             return items.map(function(item){
                 var reason = item && item.reason ? item.reason : (item && item.label ? item.label : 'signal');
                 var evidence = item && item.evidence ? (' <span style="color:#6b7280;">(' + escapeHtml(typeof item.evidence === 'string' ? item.evidence : JSON.stringify(item.evidence)) + ')</span>') : '';
-                return '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;">' + escapeHtml(reason) + evidence + '</span>';
+                return '<span class="pcm-advisor-chip">' + escapeHtml(reason) + evidence + '</span>';
             }).join('');
+        }
+
+        function formatTimingValue(value) {
+            if (value === null || typeof value === 'undefined' || value === '') return null;
+            var num = Number(value);
+            if (!isFinite(num)) return null;
+            return num;
+        }
+
+        function renderTimingGrid(timing) {
+            var entries = [
+                { label: 'Total', key: 'total_time', value: formatTimingValue(timing.total_time) },
+                { label: 'DNS', key: 'namelookup_time', value: formatTimingValue(timing.namelookup_time) },
+                { label: 'Connect', key: 'connect_time', value: formatTimingValue(timing.connect_time) },
+                { label: 'TTFB', key: 'starttransfer_time', value: formatTimingValue(timing.starttransfer_time) }
+            ];
+            var max = entries.reduce(function(acc, item){ return item.value !== null ? Math.max(acc, item.value) : acc; }, 0);
+            if (max <= 0) {
+                return '<em>Timing unavailable.</em>';
+            }
+            return entries.map(function(item){
+                var percent = item.value === null ? 0 : Math.round((item.value / max) * 100);
+                var valText = item.value === null ? 'n/a' : item.value.toFixed(3) + 's';
+                return '<div class="pcm-timing-row"><span>' + escapeHtml(item.label) + '</span><div class="pcm-timing-track"><span style="width:' + percent + '%;"></span></div><strong>' + escapeHtml(valText) + '</strong></div>';
+            }).join('');
+        }
+
+        function severityBadge(severity) {
+            var normalized = String(severity || 'info').toLowerCase();
+            var map = { critical: 'is-critical', warning: 'is-warning', info: 'is-info' };
+            var cls = map[normalized] || 'is-info';
+            return '<span class="pcm-severity-badge ' + cls + '">' + escapeHtml(normalized) + '</span>';
         }
 
         function renderDiagnosis(payload) {
@@ -650,16 +686,18 @@ function pressable_cache_management_display_settings_page() {
             var topHeaderSignals = poisoning.filter(function(p){ return p.type === 'header'; }).slice(0, 5);
 
             diagnosisWrap.innerHTML = [
-                '<div style="margin-bottom:6px;"><strong>URL:</strong> ' + escapeHtml(diagnosis.url || payload.url || '') + '</div>',
-                '<div style="margin-bottom:6px;"><strong>Final URL:</strong> ' + escapeHtml(probe.effective_url || diagnosis.url || '') + '</div>',
-                '<div style="margin-bottom:8px;"><strong>Redirect chain:</strong> ' + escapeHtml((probe.redirect_chain || []).join(' → ') || 'None') + '</div>',
-                '<div style="margin-bottom:6px;"><strong>Why bypassed (Edge):</strong><br>' + chips(trace.edge_bypass_reasons || []) + '</div>',
-                '<div style="margin-bottom:6px;"><strong>Why bypassed (Batcache):</strong><br>' + chips(trace.batcache_bypass_reasons || []) + '</div>',
-                '<div style="margin-bottom:6px;"><strong>Top poisoning cookies:</strong><br>' + chips(topCookieSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div>',
-                '<div style="margin-bottom:6px;"><strong>Top poisoning headers:</strong><br>' + chips(topHeaderSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div>',
-                '<div style="margin-bottom:6px;"><strong>Route risk badges:</strong><br>' + chips(trace.route_risk_labels || []) + '</div>',
-                '<div style="margin-top:8px;color:#4b5563;"><strong>Timing:</strong> total=' + escapeHtml((probe.timing && probe.timing.total_time) ? String(probe.timing.total_time) : 'n/a') + 's, dns=' + escapeHtml((probe.timing && probe.timing.namelookup_time) ? String(probe.timing.namelookup_time) : 'n/a') + 's, connect=' + escapeHtml((probe.timing && probe.timing.connect_time) ? String(probe.timing.connect_time) : 'n/a') + 's, ttfb=' + escapeHtml((probe.timing && probe.timing.starttransfer_time) ? String(probe.timing.starttransfer_time) : 'n/a') + 's</div>',
-                '<div style="color:#4b5563;"><strong>Response size:</strong> ' + escapeHtml(String(probe.response_size || 0)) + ' bytes</div>'
+                '<div class="pcm-diagnosis-grid">',
+                    '<div class="pcm-diagnosis-card"><dt>URL</dt><dd>' + escapeHtml(diagnosis.url || payload.url || '') + '</dd></div>',
+                    '<div class="pcm-diagnosis-card"><dt>Final URL</dt><dd>' + escapeHtml(probe.effective_url || diagnosis.url || '') + '</dd></div>',
+                    '<div class="pcm-diagnosis-card"><dt>Redirect chain</dt><dd>' + escapeHtml((probe.redirect_chain || []).join(' → ') || 'None') + '</dd></div>',
+                    '<div class="pcm-diagnosis-card"><dt>Response size</dt><dd>' + escapeHtml(String(probe.response_size || 0)) + ' bytes</dd></div>',
+                '</div>',
+                '<div class="pcm-diagnosis-section"><strong>Why bypassed (Edge)</strong><div>' + chips(trace.edge_bypass_reasons || []) + '</div></div>',
+                '<div class="pcm-diagnosis-section"><strong>Why bypassed (Batcache)</strong><div>' + chips(trace.batcache_bypass_reasons || []) + '</div></div>',
+                '<div class="pcm-diagnosis-section"><strong>Poisoning cookies</strong><div>' + chips(topCookieSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div></div>',
+                '<div class="pcm-diagnosis-section"><strong>Poisoning headers</strong><div>' + chips(topHeaderSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div></div>',
+                '<div class="pcm-diagnosis-section"><strong>Route risk badges</strong><div>' + chips(trace.route_risk_labels || []) + '</div></div>',
+                '<div class="pcm-diagnosis-section"><strong>Timing</strong><div class="pcm-timing-grid">' + renderTimingGrid(probe.timing || {}) + '</div></div>'
             ].join('');
         }
 
@@ -752,7 +790,7 @@ function pressable_cache_management_display_settings_page() {
                 }
             });
 
-            var html = '<ul style="margin:0;padding-left:18px;">';
+            var html = '<div class="pcm-findings-list">';
             Object.keys(grouped).slice(0, 25).forEach(function(key){
                 var group = grouped[key];
                 var uniqueUrls = [];
@@ -764,20 +802,21 @@ function pressable_cache_management_display_settings_page() {
                     }
                 });
 
-                html += '<li><strong>[' + escapeHtml(group.severity) + ']</strong> ' + escapeHtml(group.rule);
+                html += '<div class="pcm-finding-item">';
+                html += '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><div><strong>' + escapeHtml(group.rule) + '</strong></div>' + severityBadge(group.severity) + '</div>';
                 if (uniqueUrls.length) {
-                    html += '<ul style="margin:6px 0 8px;padding-left:18px;">';
+                    html += '<div class="pcm-finding-urls">';
                     uniqueUrls.forEach(function(url){
-                        html += '<li><span style="font-size:12px;color:#6b7280;">' + escapeHtml(url) + '</span></li>';
+                        html += '<div><button type="button" class="button-link" style="padding:0;height:auto;line-height:1.4;font-size:12px;" data-action="open-diagnosis" data-url="' + escapeHtml(url) + '">' + escapeHtml(url) + '</button></div>';
                     });
-                    html += '</ul>';
+                    html += '</div>';
                 }
                 if (group.playbook.available) {
                     html += '<button type="button" class="button button-small" data-action="open-playbook" data-rule-id="' + escapeHtml(group.rule) + '">Open playbook</button>';
                 }
-                html += '</li>';
+                html += '</div>';
             });
-            html += '</ul>';
+            html += '</div>';
             findingsWrap.innerHTML = html;
         }
 
@@ -2298,12 +2337,41 @@ https://example.com/OLD/"></textarea>
     .pcm-trend-details summary{cursor:pointer;color:#374151;font-weight:600;margin-bottom:8px}
     .pcm-inline-error{border-left:4px solid #dd3a03;background:#fff1f2;padding:8px 10px;border-radius:4px;color:#7f1d1d}
     .pcm-inline-success{border-left:4px solid #03fcc2;background:#ecfeff;padding:8px 10px;border-radius:4px;color:#0f766e}
+    .pcm-advisor-grid{align-items:start}
+    .pcm-score-list{display:flex;flex-direction:column;gap:10px}
+    .pcm-score-item{border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff}
+    .pcm-score-meta{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#4b5563;margin-bottom:6px}
+    .pcm-score-bar{position:relative;height:22px;background:#e5e7eb;border-radius:4px;overflow:hidden}
+    .pcm-score-fill{display:block;height:100%;border-radius:4px;transition:width .3s ease}
+    .pcm-score-fill.is-good{background:#16a34a}
+    .pcm-score-fill.is-warn{background:#f59e0b}
+    .pcm-score-fill.is-bad{background:#dc2626}
+    .pcm-score-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#111827}
+    .pcm-findings-list{display:flex;flex-direction:column;gap:10px}
+    .pcm-finding-item{border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#fff}
+    .pcm-finding-urls{display:grid;gap:4px;margin:6px 0 8px}
+    .pcm-severity-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid transparent;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.2px}
+    .pcm-severity-badge.is-critical{background:#fee2e2;border-color:#fecaca;color:#991b1b}
+    .pcm-severity-badge.is-warning{background:#fef3c7;border-color:#fde68a;color:#92400e}
+    .pcm-severity-badge.is-info{background:#dcfce7;border-color:#bbf7d0;color:#166534}
+    .pcm-advisor-chip{display:inline-flex;align-items:center;margin:2px 6px 2px 0;padding:2px 8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px}
+    .pcm-advisor-diagnosis{display:flex;flex-direction:column;gap:10px}
+    .pcm-diagnosis-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .pcm-diagnosis-card{border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff}
+    .pcm-diagnosis-card dt{font-size:11px;text-transform:uppercase;color:#6b7280;font-weight:700}
+    .pcm-diagnosis-card dd{margin:4px 0 0;color:#111827;word-break:break-word}
+    .pcm-diagnosis-section{border-top:1px solid #e5e7eb;padding-top:8px}
+    .pcm-diagnosis-section strong{display:block;margin-bottom:4px}
+    .pcm-timing-grid{display:grid;gap:6px}
+    .pcm-timing-row{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:8px;font-size:12px;color:#374151}
+    .pcm-timing-track{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+    .pcm-timing-track span{display:block;height:100%;background:#6366f1;border-radius:999px;transition:width .3s ease}
     .pcm-batcache-status .pcm-dot{animation:none}
     .pcm-batcache-status.checking .pcm-dot{animation:pcm-pulse 1s infinite}
     @keyframes pcm-pulse{0%{opacity:.35}50%{opacity:1}100%{opacity:.35}}
     .pcm-wrap .nav-tab:focus-visible,.pcm-wrap button:focus-visible,.pcm-wrap a:focus-visible,.pcm-wrap input:focus-visible,.pcm-wrap select:focus-visible,.pcm-wrap textarea:focus-visible{outline:2px solid #03fcc2;outline-offset:2px}
     @media (max-width:1024px){.pcm-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-    @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-card div[style*='grid-template-columns:1fr 1fr']{display:block !important}}
+    @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-card div[style*='grid-template-columns:1fr 1fr']{display:block !important}.pcm-advisor-grid{grid-template-columns:1fr !important}.pcm-diagnosis-grid{grid-template-columns:1fr}}
 
     code { background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:11.5px;color:#dd3a03; }
     </style>
