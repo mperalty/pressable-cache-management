@@ -662,13 +662,43 @@ function pressable_cache_management_display_settings_page() {
             findingsWrap.innerHTML = html;
         }
 
+
+        function renderSensitivity(payload) {
+            var topRoutes = payload && payload.data && Array.isArray(payload.data.top_routes) ? payload.data.top_routes : [];
+            var summary = payload && payload.data && payload.data.summary ? payload.data.summary : {};
+
+            if (!topRoutes.length) {
+                sensitivityWrap.innerHTML = '<em>No route sensitivity data yet.</em>';
+                return;
+            }
+
+            var html = '';
+            html += '<p style="margin:0 0 8px;color:#4b5563;">High-sensitivity routes: 24h=' + Number(summary.high_24h || 0) + ', 7d=' + Number(summary.high_7d || 0) + '</p>';
+            html += '<ul style="margin:0;padding-left:18px;">';
+            topRoutes.forEach(function(row){
+                var metrics = row.metrics || {};
+                var reasons = Array.isArray(metrics.reasons) ? metrics.reasons.join(', ') : '';
+                html += '<li><strong>' + escapeHtml(row.route || row.url || 'unknown') + '</strong> '
+                    + '<span style="text-transform:uppercase;font-size:11px;border:1px solid #d1d5db;padding:1px 4px;border-radius:4px;">' + escapeHtml(row.memcache_sensitivity || 'low') + '</span>'
+                    + ' — score ' + Number(metrics.score || 0)
+                    + ', hit ' + (metrics.hit_ratio === null || typeof metrics.hit_ratio === 'undefined' ? 'n/a' : Number(metrics.hit_ratio).toFixed(2) + '%')
+                    + ', evictions ' + (metrics.evictions === null || typeof metrics.evictions === 'undefined' ? 'n/a' : Number(metrics.evictions))
+                    + (reasons ? '<br><span style="font-size:12px;color:#6b7280;">Signals: ' + escapeHtml(reasons) + '</span>' : '')
+                    + '</li>';
+            });
+            html += '</ul>';
+            sensitivityWrap.innerHTML = html;
+        }
+
         function loadRunDetails(runId) {
             return Promise.all([
                 post({ action: 'pcm_cacheability_scan_results', nonce: nonce, run_id: String(runId) }),
-                post({ action: 'pcm_cacheability_scan_findings', nonce: nonce, run_id: String(runId) })
+                post({ action: 'pcm_cacheability_scan_findings', nonce: nonce, run_id: String(runId) }),
+                post({ action: 'pcm_route_memcache_sensitivity', nonce: nonce, run_id: String(runId) })
             ]).then(function(payloads){
                 var resultsPayload = payloads[0];
                 var findingsPayload = payloads[1];
+                var sensitivityPayload = payloads[2];
                 renderScores(resultsPayload && resultsPayload.success ? resultsPayload.data.results : []);
                 renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
                 var firstResult = (resultsPayload && resultsPayload.success && resultsPayload.data && Array.isArray(resultsPayload.data.results)) ? resultsPayload.data.results[0] : null;
@@ -1344,7 +1374,7 @@ https://example.com/OLD/"></textarea>
                 action: 'pcm_reporting_trends',
                 nonce: nonce,
                 range: rangeEl.value,
-                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope']
+                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(render).catch(function(){ render({ error: 'trend_load_failed' }); });
         });
 
@@ -1354,7 +1384,7 @@ https://example.com/OLD/"></textarea>
                 nonce: nonce,
                 format: format,
                 range: rangeEl.value,
-                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope']
+                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(function(res){
                 render(res);
                 if (res && res.success && res.data && res.data.content) {

@@ -586,6 +586,363 @@ function pcm_object_cache_get_trends( $range = '7d' ) {
 }
 
 /**
+ * Storage for per-route memcache sensitivity assessments.
+ */
+class PCM_Object_Cache_Route_Sensitivity_Storage {
+    /** @var string */
+    protected $key = 'pcm_route_memcache_sensitivity_v1';
+
+    /** @var int */
+    protected $max_rows = 5000;
+
+    /**
+     * @return array
+     */
+    public function all() {
+        $rows = get_option( $this->key, array() );
+
+        return is_array( $rows ) ? $rows : array();
+    }
+
+    /**
+     * @param array $rows Rows.
+     *
+     * @return void
+     */
+    public function replace( $rows ) {
+        update_option( $this->key, array_slice( array_values( (array) $rows ), -1 * $this->max_rows ), false );
+    }
+
+    /**
+     * @param int    $run_id Run ID.
+     * @param string $route Route key.
+     *
+     * @return array|null
+     */
+    public function get_for_run_route( $run_id, $route ) {
+        foreach ( array_reverse( $this->all() ) as $row ) {
+            if ( (int) $run_id === (int) $row['run_id'] && (string) $route === (string) $row['route'] ) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array $assessments Rows.
+     *
+     * @return void
+     */
+    public function upsert_batch( $assessments ) {
+        $existing = $this->all();
+        $index    = array();
+
+        foreach ( $assessments as $row ) {
+            $index[ (int) $row['run_id'] . '|' . (string) $row['route'] ] = true;
+        }
+
+        $filtered = array_values(
+            array_filter(
+                $existing,
+                static function ( $row ) use ( $index ) {
+                    $key = (int) ( isset( $row['run_id'] ) ? $row['run_id'] : 0 ) . '|' . (string) ( isset( $row['route'] ) ? $row['route'] : '' );
+
+                    return ! isset( $index[ $key ] );
+                }
+            )
+        );
+
+        $this->replace( array_merge( $filtered, $assessments ) );
+    }
+
+    /**
+     * @param int $retention_days Days.
+     *
+     * @return void
+     */
+    public function cleanup( $retention_days = 90 ) {
+        $retention = max( 7, min( 365, absint( $retention_days ) ) );
+        $cutoff_ts = time() - ( DAY_IN_SECONDS * $retention );
+
+        $this->replace(
+            array_values(
+                array_filter(
+                    $this->all(),
+                    static function ( $row ) use ( $cutoff_ts ) {
+                        $taken_at = isset( $row['assessed_at'] ) ? strtotime( $row['assessed_at'] ) : 0;
+
+                        return $taken_at >= $cutoff_ts;
+                    }
+                )
+            )
+        );
+    }
+}
+
+/**
+ * Correlate object-cache state to cacheability URL findings and score route sensitivity.
+ */
+class PCM_Object_Cache_Route_Correlation_Service {
+    /**
+     * @param int $run_id Run ID. 0 means latest completed run.
+     *
+     * @return array
+     */
+    public function correlate_latest( $run_id = 0 ) {
+        global $wpdb;
+
+        $snapshot = pcm_object_cache_get_latest_snapshot();
+
+        $runs_table = $wpdb->prefix . 'pcm_scan_runs';
+        $urls_table = $wpdb->prefix . 'pcm_scan_urls';
+        $find_table = $wpdb->prefix . 'pcm_findings';
+
+        $selected_run_id = absint( $run_id );
+        if ( $selected_run_id <= 0 ) {
+            $selected_run_id = (int) $wpdb->get_var( "SELECT id FROM {$runs_table} WHERE status = 'completed' ORDER BY id DESC LIMIT 1" );
+        }
+
+        if ( $selected_run_id <= 0 ) {
+            return array(
+                'run_id'          => 0,
+                'snapshot'        => $snapshot,
+                'assessed_at'     => current_time( 'mysql', true ),
+                'routes'          => array(),
+                'high_route_count'=> 0,
+            );
+        }
+
+        $url_rows = $wpdb->get_results( $wpdb->prepare( "SELECT url, score FROM {$urls_table} WHERE run_id = %d", $selected_run_id ), ARRAY_A );
+        $findings = $wpdb->get_results( $wpdb->prepare( "SELECT url, rule_id, severity FROM {$find_table} WHERE run_id = %d", $selected_run_id ), ARRAY_A );
+
+        $grouped_findings = array();
+        foreach ( (array) $findings as $finding ) {
+            $url = isset( $finding['url'] ) ? (string) $finding['url'] : '';
+            if ( '' === $url ) {
+                continue;
+            }
+
+            if ( ! isset( $grouped_findings[ $url ] ) ) {
+                $grouped_findings[ $url ] = array();
+            }
+            $grouped_findings[ $url ][] = $finding;
+        }
+
+        $assessed_at   = current_time( 'mysql', true );
+        $route_groups  = array();
+
+        foreach ( (array) $url_rows as $url_row ) {
+            $url   = isset( $url_row['url'] ) ? esc_url_raw( $url_row['url'] ) : '';
+            $score = isset( $url_row['score'] ) ? (int) $url_row['score'] : 0;
+            if ( '' === $url ) {
+                continue;
+            }
+
+            $route = pcm_object_cache_route_from_url( $url );
+            $calc  = pcm_object_cache_calculate_memcache_sensitivity( $score, isset( $grouped_findings[ $url ] ) ? $grouped_findings[ $url ] : array(), $snapshot );
+
+            if ( ! isset( $route_groups[ $route ] ) ) {
+                $route_groups[ $route ] = array(
+                    'route'             => $route,
+                    'sample_url'        => $url,
+                    'scores'            => array(),
+                    'critical_findings' => 0,
+                    'warning_findings'  => 0,
+                    'expensive_signals' => 0,
+                    'reasons'           => array(),
+                );
+            }
+
+            $route_groups[ $route ]['scores'][]            = $score;
+            $route_groups[ $route ]['critical_findings']  += (int) $calc['critical_findings'];
+            $route_groups[ $route ]['warning_findings']   += (int) $calc['warning_findings'];
+            $route_groups[ $route ]['expensive_signals']  += (int) $calc['expensive_signals'];
+            $route_groups[ $route ]['reasons']             = array_values( array_unique( array_merge( $route_groups[ $route ]['reasons'], (array) $calc['reasons'] ) ) );
+        }
+
+        $rows = array();
+        foreach ( $route_groups as $route => $group ) {
+            $avg_score = ! empty( $group['scores'] ) ? (int) round( array_sum( $group['scores'] ) / count( $group['scores'] ) ) : 0;
+            $calc      = pcm_object_cache_calculate_memcache_sensitivity(
+                $avg_score,
+                array(
+                    array( 'severity' => 'critical', 'rule_id' => 'route_aggregate', 'count' => (int) $group['critical_findings'] ),
+                    array( 'severity' => 'warning', 'rule_id' => 'route_aggregate', 'count' => (int) $group['warning_findings'] ),
+                ),
+                $snapshot
+            );
+
+            $rows[] = array(
+                'run_id'               => $selected_run_id,
+                'url'                  => $group['sample_url'],
+                'route'                => $route,
+                'memcache_sensitivity' => $calc['sensitivity'],
+                'assessed_at'          => $assessed_at,
+                'metrics'              => array(
+                    'score'             => $avg_score,
+                    'url_count'         => count( $group['scores'] ),
+                    'expensive_signals' => (int) $group['expensive_signals'],
+                    'critical_findings' => (int) $group['critical_findings'],
+                    'warning_findings'  => (int) $group['warning_findings'],
+                    'hit_ratio'         => isset( $snapshot['hit_ratio'] ) ? (float) $snapshot['hit_ratio'] : null,
+                    'evictions'         => isset( $snapshot['evictions'] ) ? (float) $snapshot['evictions'] : null,
+                    'memory_pressure'   => isset( $snapshot['memory_pressure'] ) ? (float) $snapshot['memory_pressure'] : 0,
+                    'reasons'           => array_values( array_unique( array_merge( (array) $group['reasons'], (array) $calc['reasons'] ) ) ),
+                ),
+            );
+        }
+
+        $storage = new PCM_Object_Cache_Route_Sensitivity_Storage();
+        $storage->upsert_batch( $rows );
+        $storage->cleanup( (int) get_option( 'pcm_object_cache_retention_days', 90 ) );
+
+        $high_count = 0;
+        foreach ( $rows as $row ) {
+            if ( 'high' === $row['memcache_sensitivity'] ) {
+                $high_count++;
+            }
+        }
+
+        return array(
+            'run_id'           => $selected_run_id,
+            'snapshot'         => $snapshot,
+            'assessed_at'      => $assessed_at,
+            'routes'           => $rows,
+            'high_route_count' => $high_count,
+        );
+    }
+}
+
+/**
+ * @param string $url URL.
+ *
+ * @return string
+ */
+function pcm_object_cache_route_from_url( $url ) {
+    $path = wp_parse_url( (string) $url, PHP_URL_PATH );
+    if ( ! is_string( $path ) || '' === $path ) {
+        return '/';
+    }
+
+    return '/' . ltrim( untrailingslashit( $path ), '/' );
+}
+
+/**
+ * @param int   $score Cacheability score.
+ * @param array $findings Findings for URL.
+ * @param array $snapshot Object cache snapshot.
+ *
+ * @return array
+ */
+function pcm_object_cache_calculate_memcache_sensitivity( $score, $findings, $snapshot ) {
+    $score     = max( 0, min( 100, absint( $score ) ) );
+    $hit_ratio = isset( $snapshot['hit_ratio'] ) ? (float) $snapshot['hit_ratio'] : 0.0;
+    $evictions = isset( $snapshot['evictions'] ) ? (float) $snapshot['evictions'] : 0.0;
+    $pressure  = isset( $snapshot['memory_pressure'] ) ? (float) $snapshot['memory_pressure'] : 0.0;
+
+    $critical = 0;
+    $warning  = 0;
+    $expensive_signals = 0;
+
+    foreach ( (array) $findings as $finding ) {
+        $severity = isset( $finding['severity'] ) ? sanitize_key( $finding['severity'] ) : '';
+        $rule_id  = isset( $finding['rule_id'] ) ? sanitize_key( $finding['rule_id'] ) : '';
+
+        $count = isset( $finding['count'] ) ? max( 0, absint( $finding['count'] ) ) : 1;
+
+        if ( 'critical' === $severity ) {
+            $critical += $count;
+            $expensive_signals += ( 2 * $count );
+        } elseif ( 'warning' === $severity ) {
+            $warning += $count;
+            $expensive_signals += $count;
+        }
+
+        if ( false !== strpos( $rule_id, 'cookie' ) || false !== strpos( $rule_id, 'vary' ) || false !== strpos( $rule_id, 'query' ) || false !== strpos( $rule_id, 'nocache' ) ) {
+            $expensive_signals += 1;
+        }
+    }
+
+    $low_score            = $score <= 55;
+    $below_hit_threshold  = $hit_ratio > 0 && $hit_ratio < 70;
+    $eviction_pressure    = $evictions >= 100 || $pressure >= 90;
+    $has_expensive_signal = $expensive_signals >= 2;
+    $reasons              = array();
+
+    if ( $low_score ) {
+        $reasons[] = 'low_cacheability_score';
+    }
+    if ( $has_expensive_signal ) {
+        $reasons[] = 'expensive_signals';
+    }
+    if ( $below_hit_threshold ) {
+        $reasons[] = 'low_object_cache_hit_ratio';
+    }
+    if ( $eviction_pressure ) {
+        $reasons[] = 'eviction_or_memory_pressure';
+    }
+
+    if ( $low_score && $has_expensive_signal && ( $below_hit_threshold || $eviction_pressure ) ) {
+        $sensitivity = 'high';
+    } elseif ( ( $low_score && $expensive_signals >= 1 ) || ( $has_expensive_signal && ( $below_hit_threshold || $eviction_pressure ) ) ) {
+        $sensitivity = 'medium';
+    } else {
+        $sensitivity = 'low';
+    }
+
+    return array(
+        'sensitivity'       => $sensitivity,
+        'expensive_signals' => $expensive_signals,
+        'critical_findings' => $critical,
+        'warning_findings'  => $warning,
+        'reasons'           => $reasons,
+    );
+}
+
+/**
+ * @param string $range 24h|7d|30d
+ *
+ * @return array
+ */
+function pcm_object_cache_memcache_sensitivity_summary( $range = '24h' ) {
+    $storage = new PCM_Object_Cache_Route_Sensitivity_Storage();
+    $rows    = $storage->all();
+
+    $days_map = array(
+        '24h' => 1,
+        '7d'  => 7,
+        '30d' => 30,
+    );
+    $days     = isset( $days_map[ $range ] ) ? $days_map[ $range ] : 1;
+    $cutoff   = time() - ( DAY_IN_SECONDS * $days );
+    $filtered = array_values(
+        array_filter(
+            $rows,
+            static function ( $row ) use ( $cutoff ) {
+                $ts = isset( $row['assessed_at'] ) ? strtotime( $row['assessed_at'] ) : 0;
+
+                return $ts >= $cutoff;
+            }
+        )
+    );
+
+    $high_routes = array();
+    foreach ( $filtered as $row ) {
+        if ( 'high' !== ( isset( $row['memcache_sensitivity'] ) ? $row['memcache_sensitivity'] : '' ) ) {
+            continue;
+        }
+        $high_routes[ (string) $row['route'] ] = true;
+    }
+
+    return array(
+        'range'            => $range,
+        'high_route_count' => count( $high_routes ),
+        'rows'             => $filtered,
+    );
+}
+
+/**
  * AJAX: latest object cache diagnostics snapshot.
  *
  * @return void
@@ -646,6 +1003,65 @@ function pcm_ajax_object_cache_trends() {
     );
 }
 add_action( 'wp_ajax_pcm_object_cache_trends', 'pcm_ajax_object_cache_trends' );
+
+/**
+ * AJAX: per-route memcache sensitivity for latest or provided run.
+ *
+ * @return void
+ */
+function pcm_ajax_route_memcache_sensitivity() {
+    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
+    } else {
+        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+
+        $can = function_exists( 'pcm_current_user_can' ) ? pcm_current_user_can( 'pcm_view_diagnostics' ) : current_user_can( 'manage_options' );
+        if ( ! $can ) {
+            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+        }
+    }
+
+    $run_id  = isset( $_REQUEST['run_id'] ) ? absint( wp_unslash( $_REQUEST['run_id'] ) ) : 0;
+    $service = new PCM_Object_Cache_Route_Correlation_Service();
+    $result  = $service->correlate_latest( $run_id );
+
+    $routes = isset( $result['routes'] ) ? (array) $result['routes'] : array();
+    usort(
+        $routes,
+        static function ( $a, $b ) {
+            $rank = array( 'high' => 3, 'medium' => 2, 'low' => 1 );
+            $a_s  = isset( $a['memcache_sensitivity'] ) ? $a['memcache_sensitivity'] : 'low';
+            $b_s  = isset( $b['memcache_sensitivity'] ) ? $b['memcache_sensitivity'] : 'low';
+            $a_r  = isset( $rank[ $a_s ] ) ? $rank[ $a_s ] : 0;
+            $b_r  = isset( $rank[ $b_s ] ) ? $rank[ $b_s ] : 0;
+
+            if ( $a_r === $b_r ) {
+                $a_score = isset( $a['metrics']['score'] ) ? (int) $a['metrics']['score'] : 0;
+                $b_score = isset( $b['metrics']['score'] ) ? (int) $b['metrics']['score'] : 0;
+
+                return $a_score <=> $b_score;
+            }
+
+            return $b_r <=> $a_r;
+        }
+    );
+
+    $summary_24h = pcm_object_cache_memcache_sensitivity_summary( '24h' );
+    $summary_7d  = pcm_object_cache_memcache_sensitivity_summary( '7d' );
+
+    wp_send_json_success(
+        array(
+            'run_id'       => isset( $result['run_id'] ) ? (int) $result['run_id'] : 0,
+            'assessed_at'  => isset( $result['assessed_at'] ) ? $result['assessed_at'] : '',
+            'top_routes'   => array_slice( $routes, 0, 10 ),
+            'summary'      => array(
+                'high_24h' => isset( $summary_24h['high_route_count'] ) ? (int) $summary_24h['high_route_count'] : 0,
+                'high_7d'  => isset( $summary_7d['high_route_count'] ) ? (int) $summary_7d['high_route_count'] : 0,
+            ),
+        )
+    );
+}
+add_action( 'wp_ajax_pcm_route_memcache_sensitivity', 'pcm_ajax_route_memcache_sensitivity' );
 
 /**
  * Ensure recurring object-cache snapshot collection is scheduled.
