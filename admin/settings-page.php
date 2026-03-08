@@ -181,11 +181,6 @@ add_action( 'pcm_after_edge_cache_purge',   'pcm_clear_batcache_status_transient
 function pressable_cache_management_display_settings_page() {
     if ( ! current_user_can('manage_options') ) return;
 
-    $tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : null;
-    $is_object_tab   = ( null === $tab );
-    $is_deep_dive_tab = ( 'deep_dive_tab' === $tab );
-    $is_settings_tab  = ( 'settings_tab' === $tab );
-
     if ( isset( $_POST['pcm_caching_suite_toggle_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pcm_caching_suite_toggle_nonce'] ) ), 'pcm_toggle_caching_suite_features' ) ) {
         $enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
         update_option( 'pcm_enable_caching_suite_features', $enabled, false );
@@ -196,6 +191,16 @@ function pressable_cache_management_display_settings_page() {
     }
 
     $caching_suite_enabled = (bool) get_option( 'pcm_enable_caching_suite_features', false );
+    $tab                   = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : null;
+
+    if ( 'deep_dive_tab' === $tab && ! $caching_suite_enabled ) {
+        $tab = null;
+    }
+
+    $is_object_tab    = ( null === $tab );
+    $is_deep_dive_tab = ( 'deep_dive_tab' === $tab );
+    $is_settings_tab  = ( 'settings_tab' === $tab );
+
     $branding_opts         = get_option('remove_pressable_branding_tab_options');
     $show_branding         = ! ( $branding_opts && 'disable' == $branding_opts['branding_on_off_radio_button'] );
 
@@ -214,8 +219,10 @@ function pressable_cache_management_display_settings_page() {
            class="nav-tab <?php echo $is_object_tab ? 'nav-tab-active' : ''; ?>">Object Cache</a>
         <a href="admin.php?page=pressable_cache_management&tab=edge_cache_settings_tab"
            class="nav-tab <?php echo $tab === 'edge_cache_settings_tab' ? 'nav-tab-active' : ''; ?>">Edge Cache</a>
+        <?php if ( $caching_suite_enabled ) : ?>
         <a href="admin.php?page=pressable_cache_management&tab=deep_dive_tab"
            class="nav-tab <?php echo $is_deep_dive_tab ? 'nav-tab-active' : ''; ?>">Deep Dive</a>
+        <?php endif; ?>
         <a href="admin.php?page=pressable_cache_management&tab=settings_tab"
            class="nav-tab <?php echo $is_settings_tab ? 'nav-tab-active' : ''; ?>">Settings</a>
         <a href="admin.php?page=pressable_cache_management&tab=remove_pressable_branding_tab"
@@ -238,7 +245,7 @@ function pressable_cache_management_display_settings_page() {
         $bc_class  = $bc_status === 'active' ? 'active' : 'broken';
     ?>
 
-    <?php if ( $is_deep_dive_tab ) : ?>
+    <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card" style="margin-bottom:20px;">
         <h3 class="pcm-card-title">🧩 <?php echo esc_html__( 'Caching Suite Features', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Enable or disable all advanced Caching Suite diagnostics and remediation modules from one place.', 'pressable_cache_management' ); ?></p>
@@ -1190,7 +1197,7 @@ https://example.com/OLD/"></textarea>
     </div>
     <?php endif; ?>
 
-    <?php if ( $is_settings_tab && function_exists( 'pcm_reporting_is_enabled' ) && pcm_reporting_is_enabled() ) : ?>
+    <?php if ( $is_settings_tab && function_exists( 'pcm_reporting_is_enabled' ) ) : ?>
     <div class="pcm-card" id="pcm-feature-observability-reporting" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
