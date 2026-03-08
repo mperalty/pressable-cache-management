@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION' ) ) {
-    define( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION', '1.1.0' );
+    define( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION', '1.2.0' );
 }
 
 /**
@@ -94,6 +94,7 @@ function pcm_cacheability_advisor_install_tables() {
         template_type varchar(50) NOT NULL,
         status_code smallint(5) unsigned DEFAULT NULL,
         score int(3) unsigned DEFAULT NULL,
+        diagnosis_json longtext DEFAULT NULL,
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY  (id),
         KEY run_id (run_id),
@@ -211,7 +212,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return int|false
      */
-    public function add_url_result( $run_id, $url, $template_type, $status_code = 0, $score = 0 ) {
+    public function add_url_result( $run_id, $url, $template_type, $status_code = 0, $score = 0, $diagnosis = array() ) {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_urls';
@@ -225,9 +226,10 @@ class PCM_Cacheability_Advisor_Repository {
                 'template_type' => sanitize_key( $template_type ),
                 'status_code'   => absint( $status_code ),
                 'score'         => max( 0, min( 100, absint( $score ) ) ),
+                'diagnosis_json'=> wp_json_encode( is_array( $diagnosis ) ? $diagnosis : array() ),
                 'created_at'    => $now,
             ),
-            array( '%d', '%s', '%s', '%d', '%d', '%s' )
+            array( '%d', '%s', '%s', '%d', '%d', '%s', '%s' )
         );
 
         if ( false === $inserted ) {
@@ -359,8 +361,15 @@ class PCM_Cacheability_Advisor_Repository {
         $table = $wpdb->prefix . 'pcm_scan_urls';
 
         $query = $wpdb->prepare( "SELECT * FROM {$table} WHERE run_id = %d ORDER BY id ASC", absint( $run_id ) );
+        $rows  = $wpdb->get_results( $query, ARRAY_A );
 
-        return $wpdb->get_results( $query, ARRAY_A );
+        foreach ( $rows as $index => $row ) {
+            $decoded = ! empty( $row['diagnosis_json'] ) ? json_decode( $row['diagnosis_json'], true ) : array();
+            $rows[ $index ]['diagnosis'] = is_array( $decoded ) ? $decoded : array();
+            unset( $rows[ $index ]['diagnosis_json'] );
+        }
+
+        return $rows;
     }
 
     /**
@@ -418,6 +427,41 @@ class PCM_Cacheability_Advisor_Repository {
 
         return $wpdb->get_results( $query, ARRAY_A );
     }
+
+    /**
+     * Fetch URL diagnosis detail for a run + URL.
+     *
+     * @param int    $run_id Run ID.
+     * @param string $url URL.
+     *
+     * @return array|null
+     */
+    public function get_url_diagnosis( $run_id, $url ) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'pcm_scan_urls';
+
+        $query = $wpdb->prepare(
+            "SELECT id, run_id, url, template_type, status_code, score, diagnosis_json, created_at
+             FROM {$table}
+             WHERE run_id = %d AND url = %s
+             ORDER BY id DESC
+             LIMIT 1",
+            absint( $run_id ),
+            esc_url_raw( $url )
+        );
+
+        $row = $wpdb->get_row( $query, ARRAY_A );
+        if ( ! $row ) {
+            return null;
+        }
+
+        $decoded            = ! empty( $row['diagnosis_json'] ) ? json_decode( $row['diagnosis_json'], true ) : array();
+        $row['diagnosis']   = is_array( $decoded ) ? $decoded : array();
+        unset( $row['diagnosis_json'] );
+
+        return $row;
+    }
 }
 
 /**
@@ -446,7 +490,15 @@ class PCM_Cacheability_Probe_Client {
             'sslverify'   => apply_filters( 'https_local_ssl_verify', false ),
         );
 
-        $attempts = 2;
+        if ( function_exists( 'curl_init' ) ) {
+            $curl_probe = $this->probe_with_curl( $url, $args );
+            if ( is_array( $curl_probe ) && empty( $curl_probe['is_error'] ) ) {
+                return $curl_probe;
+            }
+        }
+
+        $start_time = microtime( true );
+        $attempts   = 2;
         $response = null;
         for ( $i = 0; $i < $attempts; $i++ ) {
             $response = wp_remote_get( $url, $args );
@@ -459,8 +511,17 @@ class PCM_Cacheability_Probe_Client {
             return array(
                 'url'              => $url,
                 'effective_url'    => $url,
+                'redirect_chain'   => array(),
                 'status_code'      => 0,
                 'headers'          => array(),
+                'timing'           => array(
+                    'total_time'       => $this->format_duration( microtime( true ) - $start_time ),
+                    'namelookup_time'  => null,
+                    'connect_time'     => null,
+                    'starttransfer_time'=> null,
+                ),
+                'response_size'    => 0,
+                'platform_headers' => array(),
                 'error_code'       => $response->get_error_code(),
                 'error_message'    => $response->get_error_message(),
                 'is_error'         => true,
@@ -470,15 +531,244 @@ class PCM_Cacheability_Probe_Client {
         $headers = wp_remote_retrieve_headers( $response );
         $normalized_headers = $this->normalize_headers( $headers );
 
+        $history = $this->extract_redirect_chain( $response );
+        $body    = wp_remote_retrieve_body( $response );
+
         return array(
             'url'              => $url,
-            'effective_url'    => esc_url_raw( wp_remote_retrieve_header( $response, 'x-redirect-by' ) ? $url : $url ),
+            'effective_url'    => ! empty( $history ) ? end( $history ) : $url,
+            'redirect_chain'   => $history,
             'status_code'      => absint( wp_remote_retrieve_response_code( $response ) ),
             'headers'          => $normalized_headers,
+            'timing'           => array(
+                'total_time'        => $this->format_duration( microtime( true ) - $start_time ),
+                'namelookup_time'   => null,
+                'connect_time'      => null,
+                'starttransfer_time'=> null,
+            ),
+            'response_size'    => strlen( (string) $body ),
+            'platform_headers' => $this->collect_platform_headers( $normalized_headers ),
             'error_code'       => '',
             'error_message'    => '',
             'is_error'         => false,
         );
+    }
+
+    /**
+     * Probe URL using cURL to capture richer timing metadata.
+     *
+     * @param string $url URL.
+     * @param array  $args Request arguments.
+     *
+     * @return array|null
+     */
+    protected function probe_with_curl( $url, $args ) {
+        $timeout = isset( $args['timeout'] ) ? max( 1, absint( $args['timeout'] ) ) : 8;
+
+        $ch = curl_init();
+        if ( ! $ch ) {
+            return null;
+        }
+
+        $header_blocks   = array();
+        $current_headers = array();
+        $status_line     = '';
+
+        curl_setopt( $ch, CURLOPT_URL, $url );
+        curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
+        curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, true );
+        curl_setopt( $ch, CURLOPT_MAXREDIRS, isset( $args['redirection'] ) ? absint( $args['redirection'] ) : 3 );
+        curl_setopt( $ch, CURLOPT_TIMEOUT, $timeout );
+        curl_setopt( $ch, CURLOPT_HEADERFUNCTION, function( $curl, $line ) use ( &$header_blocks, &$current_headers, &$status_line ) {
+            $trimmed = trim( $line );
+            if ( '' === $trimmed ) {
+                if ( ! empty( $status_line ) || ! empty( $current_headers ) ) {
+                    $header_blocks[] = array(
+                        'status'  => $status_line,
+                        'headers' => $current_headers,
+                    );
+                }
+                $current_headers = array();
+                $status_line     = '';
+                return strlen( $line );
+            }
+
+            if ( 0 === stripos( $trimmed, 'HTTP/' ) ) {
+                $status_line = sanitize_text_field( $trimmed );
+                return strlen( $line );
+            }
+
+            $parts = explode( ':', $trimmed, 2 );
+            if ( 2 !== count( $parts ) ) {
+                return strlen( $line );
+            }
+
+            $name  = strtolower( sanitize_text_field( $parts[0] ) );
+            $value = sanitize_text_field( trim( $parts[1] ) );
+
+            if ( isset( $current_headers[ $name ] ) ) {
+                if ( ! is_array( $current_headers[ $name ] ) ) {
+                    $current_headers[ $name ] = array( $current_headers[ $name ] );
+                }
+                $current_headers[ $name ][] = $value;
+            } else {
+                $current_headers[ $name ] = $value;
+            }
+
+            return strlen( $line );
+        } );
+
+        if ( ! empty( $args['headers'] ) && is_array( $args['headers'] ) ) {
+            $curl_headers = array();
+            foreach ( $args['headers'] as $name => $value ) {
+                $curl_headers[] = sanitize_text_field( (string) $name ) . ': ' . sanitize_text_field( (string) $value );
+            }
+            curl_setopt( $ch, CURLOPT_HTTPHEADER, $curl_headers );
+        }
+
+        $body = curl_exec( $ch );
+        $info = curl_getinfo( $ch );
+
+        if ( false === $body ) {
+            $error_code = curl_errno( $ch );
+            $error_msg  = curl_error( $ch );
+            curl_close( $ch );
+
+            return array(
+                'url'              => $url,
+                'effective_url'    => $url,
+                'redirect_chain'   => array( $url ),
+                'status_code'      => 0,
+                'headers'          => array(),
+                'timing'           => array(
+                    'total_time'        => null,
+                    'namelookup_time'   => null,
+                    'connect_time'      => null,
+                    'starttransfer_time'=> null,
+                ),
+                'response_size'    => 0,
+                'platform_headers' => array(),
+                'error_code'       => 'curl_' . absint( $error_code ),
+                'error_message'    => sanitize_text_field( $error_msg ),
+                'is_error'         => true,
+            );
+        }
+
+        curl_close( $ch );
+
+        $final_headers = array();
+        if ( ! empty( $header_blocks ) ) {
+            $last         = end( $header_blocks );
+            $final_headers = isset( $last['headers'] ) && is_array( $last['headers'] ) ? $last['headers'] : array();
+        }
+
+        $redirect_chain = array( $url );
+        foreach ( $header_blocks as $block ) {
+            $location = isset( $block['headers']['location'] ) ? $block['headers']['location'] : '';
+            if ( is_array( $location ) ) {
+                $location = end( $location );
+            }
+            $location = esc_url_raw( (string) $location );
+            if ( '' !== $location ) {
+                $redirect_chain[] = $location;
+            }
+        }
+
+        $effective_url = isset( $info['url'] ) ? esc_url_raw( $info['url'] ) : $url;
+        if ( '' !== $effective_url && end( $redirect_chain ) !== $effective_url ) {
+            $redirect_chain[] = $effective_url;
+        }
+
+        $normalized_headers = $this->normalize_headers( $final_headers );
+
+        return array(
+            'url'              => $url,
+            'effective_url'    => '' !== $effective_url ? $effective_url : $url,
+            'redirect_chain'   => array_values( array_unique( array_filter( $redirect_chain ) ) ),
+            'status_code'      => isset( $info['http_code'] ) ? absint( $info['http_code'] ) : 0,
+            'headers'          => $normalized_headers,
+            'timing'           => array(
+                'total_time'        => isset( $info['total_time'] ) ? $this->format_duration( $info['total_time'] ) : null,
+                'namelookup_time'   => isset( $info['namelookup_time'] ) ? $this->format_duration( $info['namelookup_time'] ) : null,
+                'connect_time'      => isset( $info['connect_time'] ) ? $this->format_duration( $info['connect_time'] ) : null,
+                'starttransfer_time'=> isset( $info['starttransfer_time'] ) ? $this->format_duration( $info['starttransfer_time'] ) : null,
+            ),
+            'response_size'    => strlen( (string) $body ),
+            'platform_headers' => $this->collect_platform_headers( $normalized_headers ),
+            'error_code'       => '',
+            'error_message'    => '',
+            'is_error'         => false,
+        );
+    }
+
+    /**
+     * @param array $headers Header map.
+     *
+     * @return array
+     */
+    protected function collect_platform_headers( $headers ) {
+        $interesting = array(
+            'x-cache',
+            'x-cache-hits',
+            'x-cache-group',
+            'x-batcache',
+            'x-batcache-bypass-reason',
+            'x-serve-cache',
+            'x-cacheable',
+            'cf-cache-status',
+            'server-timing',
+            'age',
+            'via',
+        );
+
+        $output = array();
+        foreach ( $interesting as $name ) {
+            if ( isset( $headers[ $name ] ) ) {
+                $output[ $name ] = $headers[ $name ];
+            }
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array $response HTTP response.
+     *
+     * @return array
+     */
+    protected function extract_redirect_chain( $response ) {
+        $chain = array();
+        $http_response = isset( $response['http_response'] ) ? $response['http_response'] : null;
+
+        if ( is_object( $http_response ) && method_exists( $http_response, 'get_response_object' ) ) {
+            $requests_response = $http_response->get_response_object();
+            if ( is_object( $requests_response ) && ! empty( $requests_response->history ) && is_array( $requests_response->history ) ) {
+                foreach ( $requests_response->history as $history_entry ) {
+                    if ( is_object( $history_entry ) && ! empty( $history_entry->url ) ) {
+                        $chain[] = esc_url_raw( $history_entry->url );
+                    }
+                }
+            }
+
+            if ( is_object( $requests_response ) && ! empty( $requests_response->url ) ) {
+                $chain[] = esc_url_raw( $requests_response->url );
+            }
+        }
+
+        if ( empty( $chain ) ) {
+            $chain[] = isset( $response['url'] ) ? esc_url_raw( $response['url'] ) : '';
+        }
+
+        return array_values( array_filter( array_unique( $chain ) ) );
+    }
+
+    /**
+     * @param float $duration Duration in seconds.
+     *
+     * @return float
+     */
+    protected function format_duration( $duration ) {
+        return round( (float) $duration, 4 );
     }
 
     /**
@@ -573,6 +863,143 @@ class PCM_Cacheability_Rule_Engine {
             'score'    => max( 0, min( 100, (int) $score ) ),
             'findings' => $findings,
         );
+    }
+}
+
+/**
+ * Builds structured bypass/poisoning/risk diagnostics for each route.
+ */
+class PCM_Cacheability_Decision_Tracer {
+    /**
+     * @param string $url Route URL.
+     * @param array  $probe Probe response.
+     * @param array  $evaluation Rule evaluation payload.
+     *
+     * @return array
+     */
+    public function trace( $url, $probe, $evaluation ) {
+        $headers = isset( $probe['headers'] ) && is_array( $probe['headers'] ) ? $probe['headers'] : array();
+
+        $edge_bypass_reasons     = array();
+        $batcache_bypass_reasons = array();
+        $poisoning_signals       = array();
+        $route_risk_labels       = array();
+
+        $cache_control = strtolower( (string) $this->header_to_scalar( $headers, 'cache-control' ) );
+        if ( '' !== $cache_control && ( false !== strpos( $cache_control, 'no-store' ) || false !== strpos( $cache_control, 'private' ) ) ) {
+            $edge_bypass_reasons[] = array(
+                'reason'   => 'cache_control_non_public',
+                'evidence' => $cache_control,
+            );
+        }
+
+        $vary = strtolower( (string) $this->header_to_scalar( $headers, 'vary' ) );
+        if ( '' !== $vary && false !== strpos( $vary, 'cookie' ) ) {
+            $edge_bypass_reasons[] = array(
+                'reason'   => 'vary_cookie',
+                'evidence' => $vary,
+            );
+            $batcache_bypass_reasons[] = array(
+                'reason'   => 'vary_cookie',
+                'evidence' => $vary,
+            );
+        }
+
+        $set_cookie = $this->header_values( $headers, 'set-cookie' );
+        if ( ! empty( $set_cookie ) ) {
+            $batcache_bypass_reasons[] = array(
+                'reason'   => 'set_cookie_present',
+                'evidence' => array_slice( $set_cookie, 0, 5 ),
+            );
+
+            foreach ( $set_cookie as $cookie_line ) {
+                $cookie_name = sanitize_key( strtolower( trim( explode( '=', (string) $cookie_line, 2 )[0] ) ) );
+                if ( '' !== $cookie_name ) {
+                    $poisoning_signals[] = array(
+                        'type'     => 'cookie',
+                        'key'      => $cookie_name,
+                        'evidence' => sanitize_text_field( (string) $cookie_line ),
+                    );
+                }
+            }
+        }
+
+        $url_parts = wp_parse_url( $url );
+        if ( is_array( $url_parts ) && ! empty( $url_parts['query'] ) ) {
+            parse_str( $url_parts['query'], $query_args );
+            foreach ( (array) $query_args as $query_key => $query_value ) {
+                $poisoning_signals[] = array(
+                    'type'     => 'query',
+                    'key'      => sanitize_key( (string) $query_key ),
+                    'evidence' => sanitize_text_field( is_scalar( $query_value ) ? (string) $query_value : wp_json_encode( $query_value ) ),
+                );
+            }
+        }
+
+        foreach ( array( 'vary', 'cache-control', 'pragma', 'x-forwarded-host', 'x-forwarded-proto' ) as $header_key ) {
+            if ( isset( $headers[ $header_key ] ) ) {
+                $poisoning_signals[] = array(
+                    'type'     => 'header',
+                    'key'      => $header_key,
+                    'evidence' => $headers[ $header_key ],
+                );
+            }
+        }
+
+        $score = isset( $evaluation['score'] ) ? absint( $evaluation['score'] ) : 0;
+        if ( $score < 60 ) {
+            $route_risk_labels[] = array(
+                'label'    => 'fragile',
+                'evidence' => 'Score below 60',
+            );
+        }
+        if ( ! empty( $probe['timing']['total_time'] ) && $probe['timing']['total_time'] > 1.2 ) {
+            $route_risk_labels[] = array(
+                'label'    => 'expensive',
+                'evidence' => 'Total response time ' . $probe['timing']['total_time'] . 's',
+            );
+        }
+        if ( ! empty( $probe['platform_headers']['x-cache'] ) && false !== stripos( (string) $this->header_to_scalar( $probe['platform_headers'], 'x-cache' ), 'miss' ) ) {
+            $route_risk_labels[] = array(
+                'label'    => 'cold',
+                'evidence' => 'x-cache indicates miss',
+            );
+        }
+
+        return array(
+            'edge_bypass_reasons'     => $edge_bypass_reasons,
+            'batcache_bypass_reasons' => $batcache_bypass_reasons,
+            'poisoning_signals'       => $poisoning_signals,
+            'route_risk_labels'       => $route_risk_labels,
+        );
+    }
+
+    /**
+     * @param array  $headers Headers map.
+     * @param string $key Header key.
+     *
+     * @return array
+     */
+    protected function header_values( $headers, $key ) {
+        if ( ! isset( $headers[ $key ] ) ) {
+            return array();
+        }
+
+        return is_array( $headers[ $key ] ) ? $headers[ $key ] : array( $headers[ $key ] );
+    }
+
+    /**
+     * @param array  $headers Headers map.
+     * @param string $key Header key.
+     *
+     * @return string
+     */
+    protected function header_to_scalar( $headers, $key ) {
+        if ( ! isset( $headers[ $key ] ) ) {
+            return '';
+        }
+
+        return is_array( $headers[ $key ] ) ? implode( ', ', $headers[ $key ] ) : (string) $headers[ $key ];
     }
 }
 
@@ -672,17 +1099,21 @@ class PCM_Cacheability_Advisor_Run_Service {
     /** @var PCM_Cacheability_URL_Sampler */
     protected $sampler;
 
+    /** @var PCM_Cacheability_Decision_Tracer */
+    protected $decision_tracer;
+
     /**
      * @param PCM_Cacheability_Advisor_Repository|null $repository Repository dependency.
      * @param PCM_Cacheability_Probe_Client|null       $probe_client Probe client.
      * @param PCM_Cacheability_Rule_Engine|null        $rule_engine Rule engine.
      * @param PCM_Cacheability_URL_Sampler|null        $sampler Sampler.
      */
-    public function __construct( $repository = null, $probe_client = null, $rule_engine = null, $sampler = null ) {
+    public function __construct( $repository = null, $probe_client = null, $rule_engine = null, $sampler = null, $decision_tracer = null ) {
         $this->repository   = $repository ? $repository : new PCM_Cacheability_Advisor_Repository();
         $this->probe_client = $probe_client ? $probe_client : new PCM_Cacheability_Probe_Client();
         $this->rule_engine  = $rule_engine ? $rule_engine : new PCM_Cacheability_Rule_Engine();
         $this->sampler      = $sampler ? $sampler : new PCM_Cacheability_URL_Sampler();
+        $this->decision_tracer = $decision_tracer ? $decision_tracer : new PCM_Cacheability_Decision_Tracer();
     }
 
     /**
@@ -706,6 +1137,7 @@ class PCM_Cacheability_Advisor_Run_Service {
             $template_type = isset( $sample['template_type'] ) ? $sample['template_type'] : 'unknown';
             $probe         = $this->probe_client->probe( $url );
             $evaluation    = $this->rule_engine->evaluate( $probe );
+            $trace         = $this->decision_tracer->trace( $url, $probe, $evaluation );
             $score         = isset( $evaluation['score'] ) ? absint( $evaluation['score'] ) : 0;
 
             $this->repository->add_url_result(
@@ -713,7 +1145,18 @@ class PCM_Cacheability_Advisor_Run_Service {
                 $url,
                 $template_type,
                 isset( $probe['status_code'] ) ? absint( $probe['status_code'] ) : 0,
-                $score
+                $score,
+                array(
+                    'decision_trace' => $trace,
+                    'probe'          => array(
+                        'effective_url'    => isset( $probe['effective_url'] ) ? $probe['effective_url'] : '',
+                        'redirect_chain'   => isset( $probe['redirect_chain'] ) ? $probe['redirect_chain'] : array(),
+                        'timing'           => isset( $probe['timing'] ) ? $probe['timing'] : array(),
+                        'response_size'    => isset( $probe['response_size'] ) ? absint( $probe['response_size'] ) : 0,
+                        'platform_headers' => isset( $probe['platform_headers'] ) ? $probe['platform_headers'] : array(),
+                        'headers'          => isset( $probe['headers'] ) ? $probe['headers'] : array(),
+                    ),
+                )
             );
 
             foreach ( (array) $evaluation['findings'] as $finding ) {
@@ -978,3 +1421,43 @@ function pcm_ajax_cacheability_template_trends() {
     );
 }
 add_action( 'wp_ajax_pcm_cacheability_template_trends', 'pcm_ajax_cacheability_template_trends' );
+
+/**
+ * AJAX: Get route diagnosis for a run + URL.
+ *
+ * @return void
+ */
+function pcm_ajax_cacheability_route_diagnosis() {
+    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
+    } else {
+        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+
+        if ( ! pcm_cacheability_advisor_ajax_can_manage() ) {
+            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+        }
+    }
+
+    $run_id = isset( $_REQUEST['run_id'] ) ? absint( wp_unslash( $_REQUEST['run_id'] ) ) : 0;
+    $url    = isset( $_REQUEST['url'] ) ? esc_url_raw( wp_unslash( $_REQUEST['url'] ) ) : '';
+
+    if ( $run_id <= 0 || '' === $url ) {
+        wp_send_json_error( array( 'message' => 'Missing run_id or url.' ), 400 );
+    }
+
+    $repository = new PCM_Cacheability_Advisor_Repository();
+    $diagnosis  = $repository->get_url_diagnosis( $run_id, $url );
+
+    if ( ! $diagnosis ) {
+        wp_send_json_error( array( 'message' => 'No diagnosis found for URL.' ), 404 );
+    }
+
+    wp_send_json_success(
+        array(
+            'run_id'     => $run_id,
+            'url'        => $url,
+            'diagnosis'  => $diagnosis,
+        )
+    );
+}
+add_action( 'wp_ajax_pcm_cacheability_route_diagnosis', 'pcm_ajax_cacheability_route_diagnosis' );
