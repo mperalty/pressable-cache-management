@@ -203,15 +203,53 @@ function pressable_cache_management_display_settings_page() {
 
     $branding_opts         = get_option('remove_pressable_branding_tab_options');
     $show_branding         = ! ( $branding_opts && 'disable' == $branding_opts['branding_on_off_radio_button'] );
+    $privacy_settings      = function_exists( 'pcm_get_privacy_settings' ) ? pcm_get_privacy_settings() : array();
 
     wp_enqueue_style( 'pressable_cache_management',
         plugin_dir_url( dirname( __FILE__ ) ) . 'public/css/style.css', array(), '3.0.0', 'screen' );
     wp_enqueue_style( 'pcm-google-fonts',
         'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', array(), null );
     ?>
-    <div class="wrap" style="background:#f0f2f5;margin-left:-20px;margin-right:-20px;padding:24px 28px 40px;min-height:calc(100vh - 32px);font-family:'Inter',sans-serif;">
+    <div class="wrap pcm-wrap" style="background:#f0f2f5;margin-left:-20px;margin-right:-20px;padding:24px 28px 40px;min-height:calc(100vh - 32px);font-family:'Inter',sans-serif;">
     <div style="max-width:1120px;margin:0 auto;">
     <h1 style="display:none;"><?php echo esc_html( get_admin_page_title() ); ?></h1>
+
+    <script>
+    window.pcmPost = window.pcmPost || function(bodyObj) {
+        var params = new URLSearchParams();
+        Object.keys(bodyObj || {}).forEach(function(key){
+            var value = bodyObj[key];
+            if (Array.isArray(value)) {
+                value.forEach(function(item){ params.append(key + '[]', item); });
+                return;
+            }
+            params.append(key, value);
+        });
+        return fetch(ajaxurl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: params.toString()
+        }).then(function(response){
+            if (!response.ok) {
+                var error = new Error('http_' + response.status);
+                error.status = response.status;
+                throw error;
+            }
+            return response.json();
+        });
+    };
+
+    window.pcmHandleError = window.pcmHandleError || function(context, error, targetEl) {
+        var message = 'Unable to reach the server. Check your connection.';
+        if (error && (error.status === 403 || /nonce|forbidden|permission/i.test(error.message || ''))) {
+            message = "You don't have permission to perform this action. Your session may have expired. Please reload the page.";
+        }
+        if (targetEl) {
+            targetEl.innerHTML = '<div class="pcm-inline-error"><strong>' + context + ':</strong> ' + message + '</div>';
+        }
+    };
+    </script>
 
     <!-- ── Tabs ── -->
     <nav class="nav-tab-wrapper" style="margin-bottom:28px;">
@@ -340,10 +378,17 @@ function pressable_cache_management_display_settings_page() {
             return res.data.status;
         }
 
+        var pcmProbeInProgress = false;
+
         // Core: browser fetches homepage, reads header, reports to PHP.
         // cache:'reload' bypasses browser cache for a fresh CDN response.
         // Pragma: no-cache forces Pressable's Atomic Edge Cache to BYPASS (x-ac: BYPASS).
         function pcmProbeAndReport(onDone) {
+            if (pcmProbeInProgress) {
+                if (typeof onDone === 'function') onDone('busy');
+                return;
+            }
+            pcmProbeInProgress = true;
             fetch(pcmSiteUrl, {
                 method: 'GET',
                 cache: 'reload',
@@ -385,6 +430,9 @@ function pressable_cache_management_display_settings_page() {
             })
             .catch(function() {
                 if (typeof onDone === 'function') onDone(null);
+            })
+            .finally(function(){
+                pcmProbeInProgress = false;
             });
         }
 
@@ -408,6 +456,10 @@ function pressable_cache_management_display_settings_page() {
         function pcmRefreshBatcacheStatus() {
             var btn   = document.getElementById('pcm-bc-refresh');
             var label = document.getElementById('pcm-bc-label');
+            if (pcmProbeInProgress) {
+                label.textContent = '<?php echo esc_js(__('Already checking…', 'pressable_cache_management')); ?>';
+                return;
+            }
             btn.style.opacity = '0.3';
             btn.disabled = true;
             label.textContent = '<?php echo esc_js(__('Checking…', 'pressable_cache_management')); ?>';
@@ -457,8 +509,56 @@ function pressable_cache_management_display_settings_page() {
 
     <?php endif; ?>
 
+
+    <?php if ( $is_deep_dive_tab ) : ?>
+    <?php
+    $summary_cards = array(
+        array(
+            'label' => __( 'Object Cache Health', 'pressable_cache_management' ),
+            'value' => (string) get_option( 'pcm_latest_object_cache_hit_ratio', '—' ) . '%',
+            'target' => '#pcm-feature-object-cache-intelligence',
+            'status' => (float) get_option( 'pcm_latest_object_cache_hit_ratio', 0 ) >= 70 ? 'good' : 'warn',
+        ),
+        array(
+            'label' => __( 'OPcache Health', 'pressable_cache_management' ),
+            'value' => (string) get_option( 'pcm_latest_opcache_memory_pressure', '—' ) . '%',
+            'target' => '#pcm-feature-opcache-awareness',
+            'status' => (float) get_option( 'pcm_latest_opcache_memory_pressure', 0 ) < 90 ? 'good' : 'bad',
+        ),
+        array(
+            'label' => __( 'Cacheability Score', 'pressable_cache_management' ),
+            'value' => (string) get_option( 'pcm_latest_cacheability_score', '—' ),
+            'target' => '#pcm-feature-cacheability-advisor',
+            'status' => (float) get_option( 'pcm_latest_cacheability_score', 0 ) >= 80 ? 'good' : 'warn',
+        ),
+        array(
+            'label' => __( 'Purge Activity', 'pressable_cache_management' ),
+            'value' => (string) get_option( 'pcm_latest_purge_activity', '—' ),
+            'target' => '#pcm-feature-smart-purge-strategy',
+            'status' => 'warn',
+        ),
+    );
+    ?>
+    <div class="pcm-summary-grid" style="margin-bottom:16px;">
+        <?php foreach ( $summary_cards as $card ) : ?>
+        <a class="pcm-card pcm-summary-card" href="<?php echo esc_attr( $card['target'] ); ?>">
+            <span class="pcm-status-dot <?php echo esc_attr( 'is-' . $card['status'] ); ?>"></span>
+            <span class="pcm-summary-label"><?php echo esc_html( $card['label'] ); ?></span>
+            <strong class="pcm-summary-value"><?php echo esc_html( $card['value'] ); ?></strong>
+        </a>
+        <?php endforeach; ?>
+    </div>
+    <nav class="pcm-anchor-nav" id="pcm-deep-dive-nav" aria-label="Deep Dive sections">
+        <a href="#pcm-feature-cacheability-advisor">Cacheability</a>
+        <a href="#pcm-feature-object-cache-intelligence">Object Cache</a>
+        <a href="#pcm-feature-opcache-awareness">OPcache</a>
+        <a href="#pcm-feature-redirect-assistant">Redirects</a>
+        <a href="#pcm-feature-smart-purge-strategy">Smart Purge</a>
+    </nav>
+    <?php endif; ?>
+
     <?php if ( $is_deep_dive_tab && function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-cacheability-advisor" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0; color:#4b5563;"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -491,17 +591,7 @@ function pressable_cache_management_display_settings_page() {
         var diagnosisWrap = document.getElementById('pcm-advisor-diagnosis');
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
         var currentRunId = 0;
-
-        function post(bodyObj) {
-            var params = new URLSearchParams();
-            Object.keys(bodyObj).forEach(function(k){ params.append(k, bodyObj[k]); });
-            return fetch(ajaxurl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                body: params.toString()
-            }).then(function(r){ return r.json(); });
-        }
+        var post = window.pcmPost;
 
         function renderScores(results) {
             if (!Array.isArray(results) || !results.length) {
@@ -890,17 +980,7 @@ function pressable_cache_management_display_settings_page() {
         var summaryEl = document.getElementById('pcm-oci-summary');
         var latestEl = document.getElementById('pcm-oci-latest');
         var trendEl = document.getElementById('pcm-oci-trends');
-
-        function post(bodyObj) {
-            var params = new URLSearchParams();
-            Object.keys(bodyObj).forEach(function(k){ params.append(k, bodyObj[k]); });
-            return fetch(ajaxurl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                body: params.toString()
-            }).then(function(r){ return r.json(); });
-        }
+        var post = window.pcmPost;
 
         function renderLatest(snapshot) {
             if (!snapshot || !snapshot.taken_at) {
@@ -1005,17 +1085,7 @@ function pressable_cache_management_display_settings_page() {
         var summaryEl = document.getElementById('pcm-opcache-summary');
         var latestEl = document.getElementById('pcm-opcache-latest');
         var trendEl = document.getElementById('pcm-opcache-trends');
-
-        function post(bodyObj) {
-            var params = new URLSearchParams();
-            Object.keys(bodyObj).forEach(function(k){ params.append(k, bodyObj[k]); });
-            return fetch(ajaxurl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                body: params.toString()
-            }).then(function(r){ return r.json(); });
-        }
+        var post = window.pcmPost;
 
         function renderLatest(snapshot) {
             if (!snapshot || !snapshot.taken_at) {
@@ -1162,17 +1232,7 @@ https://example.com/OLD/"></textarea>
         var out = document.getElementById('pcm-ra-output');
         var rulesBox = document.getElementById('pcm-ra-rules-json');
         var exportBox = document.getElementById('pcm-ra-export-content');
-
-        function post(obj) {
-            var params = new URLSearchParams();
-            Object.keys(obj).forEach(function(k){ params.append(k, obj[k]); });
-            return fetch(ajaxurl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                body: params.toString()
-            }).then(function(r){ return r.json(); });
-        }
+        var post = window.pcmPost;
 
         function render(obj) {
             out.textContent = JSON.stringify(obj || {}, null, 2);
@@ -1402,6 +1462,34 @@ https://example.com/OLD/"></textarea>
     </div>
     <?php endif; ?>
 
+
+    <?php if ( $is_deep_dive_tab ) : ?>
+    <script>
+    (function(){
+        var nav = document.getElementById('pcm-deep-dive-nav');
+        if (!nav || !window.IntersectionObserver) return;
+        var links = Array.prototype.slice.call(nav.querySelectorAll('a'));
+        var map = {};
+        links.forEach(function(link){
+            var id = (link.getAttribute('href') || '').replace('#', '');
+            var node = document.getElementById(id);
+            if (node) map[id] = link;
+        });
+        var io = new IntersectionObserver(function(entries){
+            entries.forEach(function(entry){
+                var id = entry.target.getAttribute('id');
+                if (!map[id]) return;
+                if (entry.isIntersecting) {
+                    links.forEach(function(a){ a.classList.remove('is-active'); });
+                    map[id].classList.add('is-active');
+                }
+            });
+        }, { rootMargin: '-25% 0px -60% 0px', threshold: 0.01 });
+        Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+    })();
+    </script>
+    <?php endif; ?>
+
     <?php if ( $is_deep_dive_tab && function_exists( 'pcm_microcache_render_deep_dive_card' ) ) : ?>
         <?php pcm_microcache_render_deep_dive_card(); ?>
     <?php endif; ?>
@@ -1433,26 +1521,24 @@ https://example.com/OLD/"></textarea>
         var out = document.getElementById('pcm-report-output');
         var rangeEl = document.getElementById('pcm-report-range');
 
-        function post(obj){
-            var params = new URLSearchParams();
-            Object.keys(obj).forEach(function(k){
-                var v = obj[k];
-                if (Array.isArray(v)) {
-                    v.forEach(function(item){ params.append(k + '[]', item); });
-                } else {
-                    params.append(k, v);
-                }
-            });
-            return fetch(ajaxurl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                body: params.toString()
-            }).then(function(r){ return r.json(); });
+        var post = window.pcmPost;
+
+        function metricName(key){
+            var map = {object_cache_hit_ratio:'Object Cache Hit Ratio',object_cache_evictions:'Object Cache Evictions',opcache_memory_pressure:'OPcache Memory Pressure',cacheability_score:'Cacheability Score'};
+            return map[key] || key.replace(/_/g,' ');
         }
 
         function render(obj){
-            out.textContent = JSON.stringify(obj || {}, null, 2);
+            var rows = (((obj||{}).data||{}).rows)||[];
+            if (!rows.length) { out.innerHTML = '<em>No trend rows available.</em>'; return; }
+            var html = '<table class="widefat striped"><thead><tr><th>Metric</th><th>Current Value</th><th>7-day Trend</th></tr></thead><tbody>';
+            rows.slice(0,12).forEach(function(row){
+                var delta = Number(row.delta || 0);
+                var arrow = delta >= 0 ? '↑' : '↓';
+                html += '<tr><td>' + metricName(row.metric_key || '') + '</td><td>' + (row.current_value ?? '—') + '</td><td>' + arrow + ' ' + delta + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            out.innerHTML = html;
         }
 
         function downloadText(filename, text, mime){
@@ -1471,7 +1557,7 @@ https://example.com/OLD/"></textarea>
                 nonce: nonce,
                 range: rangeEl.value,
                 metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
-            }).then(render).catch(function(){ render({ error: 'trend_load_failed' }); });
+            }).then(render).catch(function(error){ window.pcmHandleError('Load Trends', error, out); });
         });
 
         function doExport(format){
@@ -1482,13 +1568,14 @@ https://example.com/OLD/"></textarea>
                 range: rangeEl.value,
                 metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(function(res){
-                render(res);
                 if (res && res.success && res.data && res.data.content) {
                     var ext = format === 'csv' ? 'csv' : 'json';
                     var mime = format === 'csv' ? 'text/csv' : 'application/json';
-                    downloadText('pcm-report-' + rangeEl.value + '.' + ext, res.data.content, mime);
+                    var fname = 'pcm-report-' + rangeEl.value + '.' + ext;
+                    downloadText(fname, res.data.content, mime);
+                    out.innerHTML = '<div class="pcm-inline-success">Downloaded ' + fname + '</div>';
                 }
-            }).catch(function(){ render({ error: 'export_failed', format: format }); });
+            }).catch(function(error){ window.pcmHandleError('Export ' + format.toUpperCase(), error, out); });
         }
 
         document.getElementById('pcm-report-export-json').addEventListener('click', function(){ doExport('json'); });
@@ -1507,12 +1594,12 @@ https://example.com/OLD/"></textarea>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Privacy Settings', 'pressable_cache_management' ); ?></h4>
-                <p><label><?php echo esc_html__( 'Retention Days', 'pressable_cache_management' ); ?> <input type="number" id="pcm-privacy-retention" min="7" max="365" value="90" /></label></p>
+                <p><label><?php echo esc_html__( 'Retention Days', 'pressable_cache_management' ); ?> <input type="number" id="pcm-privacy-retention" min="7" max="365" value="<?php echo esc_attr( isset( $privacy_settings['retention_days'] ) ? (int) $privacy_settings['retention_days'] : 90 ); ?>" /></label></p>
                 <p><label><?php echo esc_html__( 'Redaction Level', 'pressable_cache_management' ); ?>
-                    <select id="pcm-privacy-redaction"><option value="minimal">minimal</option><option value="standard" selected>standard</option><option value="strict">strict</option></select>
+                    <select id="pcm-privacy-redaction"><option value="minimal" <?php selected( isset( $privacy_settings['redaction_level'] ) ? $privacy_settings['redaction_level'] : "standard", "minimal" ); ?>>minimal</option><option value="standard" <?php selected( isset( $privacy_settings['redaction_level'] ) ? $privacy_settings['redaction_level'] : "standard", "standard" ); ?>>standard</option><option value="strict" <?php selected( isset( $privacy_settings['redaction_level'] ) ? $privacy_settings['redaction_level'] : "standard", "strict" ); ?>>strict</option></select>
                 </label></p>
-                <p><label><input type="checkbox" id="pcm-privacy-advanced-scan" /> <?php echo esc_html__( 'Allow advanced scanning workflows', 'pressable_cache_management' ); ?></label></p>
-                <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" checked /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
+                <p><label><input type="checkbox" id="pcm-privacy-advanced-scan" <?php checked( ! empty( $privacy_settings['advanced_scan_opt_in'] ) ); ?> /> <?php echo esc_html__( 'Allow advanced scanning workflows', 'pressable_cache_management' ); ?></label></p>
+                <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
                 <p><button type="button" class="button button-primary" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
                 <span id="pcm-privacy-status" style="margin-left:8px;color:#374151;"></span></p>
             </div>
@@ -1533,15 +1620,7 @@ https://example.com/OLD/"></textarea>
         var statusEl = document.getElementById('pcm-privacy-status');
         var auditLogEl = document.getElementById('pcm-audit-log');
 
-        function post(obj){
-            var params = new URLSearchParams();
-            Object.keys(obj).forEach(function(k){ params.append(k, obj[k]); });
-            return fetch(ajaxurl, {
-                method: 'POST', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                body: params.toString()
-            }).then(function(r){ return r.json(); });
-        }
+        var post = window.pcmPost;
 
         function loadSettings(){
             return post({ action: 'pcm_privacy_settings_get', nonce: nonce }).then(function(res){
@@ -1853,41 +1932,7 @@ https://example.com/OLD/"></textarea>
 
     <?php elseif ( $tab === 'edge_cache_settings_tab' ) : ?>
 
-    <style>
-    /* Edge Cache tab styles */
-    .edge-cache-loader {
-        display:flex;align-items:center;height:30px;
-        font-style:italic;color:#94a3b8;font-family:'Inter',sans-serif;font-size:13px;
-    }
-    .edge-cache-loader::before {
-        content:'';border:3px solid #e2e8f0;border-top:3px solid #03fcc2;
-        border-radius:50%;width:14px;height:14px;
-        animation:ec-spin 1s linear infinite;margin-right:10px;flex-shrink:0;
-    }
-    @keyframes ec-spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
-    /* AJAX-injected enable/disable buttons */
-    #edge-cache-control-wrapper input[type="submit"] {
-        padding:10px 28px;border:none;border-radius:8px;
-        font-size:14px;font-weight:700;cursor:pointer;
-        font-family:'Inter',sans-serif;transition:background .2s;
-    }
-    /* Both Enable/Disable buttons use .purgecacahe → orange default, green hover */
-    #edge_cache_settings_tab_options_enable,
-    #edge_cache_settings_tab_options_disable {
-        background:#dd3a03 !important;color:#fff !important;
-    }
-    #edge_cache_settings_tab_options_enable:hover,
-    #edge_cache_settings_tab_options_disable:hover {
-        background:#03fcc2 !important;color:#040024 !important;
-        box-shadow:0 4px 14px rgba(3,252,194,0.45) !important;
-    }
-    /* Purge button hover (not disabled) */
-    #purge-edge-cache-button-input:not([disabled]):hover {
-        background:#03fcc2 !important;color:#040024 !important;
-        box-shadow:0 4px 14px rgba(3,252,194,0.45) !important;
-    }
-    .ec-disabled-btn { opacity:.5;cursor:not-allowed !important;pointer-events:none; }
-    </style>
+
 
     <!-- Page heading -->
     <div style="margin-bottom:20px;">
@@ -2068,6 +2113,25 @@ https://example.com/OLD/"></textarea>
         transform:translateY(-1px) !important;
     }
     .nav-tab-hidden { display:none !important; }
+
+    .pcm-anchor-nav{position:sticky;top:32px;z-index:4;display:flex;gap:8px;overflow:auto;padding:8px 0 12px;margin-bottom:14px}
+    .pcm-anchor-nav a{display:inline-flex;white-space:nowrap;padding:6px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none;color:#374151;background:#fff;font-size:12px}
+    .pcm-anchor-nav a.is-active{background:#03fcc2;color:#040024;border-color:#03fcc2}
+    .pcm-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .pcm-summary-card{text-decoration:none;color:#111827;padding:12px;display:flex;flex-direction:column;gap:4px}
+    .pcm-summary-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
+    .pcm-status-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+    .pcm-status-dot.is-good{background:#03fcc2}.pcm-status-dot.is-warn{background:#f59e0b}.pcm-status-dot.is-bad{background:#dd3a03}
+    .pcm-summary-label{font-size:12px;color:#6b7280}.pcm-summary-value{font-size:18px;color:#040024}
+    .pcm-inline-error{border-left:4px solid #dd3a03;background:#fff1f2;padding:8px 10px;border-radius:4px;color:#7f1d1d}
+    .pcm-inline-success{border-left:4px solid #03fcc2;background:#ecfeff;padding:8px 10px;border-radius:4px;color:#0f766e}
+    .pcm-batcache-status .pcm-dot{animation:none}
+    .pcm-batcache-status.checking .pcm-dot{animation:pcm-pulse 1s infinite}
+    @keyframes pcm-pulse{0%{opacity:.35}50%{opacity:1}100%{opacity:.35}}
+    .pcm-wrap .nav-tab:focus-visible,.pcm-wrap button:focus-visible,.pcm-wrap a:focus-visible,.pcm-wrap input:focus-visible,.pcm-wrap select:focus-visible,.pcm-wrap textarea:focus-visible{outline:2px solid #03fcc2;outline-offset:2px}
+    @media (max-width:1024px){.pcm-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-card div[style*='grid-template-columns:1fr 1fr']{display:block !important}}
+
     code { background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:11.5px;color:#dd3a03; }
     </style>
     <?php

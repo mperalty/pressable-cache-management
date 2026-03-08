@@ -456,7 +456,7 @@ function pressable_cache_management_generate_enable_disable_content($is_enabled)
   if ($is_enabled) {
     $id = 'disable_edge_cache_nonce';
     $value = __('Disable Edge Cache', 'pressable_cache_management');
-    $submit_class = 'purgecacahe';
+    $submit_class = 'pcm-purge-btn';
 
     echo '</form>';
     echo '<form method="post" id="' . esc_attr($id) . '">';
@@ -468,7 +468,7 @@ function pressable_cache_management_generate_enable_disable_content($is_enabled)
 } else {
     $id = 'enable_edge_cache_nonce';
     $value = __('Enable Edge Cache', 'pressable_cache_management');
-    $submit_class = 'purgecacahe';
+    $submit_class = 'pcm-purge-btn';
 
     echo '</form>';
     echo '<form method="post" id="' . esc_attr($id) . '">';
@@ -487,39 +487,6 @@ function pressable_cache_management_callback_field_extend_edge_cache_radio_butto
 {
     // Renders the single placeholder div and the synchronization script.
     ?>
-    <style>
-        .edge-cache-loader {
-            display: flex;
-            align-items: center;
-            height: 30px;
-            font-style: italic;
-            color: #777;
-        }
-        .edge-cache-loader::before {
-            content: '';
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 14px;
-            height: 14px;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        /* Style for grayed-out button */
-        .disabled-button-style {
-            opacity: 0.6;
-            cursor: not-allowed;
-            pointer-events: none; /* Prevents clicks on disabled elements */
-        }
-        .disabled-button-style:hover {
-            opacity: 0.6 !important;
-            box-shadow: none !important;
-        }
-    </style>
     <!-- RENDER: Container for ENABLE/DISABLE control -->
     <div id="edge-cache-control-wrapper" style="min-height: 30px;">
         <div class="edge-cache-loader"><?php esc_html_e('Checking Edge Cache status...', 'pressable_cache_management'); ?></div>
@@ -588,7 +555,7 @@ function pressable_edge_cache_flush_management_callback_field_button($args)
     // Disabled attribute and class for initial state
     $disabled_attr = ' disabled="disabled"';
     $disabled_class = ' disabled-button-style';
-    $submit_class = 'purgecacahe' . $disabled_class;
+    $submit_class = 'pcm-purge-btn' . $disabled_class;
 
     echo '</form>';
 

@@ -227,8 +227,8 @@ input.button.custom-class[type="submit"]:hover {
 }
 
 /* ---- Edge Cache / Purge buttons ---- */
-.purgecacahe,
-input.purgecacahe[type="submit"] {
+.pcm-purge-btn,
+input.pcm-purge-btn[type="submit"] {
   background: #dd3a03 !important;
   color: #ffffff !important;
   border: none !important;
@@ -243,8 +243,8 @@ input.purgecacahe[type="submit"] {
   height: auto !important;
 }
 
-.purgecacahe:hover,
-input.purgecacahe[type="submit"]:hover {
+.pcm-purge-btn:hover,
+input.pcm-purge-btn[type="submit"]:hover {
   background: #03fcc2 !important;
   color: #040024 !important;
   box-shadow: 0 4px 14px rgba(3,252,194,0.45) !important;
