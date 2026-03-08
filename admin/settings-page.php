@@ -514,36 +514,42 @@ function pressable_cache_management_display_settings_page() {
     <?php
     $summary_cards = array(
         array(
+            'icon' => '🧠',
             'label' => __( 'Object Cache Health', 'pressable_cache_management' ),
             'value' => (string) get_option( 'pcm_latest_object_cache_hit_ratio', '—' ) . '%',
             'target' => '#pcm-feature-object-cache-intelligence',
             'status' => (float) get_option( 'pcm_latest_object_cache_hit_ratio', 0 ) >= 70 ? 'good' : 'warn',
         ),
         array(
+            'icon' => '📦',
             'label' => __( 'OPcache Health', 'pressable_cache_management' ),
             'value' => (string) get_option( 'pcm_latest_opcache_memory_pressure', '—' ) . '%',
             'target' => '#pcm-feature-opcache-awareness',
             'status' => (float) get_option( 'pcm_latest_opcache_memory_pressure', 0 ) < 90 ? 'good' : 'bad',
         ),
         array(
+            'icon' => '⚡',
             'label' => __( 'Cacheability Score', 'pressable_cache_management' ),
             'value' => (string) get_option( 'pcm_latest_cacheability_score', '—' ),
             'target' => '#pcm-feature-cacheability-advisor',
             'status' => (float) get_option( 'pcm_latest_cacheability_score', 0 ) >= 80 ? 'good' : 'warn',
         ),
         array(
+            'icon' => '🧹',
             'label' => __( 'Purge Activity', 'pressable_cache_management' ),
             'value' => (string) get_option( 'pcm_latest_purge_activity', '—' ),
             'target' => '#pcm-feature-smart-purge-strategy',
-            'status' => 'warn',
+            'status' => is_numeric( get_option( 'pcm_latest_purge_activity', null ) )
+                ? ( (float) get_option( 'pcm_latest_purge_activity', 0 ) > 50 ? 'bad' : ( (float) get_option( 'pcm_latest_purge_activity', 0 ) > 20 ? 'warn' : 'good' ) )
+                : 'warn',
         ),
     );
     ?>
     <div class="pcm-summary-grid" style="margin-bottom:16px;">
         <?php foreach ( $summary_cards as $card ) : ?>
         <a class="pcm-card pcm-summary-card" href="<?php echo esc_attr( $card['target'] ); ?>">
-            <span class="pcm-status-dot <?php echo esc_attr( 'is-' . $card['status'] ); ?>"></span>
-            <span class="pcm-summary-label"><?php echo esc_html( $card['label'] ); ?></span>
+            <span class="pcm-summary-heading"><span class="pcm-summary-icon"><?php echo esc_html( $card['icon'] ); ?></span><span class="pcm-summary-label"><?php echo esc_html( $card['label'] ); ?></span></span>
+            <span class="pcm-status-dot <?php echo esc_attr( 'is-' . $card['status'] ); ?>" aria-hidden="true"></span>
             <strong class="pcm-summary-value"><?php echo esc_html( $card['value'] ); ?></strong>
         </a>
         <?php endforeach; ?>
@@ -969,7 +975,7 @@ function pressable_cache_management_display_settings_page() {
             </div>
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( '7-day Trend', 'pressable_cache_management' ); ?></h4>
-                <div id="pcm-oci-trends" style="font-size:13px;color:#111827;max-height:220px;overflow:auto;"></div>
+                <div id="pcm-oci-trends" class="pcm-trend-panel" style="font-size:13px;color:#111827;"></div>
             </div>
         </div>
     </div>
@@ -1011,14 +1017,93 @@ function pressable_cache_management_display_settings_page() {
             ].join('');
         }
 
+        function toPoints(points, key) {
+            return points.map(function(point){
+                var value = Number(point[key]);
+                return Number.isFinite(value) ? value : null;
+            });
+        }
+
+        function lineChartSvg(values, labels, threshold, opts) {
+            opts = opts || {};
+            var width = 520;
+            var height = 140;
+            var pad = { top: 12, right: 12, bottom: 20, left: 28 };
+            var valid = values.filter(function(value){ return value != null; });
+            var maxVal = valid.length ? Math.max.apply(null, valid.concat([threshold || 0])) : 100;
+            maxVal = Math.max(maxVal, opts.minMax || 100);
+            var innerW = width - pad.left - pad.right;
+            var innerH = height - pad.top - pad.bottom;
+            var safeLength = Math.max(values.length - 1, 1);
+            function xAt(index) { return pad.left + ((innerW * index) / safeLength); }
+            function yAt(value) { return pad.top + innerH - ((Math.max(value, 0) / maxVal) * innerH); }
+
+            var linePath = '';
+            var areaPath = '';
+            var started = false;
+            values.forEach(function(value, index){
+                if (value == null) {
+                    if (started) {
+                        areaPath += ' L ' + xAt(index - 1).toFixed(2) + ' ' + (pad.top + innerH).toFixed(2) + ' Z';
+                        started = false;
+                    }
+                    return;
+                }
+                var x = xAt(index).toFixed(2);
+                var y = yAt(value).toFixed(2);
+                if (!started) {
+                    linePath += (linePath ? ' M ' : 'M ') + x + ' ' + y;
+                    areaPath += (areaPath ? ' M ' : 'M ') + x + ' ' + (pad.top + innerH).toFixed(2) + ' L ' + x + ' ' + y;
+                    started = true;
+                } else {
+                    linePath += ' L ' + x + ' ' + y;
+                    areaPath += ' L ' + x + ' ' + y;
+                }
+                if (index === values.length - 1) {
+                    areaPath += ' L ' + x + ' ' + (pad.top + innerH).toFixed(2) + ' Z';
+                }
+            });
+
+            var thresholdY = threshold != null ? yAt(threshold).toFixed(2) : null;
+            var xTicks = labels.map(function(label, index){
+                if (index === 0 || index === labels.length - 1 || index === Math.floor(labels.length / 2)) {
+                    return '<text x="' + xAt(index).toFixed(2) + '" y="' + (height - 4) + '" text-anchor="middle" fill="#64748b" font-size="10">' + label + '</text>';
+                }
+                return '';
+            }).join('');
+
+            return [
+                '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + (opts.label || 'Trend chart') + '">',
+                '<line x1="' + pad.left + '" y1="' + (pad.top + innerH) + '" x2="' + (width - pad.right) + '" y2="' + (pad.top + innerH) + '" stroke="#e2e8f0" stroke-width="1"/>',
+                thresholdY ? '<line x1="' + pad.left + '" y1="' + thresholdY + '" x2="' + (width - pad.right) + '" y2="' + thresholdY + '" stroke="#dd3a03" stroke-width="1" stroke-dasharray="4 4"/>' : '',
+                areaPath ? '<path d="' + areaPath + '" fill="rgba(3,252,194,0.18)"/>' : '',
+                linePath ? '<path d="' + linePath + '" fill="none" stroke="' + (opts.color || '#03fcc2') + '" stroke-width="2"/>' : '',
+                xTicks,
+                '</svg>'
+            ].join('');
+        }
+
         function renderTrends(points) {
             if (!Array.isArray(points) || !points.length) {
                 trendEl.innerHTML = '<em>No trend points yet.</em>';
                 return;
             }
 
-            var html = '<table class="widefat striped" style="max-width:100%;"><thead><tr><th>Date</th><th>Hit %</th><th>Evictions</th><th>Mem %</th></tr></thead><tbody>';
-            points.slice(-20).forEach(function(point){
+            var rows = points.slice(-20);
+            var labels = rows.map(function(point){ return (point.taken_at || '').slice(5, 10); });
+            var hitValues = toPoints(rows, 'hit_ratio');
+            var evictionValues = toPoints(rows, 'evictions');
+            var memoryValues = toPoints(rows, 'memory_pressure');
+
+            var html = '<div class="pcm-trend-charts">'
+                + '<div class="pcm-trend-chart"><h5>Hit Ratio % <span>threshold 70%</span></h5>' + lineChartSvg(hitValues, labels, 70, { label: 'Object cache hit ratio trend', minMax: 100, color: '#03fcc2' }) + '</div>'
+                + '<div class="pcm-trend-chart"><h5>Evictions <span>watch for spikes</span></h5>' + lineChartSvg(evictionValues, labels, null, { label: 'Object cache evictions trend', minMax: 10, color: '#dd3a03' }) + '</div>'
+                + '<div class="pcm-trend-chart"><h5>Memory Pressure % <span>threshold 90%</span></h5>' + lineChartSvg(memoryValues, labels, 90, { label: 'Object cache memory pressure trend', minMax: 100, color: '#dd3a03' }) + '</div>'
+                + '</div>';
+
+            html += '<details class="pcm-trend-details"><summary>Details table</summary>';
+            html += '<table class="widefat striped" style="max-width:100%;"><thead><tr><th>Date</th><th>Hit %</th><th>Evictions</th><th>Mem %</th></tr></thead><tbody>';
+            rows.forEach(function(point){
                 html += '<tr>'
                     + '<td>' + (point.taken_at || '') + '</td>'
                     + '<td>' + (point.hit_ratio == null ? 'n/a' : point.hit_ratio) + '</td>'
@@ -1026,7 +1111,7 @@ function pressable_cache_management_display_settings_page() {
                     + '<td>' + (point.memory_pressure == null ? 'n/a' : point.memory_pressure) + '</td>'
                     + '</tr>';
             });
-            html += '</tbody></table>';
+            html += '</tbody></table></details>';
             trendEl.innerHTML = html;
         }
 
@@ -1074,7 +1159,7 @@ function pressable_cache_management_display_settings_page() {
             </div>
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( '7-day OPcache Trend', 'pressable_cache_management' ); ?></h4>
-                <div id="pcm-opcache-trends" style="font-size:13px;color:#111827;max-height:220px;overflow:auto;"></div>
+                <div id="pcm-opcache-trends" class="pcm-trend-panel" style="font-size:13px;color:#111827;"></div>
             </div>
         </div>
     </div>
@@ -1117,14 +1202,93 @@ function pressable_cache_management_display_settings_page() {
             return true;
         }
 
+        function toPoints(points, key) {
+            return points.map(function(point){
+                var value = Number(point[key]);
+                return Number.isFinite(value) ? value : null;
+            });
+        }
+
+        function lineChartSvg(values, labels, threshold, opts) {
+            opts = opts || {};
+            var width = 520;
+            var height = 140;
+            var pad = { top: 12, right: 12, bottom: 20, left: 28 };
+            var valid = values.filter(function(value){ return value != null; });
+            var maxVal = valid.length ? Math.max.apply(null, valid.concat([threshold || 0])) : 100;
+            maxVal = Math.max(maxVal, opts.minMax || 100);
+            var innerW = width - pad.left - pad.right;
+            var innerH = height - pad.top - pad.bottom;
+            var safeLength = Math.max(values.length - 1, 1);
+            function xAt(index) { return pad.left + ((innerW * index) / safeLength); }
+            function yAt(value) { return pad.top + innerH - ((Math.max(value, 0) / maxVal) * innerH); }
+
+            var linePath = '';
+            var areaPath = '';
+            var started = false;
+            values.forEach(function(value, index){
+                if (value == null) {
+                    if (started) {
+                        areaPath += ' L ' + xAt(index - 1).toFixed(2) + ' ' + (pad.top + innerH).toFixed(2) + ' Z';
+                        started = false;
+                    }
+                    return;
+                }
+                var x = xAt(index).toFixed(2);
+                var y = yAt(value).toFixed(2);
+                if (!started) {
+                    linePath += (linePath ? ' M ' : 'M ') + x + ' ' + y;
+                    areaPath += (areaPath ? ' M ' : 'M ') + x + ' ' + (pad.top + innerH).toFixed(2) + ' L ' + x + ' ' + y;
+                    started = true;
+                } else {
+                    linePath += ' L ' + x + ' ' + y;
+                    areaPath += ' L ' + x + ' ' + y;
+                }
+                if (index === values.length - 1) {
+                    areaPath += ' L ' + x + ' ' + (pad.top + innerH).toFixed(2) + ' Z';
+                }
+            });
+
+            var thresholdY = threshold != null ? yAt(threshold).toFixed(2) : null;
+            var xTicks = labels.map(function(label, index){
+                if (index === 0 || index === labels.length - 1 || index === Math.floor(labels.length / 2)) {
+                    return '<text x="' + xAt(index).toFixed(2) + '" y="' + (height - 4) + '" text-anchor="middle" fill="#64748b" font-size="10">' + label + '</text>';
+                }
+                return '';
+            }).join('');
+
+            return [
+                '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + (opts.label || 'Trend chart') + '">',
+                '<line x1="' + pad.left + '" y1="' + (pad.top + innerH) + '" x2="' + (width - pad.right) + '" y2="' + (pad.top + innerH) + '" stroke="#e2e8f0" stroke-width="1"/>',
+                thresholdY ? '<line x1="' + pad.left + '" y1="' + thresholdY + '" x2="' + (width - pad.right) + '" y2="' + thresholdY + '" stroke="#dd3a03" stroke-width="1" stroke-dasharray="4 4"/>' : '',
+                areaPath ? '<path d="' + areaPath + '" fill="rgba(3,252,194,0.18)"/>' : '',
+                linePath ? '<path d="' + linePath + '" fill="none" stroke="' + (opts.color || '#03fcc2') + '" stroke-width="2"/>' : '',
+                xTicks,
+                '</svg>'
+            ].join('');
+        }
+
         function renderTrends(points) {
             if (!Array.isArray(points) || !points.length) {
                 trendEl.innerHTML = '<em>No OPcache trend points yet.</em>';
                 return;
             }
 
-            var html = '<table class="widefat striped" style="max-width:100%;"><thead><tr><th>Date</th><th>Mem %</th><th>Restarts</th><th>Hit %</th><th>Health</th></tr></thead><tbody>';
-            points.slice(-20).forEach(function(point){
+            var rows = points.slice(-20);
+            var labels = rows.map(function(point){ return (point.taken_at || '').slice(5, 10); });
+            var hitValues = toPoints(rows, 'hit_rate');
+            var restartValues = toPoints(rows, 'restart_total');
+            var memoryValues = toPoints(rows, 'memory_pressure');
+
+            var html = '<div class="pcm-trend-charts">'
+                + '<div class="pcm-trend-chart"><h5>Hit Rate % <span>threshold 70%</span></h5>' + lineChartSvg(hitValues, labels, 70, { label: 'OPcache hit rate trend', minMax: 100, color: '#03fcc2' }) + '</div>'
+                + '<div class="pcm-trend-chart"><h5>Restarts <span>watch for spikes</span></h5>' + lineChartSvg(restartValues, labels, null, { label: 'OPcache restart trend', minMax: 5, color: '#dd3a03' }) + '</div>'
+                + '<div class="pcm-trend-chart"><h5>Memory Pressure % <span>threshold 90%</span></h5>' + lineChartSvg(memoryValues, labels, 90, { label: 'OPcache memory pressure trend', minMax: 100, color: '#dd3a03' }) + '</div>'
+                + '</div>';
+
+            html += '<details class="pcm-trend-details"><summary>Details table</summary>';
+            html += '<table class="widefat striped" style="max-width:100%;"><thead><tr><th>Date</th><th>Mem %</th><th>Restarts</th><th>Hit %</th><th>Health</th></tr></thead><tbody>';
+            rows.forEach(function(point){
                 html += '<tr>'
                     + '<td>' + (point.taken_at || '') + '</td>'
                     + '<td>' + (point.memory_pressure == null ? 'n/a' : point.memory_pressure) + '</td>'
@@ -1133,7 +1297,7 @@ function pressable_cache_management_display_settings_page() {
                     + '<td>' + (point.health || 'unknown') + '</td>'
                     + '</tr>';
             });
-            html += '</tbody></table>';
+            html += '</tbody></table></details>';
             trendEl.innerHTML = html;
         }
 
@@ -2118,11 +2282,20 @@ https://example.com/OLD/"></textarea>
     .pcm-anchor-nav a{display:inline-flex;white-space:nowrap;padding:6px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none;color:#374151;background:#fff;font-size:12px}
     .pcm-anchor-nav a.is-active{background:#03fcc2;color:#040024;border-color:#03fcc2}
     .pcm-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-    .pcm-summary-card{text-decoration:none;color:#111827;padding:12px;display:flex;flex-direction:column;gap:4px}
+    .pcm-summary-card{text-decoration:none;color:#111827;padding:12px;display:flex;flex-direction:column;gap:8px;position:relative}
     .pcm-summary-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
-    .pcm-status-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+    .pcm-summary-heading{display:flex;align-items:center;gap:8px;padding-right:16px}
+    .pcm-summary-icon{font-size:16px;line-height:1}
+    .pcm-status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;position:absolute;right:12px;top:12px}
     .pcm-status-dot.is-good{background:#03fcc2}.pcm-status-dot.is-warn{background:#f59e0b}.pcm-status-dot.is-bad{background:#dd3a03}
     .pcm-summary-label{font-size:12px;color:#6b7280}.pcm-summary-value{font-size:18px;color:#040024}
+    .pcm-trend-panel{display:flex;flex-direction:column;gap:12px}
+    .pcm-trend-charts{display:grid;grid-template-columns:1fr;gap:10px}
+    .pcm-trend-chart{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px}
+    .pcm-trend-chart h5{margin:0 0 6px;font-size:12px;display:flex;justify-content:space-between;color:#111827}
+    .pcm-trend-chart h5 span{font-weight:500;color:#64748b;font-size:11px}
+    .pcm-trend-chart svg{display:block;width:100%;height:auto}
+    .pcm-trend-details summary{cursor:pointer;color:#374151;font-weight:600;margin-bottom:8px}
     .pcm-inline-error{border-left:4px solid #dd3a03;background:#fff1f2;padding:8px 10px;border-radius:4px;color:#7f1d1d}
     .pcm-inline-success{border-left:4px solid #03fcc2;background:#ecfeff;padding:8px 10px;border-radius:4px;color:#0f766e}
     .pcm-batcache-status .pcm-dot{animation:none}
