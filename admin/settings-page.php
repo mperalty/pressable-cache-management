@@ -183,8 +183,18 @@ function pressable_cache_management_display_settings_page() {
 
     $tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : null;
 
-    $branding_opts  = get_option('remove_pressable_branding_tab_options');
-    $show_branding  = ! ( $branding_opts && 'disable' == $branding_opts['branding_on_off_radio_button'] );
+    if ( isset( $_POST['pcm_caching_suite_toggle_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pcm_caching_suite_toggle_nonce'] ) ), 'pcm_toggle_caching_suite_features' ) ) {
+        $enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
+        update_option( 'pcm_enable_caching_suite_features', $enabled, false );
+
+        if ( function_exists( 'pcm_audit_log' ) ) {
+            pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $enabled ) );
+        }
+    }
+
+    $caching_suite_enabled = (bool) get_option( 'pcm_enable_caching_suite_features', false );
+    $branding_opts         = get_option('remove_pressable_branding_tab_options');
+    $show_branding         = ! ( $branding_opts && 'disable' == $branding_opts['branding_on_off_radio_button'] );
 
     wp_enqueue_style( 'pressable_cache_management',
         plugin_dir_url( dirname( __FILE__ ) ) . 'public/css/style.css', array(), '3.0.0', 'screen' );
@@ -220,6 +230,22 @@ function pressable_cache_management_display_settings_page() {
                     : __( 'Batcache Broken', 'pressable_cache_management' ) ) );
         $bc_class  = $bc_status === 'active' ? 'active' : 'broken';
     ?>
+
+    <div class="pcm-card" style="margin-bottom:20px;">
+        <h3 class="pcm-card-title">🧩 <?php echo esc_html__( 'Caching Suite Features', 'pressable_cache_management' ); ?></h3>
+        <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Enable or disable all advanced Caching Suite diagnostics and remediation modules from one place.', 'pressable_cache_management' ); ?></p>
+        <form method="post" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <input type="hidden" name="pcm_caching_suite_toggle_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_toggle_caching_suite_features' ) ); ?>" />
+            <label>
+                <input type="checkbox" name="pcm_enable_caching_suite_features" value="1" <?php checked( $caching_suite_enabled ); ?> />
+                <?php echo esc_html__( 'Enable Caching Suite features', 'pressable_cache_management' ); ?>
+            </label>
+            <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save', 'pressable_cache_management' ); ?></button>
+            <span style="color:#374151;font-size:12px;">
+                <?php echo $caching_suite_enabled ? esc_html__( 'Currently enabled', 'pressable_cache_management' ) : esc_html__( 'Currently disabled', 'pressable_cache_management' ); ?>
+            </span>
+        </form>
+    </div>
 
     <!-- Header: logo + status badge -->
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
@@ -388,70 +414,9 @@ function pressable_cache_management_display_settings_page() {
         </script>
     </div>
 
-    <?php
-    $pcm_feature_links = array();
-    if ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) {
-        $pcm_feature_links[] = array(
-            'id'    => 'pcm-feature-cacheability-advisor',
-            'label' => __( 'Cacheability Advisor', 'pressable_cache_management' ),
-        );
-    }
-    if ( function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) {
-        $pcm_feature_links[] = array(
-            'id'    => 'pcm-feature-object-cache-intelligence',
-            'label' => __( 'Object Cache Intelligence', 'pressable_cache_management' ),
-        );
-    }
-    if ( function_exists( 'pcm_opcache_awareness_is_enabled' ) && pcm_opcache_awareness_is_enabled() ) {
-        $pcm_feature_links[] = array(
-            'id'    => 'pcm-feature-opcache-awareness',
-            'label' => __( 'PHP OPcache Awareness', 'pressable_cache_management' ),
-        );
-    }
-    if ( function_exists( 'pcm_redirect_assistant_is_enabled' ) && pcm_redirect_assistant_is_enabled() ) {
-        $pcm_feature_links[] = array(
-            'id'    => 'pcm-feature-redirect-assistant',
-            'label' => __( 'Redirect Assistant', 'pressable_cache_management' ),
-        );
-    }
-    if ( function_exists( 'pcm_smart_purge_is_enabled' ) && pcm_smart_purge_is_enabled() ) {
-        $pcm_feature_links[] = array(
-            'id'    => 'pcm-feature-smart-purge-strategy',
-            'label' => __( 'Smart Purge Strategy', 'pressable_cache_management' ),
-        );
-    }
-    if ( function_exists( 'pcm_reporting_is_enabled' ) && pcm_reporting_is_enabled() ) {
-        $pcm_feature_links[] = array(
-            'id'    => 'pcm-feature-observability-reporting',
-            'label' => __( 'Observability & Reporting', 'pressable_cache_management' ),
-        );
-    }
-    if ( function_exists( 'pcm_security_privacy_is_enabled' ) && pcm_security_privacy_is_enabled() ) {
-        $pcm_feature_links[] = array(
-            'id'    => 'pcm-feature-security-privacy',
-            'label' => __( 'Permissions, Safety & Privacy', 'pressable_cache_management' ),
-        );
-    }
-    ?>
-    <?php if ( ! empty( $pcm_feature_links ) ) : ?>
-    <div style="margin:0 0 20px;padding:14px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 2px 8px rgba(4,0,36,.04);">
-        <p style="margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:#64748b;">
-            <?php echo esc_html__( 'Feature menu', 'pressable_cache_management' ); ?>
-        </p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            <?php foreach ( $pcm_feature_links as $pcm_feature_link ) : ?>
-                <a href="#<?php echo esc_attr( $pcm_feature_link['id'] ); ?>"
-                   style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;text-decoration:none;font-size:12px;font-weight:600;">
-                    <?php echo esc_html( $pcm_feature_link['label'] ); ?>
-                </a>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
 
     <?php if ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) : ?>
-    <div class="pcm-card" id="pcm-feature-cacheability-advisor" style="margin-bottom:20px;scroll-margin-top:20px;">
+    <div class="pcm-card" style="margin-bottom:20px;">
         <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0; color:#4b5563;"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
         <p>

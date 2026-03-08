@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_guided_playbooks_is_enabled() {
-    $enabled = false;
+    $enabled = (bool) get_option( 'pcm_enable_caching_suite_features', false );
 
     return (bool) apply_filters( 'pcm_enable_guided_playbooks', $enabled );
 }

@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_opcache_awareness_is_enabled() {
-    $enabled = current_user_can( 'manage_options' );
+    $enabled = (bool) get_option( 'pcm_enable_caching_suite_features', false ) && current_user_can( 'manage_options' );
 
     return (bool) apply_filters( 'pcm_enable_opcache_awareness', $enabled );
 }

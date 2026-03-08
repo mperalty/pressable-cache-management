@@ -17,7 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_cache_busters_is_enabled() {
-    $enabled = function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled();
+    $suite_enabled = (bool) get_option( 'pcm_enable_caching_suite_features', false );
+    $enabled       = $suite_enabled || ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() );
 
     return (bool) apply_filters( 'pcm_enable_cache_busters', $enabled );
 }

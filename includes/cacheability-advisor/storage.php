@@ -23,7 +23,7 @@ if ( ! defined( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION' ) ) {
  * @return bool
  */
 function pcm_cacheability_advisor_is_enabled() {
-    $enabled = false;
+    $enabled = (bool) get_option( 'pcm_enable_caching_suite_features', false );
 
     return (bool) apply_filters( 'pcm_enable_cacheability_advisor', $enabled );
 }

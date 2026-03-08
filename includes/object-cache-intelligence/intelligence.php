@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_object_cache_intelligence_is_enabled() {
-    $enabled = false;
+    $enabled = (bool) get_option( 'pcm_enable_caching_suite_features', false );
 
     return (bool) apply_filters( 'pcm_enable_object_cache_intelligence', $enabled );
 }
