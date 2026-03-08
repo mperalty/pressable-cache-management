@@ -86,7 +86,7 @@ if ( is_admin() ) {
     require_once plugin_dir_path( __FILE__ ) . 'admin/settings-register.php';
     require_once plugin_dir_path( __FILE__ ) . 'admin/settings-callbacks.php';
     require_once plugin_dir_path( __FILE__ ) . 'admin/settings-validate.php';
-    require_once plugin_dir_path( __FILE__ ) . 'remove_old_mu_plugins.php';
+    require_once plugin_dir_path( __FILE__ ) . 'remove-old-mu-plugins.php';
 
     // Must load turn_on_off BEFORE purge (purge reuses pcm_edge_notice)
     require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/turn_on_off_edge_cache.php';
