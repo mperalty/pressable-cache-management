@@ -388,9 +388,70 @@ function pressable_cache_management_display_settings_page() {
         </script>
     </div>
 
+    <?php
+    $pcm_feature_links = array();
+    if ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) {
+        $pcm_feature_links[] = array(
+            'id'    => 'pcm-feature-cacheability-advisor',
+            'label' => __( 'Cacheability Advisor', 'pressable_cache_management' ),
+        );
+    }
+    if ( function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) {
+        $pcm_feature_links[] = array(
+            'id'    => 'pcm-feature-object-cache-intelligence',
+            'label' => __( 'Object Cache Intelligence', 'pressable_cache_management' ),
+        );
+    }
+    if ( function_exists( 'pcm_opcache_awareness_is_enabled' ) && pcm_opcache_awareness_is_enabled() ) {
+        $pcm_feature_links[] = array(
+            'id'    => 'pcm-feature-opcache-awareness',
+            'label' => __( 'PHP OPcache Awareness', 'pressable_cache_management' ),
+        );
+    }
+    if ( function_exists( 'pcm_redirect_assistant_is_enabled' ) && pcm_redirect_assistant_is_enabled() ) {
+        $pcm_feature_links[] = array(
+            'id'    => 'pcm-feature-redirect-assistant',
+            'label' => __( 'Redirect Assistant', 'pressable_cache_management' ),
+        );
+    }
+    if ( function_exists( 'pcm_smart_purge_is_enabled' ) && pcm_smart_purge_is_enabled() ) {
+        $pcm_feature_links[] = array(
+            'id'    => 'pcm-feature-smart-purge-strategy',
+            'label' => __( 'Smart Purge Strategy', 'pressable_cache_management' ),
+        );
+    }
+    if ( function_exists( 'pcm_reporting_is_enabled' ) && pcm_reporting_is_enabled() ) {
+        $pcm_feature_links[] = array(
+            'id'    => 'pcm-feature-observability-reporting',
+            'label' => __( 'Observability & Reporting', 'pressable_cache_management' ),
+        );
+    }
+    if ( function_exists( 'pcm_security_privacy_is_enabled' ) && pcm_security_privacy_is_enabled() ) {
+        $pcm_feature_links[] = array(
+            'id'    => 'pcm-feature-security-privacy',
+            'label' => __( 'Permissions, Safety & Privacy', 'pressable_cache_management' ),
+        );
+    }
+    ?>
+    <?php if ( ! empty( $pcm_feature_links ) ) : ?>
+    <div style="margin:0 0 20px;padding:14px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 2px 8px rgba(4,0,36,.04);">
+        <p style="margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:#64748b;">
+            <?php echo esc_html__( 'Feature menu', 'pressable_cache_management' ); ?>
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <?php foreach ( $pcm_feature_links as $pcm_feature_link ) : ?>
+                <a href="#<?php echo esc_attr( $pcm_feature_link['id'] ); ?>"
+                   style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;text-decoration:none;font-size:12px;font-weight:600;">
+                    <?php echo esc_html( $pcm_feature_link['label'] ); ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
 
     <?php if ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-cacheability-advisor" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0; color:#4b5563;"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -648,7 +709,7 @@ function pressable_cache_management_display_settings_page() {
     })();
     </script>
     <?php if ( function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-object-cache-intelligence" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -753,7 +814,7 @@ function pressable_cache_management_display_settings_page() {
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_opcache_awareness_is_enabled' ) && pcm_opcache_awareness_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-opcache-awareness" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📦 <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review OPcache memory pressure, restart patterns, and recommendations.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -862,7 +923,7 @@ function pressable_cache_management_display_settings_page() {
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_redirect_assistant_is_enabled' ) && pcm_redirect_assistant_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-redirect-assistant" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">↪ <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Discover candidates, edit rules, run dry-run simulation, then export or import redirect payloads.', 'pressable_cache_management' ); ?></p>
 
@@ -1012,7 +1073,7 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_smart_purge_is_enabled' ) && pcm_smart_purge_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-smart-purge-strategy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧹 <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Tune active mode, cooldown, deferred execution, and inspect queued job outcomes.', 'pressable_cache_management' ); ?></p>
         <form method="post" style="margin-bottom:12px;">
@@ -1078,7 +1139,7 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_reporting_is_enabled' ) && pcm_reporting_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-observability-reporting" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -1166,7 +1227,7 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_security_privacy_is_enabled' ) && pcm_security_privacy_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-security-privacy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Permissions, Safety & Privacy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
