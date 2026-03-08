@@ -304,6 +304,89 @@ class PCM_Playbook_Lookup_Service {
  */
 class PCM_Playbook_Renderer {
     /**
+     * Render ordered lists with support for indented bullet sub-items.
+     *
+     * @param string $text Escaped markdown.
+     *
+     * @return string
+     */
+    protected function render_ordered_lists( $text ) {
+        $lines = preg_split( '/\r\n|\r|\n/', (string) $text );
+
+        if ( ! is_array( $lines ) ) {
+            return (string) $text;
+        }
+
+        $output      = array();
+        $in_ordered  = false;
+        $ordered_buf = '';
+        $count       = count( $lines );
+
+        for ( $i = 0; $i < $count; $i++ ) {
+            $line = $lines[ $i ];
+
+            if ( preg_match( '/^\d+\.\s+(.+)$/', trim( $line ), $match ) ) {
+                if ( ! $in_ordered ) {
+                    $ordered_buf = '<ol>';
+                    $in_ordered  = true;
+                }
+
+                $item_text = $match[1];
+                $subitems  = array();
+
+                for ( $j = $i + 1; $j < $count; $j++ ) {
+                    $next = $lines[ $j ];
+
+                    if ( preg_match( '/^\s*-\s+(.+)$/', $next, $sub_match ) ) {
+                        $subitems[] = $sub_match[1];
+                        continue;
+                    }
+
+                    if ( '' === trim( $next ) ) {
+                        continue;
+                    }
+
+                    break;
+                }
+
+                $ordered_buf .= '<li>' . $item_text;
+
+                if ( ! empty( $subitems ) ) {
+                    $ordered_buf .= '<ul>';
+                    foreach ( $subitems as $subitem ) {
+                        $ordered_buf .= '<li>' . $subitem . '</li>';
+                    }
+                    $ordered_buf .= '</ul>';
+                }
+
+                $ordered_buf .= '</li>';
+
+                if ( ! empty( $subitems ) ) {
+                    $i = $j - 1;
+                }
+
+                continue;
+            }
+
+            if ( $in_ordered ) {
+                $ordered_buf .= '</ol>';
+                $output[]     = $ordered_buf;
+                $ordered_buf  = '';
+                $in_ordered   = false;
+            }
+
+            $output[] = $line;
+        }
+
+        if ( $in_ordered ) {
+            $ordered_buf .= '</ol>';
+            $output[]     = $ordered_buf;
+        }
+
+        return implode( "\n", $output );
+    }
+
+    /**
      * @param string $markdown Markdown.
      *
      * @return string
@@ -318,32 +401,7 @@ class PCM_Playbook_Renderer {
         $escaped = preg_replace( '/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $escaped );
         $escaped = preg_replace( '/`([^`]+)`/', '<code>$1</code>', $escaped );
 
-        $escaped = preg_replace_callback(
-            '/(?:^|\n)((?:\d+\.\s+[^\n]+(?:\n|$))+)/',
-            static function ( $matches ) {
-                $lines = preg_split( '/\n+/', trim( $matches[1] ) );
-                $items = array();
-
-                foreach ( $lines as $line ) {
-                    if ( preg_match( '/^\d+\.\s+(.+)$/', trim( $line ), $item_match ) ) {
-                        $items[] = $item_match[1];
-                    }
-                }
-
-                if ( empty( $items ) ) {
-                    return $matches[0];
-                }
-
-                $out = '<ol>';
-                foreach ( $items as $item ) {
-                    $out .= '<li>' . $item . '</li>';
-                }
-                $out .= '</ol>';
-
-                return "\n" . $out . "\n";
-            },
-            $escaped
-        );
+        $escaped = $this->render_ordered_lists( $escaped );
 
         $escaped = preg_replace_callback(
             '/(?:^|\n)((?:-\s+[^\n]+(?:\n|$))+)/',
