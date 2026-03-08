@@ -1,6 +1,6 @@
 === Pressable Cache Management ===
-Contributors: pressable
-Tags: cache, batcache, object cache, edge cache, pressable
+Contributors: pressable, mperalty
+Tags: WordPress, Pressable, Caching, Cache, Batcache, Object Cache
 Requires at least: 5.0
 Tested up to: 6.7
 Requires PHP: 7.4

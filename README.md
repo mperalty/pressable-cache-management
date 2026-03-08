@@ -1,168 +1,135 @@
-# **Pressable Cache Management**
+# Pressable Cache Management
 
 **Plugin Name:** Pressable Cache Management
-**Description:** This plugin makes management of cache easy from the WordPress admin.
+**Current Version:** 5.8.8
+**Description:** Pressable cache management made easy from WordPress admin.
 **Author:** Pressable Customer Success Team
 
 ---
 
-## **Description**
+## Overview
 
-Pressable Cache Management makes managing Batcache and Pressable Edge Cache settings from the WordPress admin easier instead of having to manage them from the Pressable Control Panel.
+Pressable Cache Management gives Pressable-hosted WordPress sites a centralized cache operations panel with tools for:
 
-This plugin does not replace Batcache or the Pressable Control Panel but helps you manage their settings conveniently from the WordPress dashboard.
+- day-to-day cache controls (Batcache, Object Cache, Edge Cache),
+- targeted and automatic purge workflows,
+- cache diagnostics and trend reporting,
+- privacy and permissions guardrails for advanced tooling.
 
-* **Contributors:** otarhe, wpjess, paulhtrott, georgestephanis
-* **Tags:**
-* **Requires at least:** WordPress 6.0
-* **Tested up to:** WordPress 6.1
-
-> The **Stable Tag** should indicate the Subversion tag of the latest stable version, or “trunk” if you use `/trunk/` for the stable release.
-
-> Note that the `readme.txt` of the stable tag is considered the defining version for the plugin. If `/trunk/readme.txt` states that the stable tag is `4.3`, then `/tags/4.3/readme.txt` is what WordPress will use to display plugin information.
-
-> Only the stable tag pointer is read from the trunk `readme.txt`. This allows developers to update the trunk documentation for in-development versions without exposing those details publicly until a new stable tag is released.
-
-> If no stable tag is provided, WordPress assumes trunk is stable. However, specifying “trunk” explicitly is recommended to avoid confusion.
+The plugin does **not** replace Pressable platform infrastructure (Batcache/Edge stack); it provides safer controls and visibility from wp-admin.
 
 ---
 
+## What this version can do
 
-## **Product Direction**
+## Core cache controls
 
-To evolve this plugin beyond basic controls into a full caching suite, we now maintain a roadmap that covers cacheability guidance, cache-busting detection, Memcached and OPcache diagnostics, and a custom-redirects assistant.
+- Flush Object Cache globally.
+- Flush Batcache for individual pages (including toolbar workflows).
+- Purge Edge Cache globally or for a specific URL.
+- Enable/disable Edge Cache from wp-admin.
+- Exclude selected pages from Batcache/Edge cache behavior.
+- Extend Batcache TTL behavior via plugin-managed hooks.
 
-See: `docs/CACHING_SUITE_ROADMAP.md`
+## Automatic purge and invalidation triggers
 
----
+- Flush cache on plugin/theme updates.
+- Flush cache on post/page edits.
+- Flush cache on page/post deletes.
+- Flush cache on comment deletes.
+- WooCommerce-aware single-product cache handling.
 
-## **Installation**
+## Admin UX and operations improvements
 
-1. Upload the plugin files to the `/wp-content/plugins/pressable-cache-management` directory, or install the plugin through the WordPress Plugins screen directly.
-2. Activate the plugin through the **Plugins** screen in WordPress.
-3. Use the **Settings → Pressable Cache Management** screen to configure the plugin.
+- Settings screen with card-based cache controls.
+- Admin-bar cache actions and single-page flush helpers.
+- Last-flushed timestamps and improved status feedback.
+- Optional Pressable branding controls in admin experience.
 
----
+## Localization and updates
 
-## **Frequently Asked Questions**
-
-**A question that someone might have**
-An answer to that question.
-
-**How can I install the plugin**
-The plugin can be downloaded from the GitHub repository and installed manually via the WordPress plugin upload feature.
-
----
-
-## **Screenshots**
-
-1. This screenshot description corresponds to `screenshot-1.(png|jpg|jpeg|gif)`. The screenshot is taken from the `/assets` directory or the directory containing the stable readme file (`tags` or `trunk`). Screenshots in the `/assets` directory take precedence. For example, `/assets/screenshot-1.png` overrides `/tags/4.3/screenshot-1.png`.
-2. This is the second screenshot.
-
----
-
-## **Changelog**
-
-### **Pressable Cache Management Changelog**
-
-#### **Version 5.8.7 (Mar 07, 2026)**
-
-* Fix botton bug
-* Update checkbox button color to red when disabled
-* Bug fix
-* Bypass Edge Cache header when Batcache checker checks for cache status
-* Fix grid and margins
-
-#### **Version 5.5.5 (Mar 06, 2026)**
-
-* Update Edge Cache page UI
-* Update button color
-* Updated tooltip for Batcache status checker
-
-#### **Version 5.3.2 (Mar 05, 2026)**
-
-* Updated the grid to fill the full width of the centered container
-
-#### **Version 5.3.1 (Mar 05, 2026)**
-
-* Updated plugin updater
-
-#### **Version 5.3.0 (Mar 05, 2026)**
-
-**UI & Design**
-
-* Redesigned settings page with card-based layout, toggle switches, and Inter font typography
-* Added “Cache Management by” header above Pressable logo in branded header
-* Made footer ♥ icon clickable in both branding states, linking to the branding settings page
-* Timestamps (Last flushed at:) are now always visible showing — when never flushed
-* Timestamps display on a single straight line using flexbox layout
-* Bold text inside timestamps now renders correctly rather than displaying raw `<b>` tags
-* Darkened timestamp and label text for improved readability
-* Added interactive chip UI for cache exclusion URL input
-* Added branded admin bar modals replacing browser `alert()` popups
-
-**Batcache Status Badge**
-
-* Fixed Batcache status check to read the correct `x-nananana` header instead of scanning the response body
-* Fixed probe request to send no session cookies and mimic a real browser request
-* Removed `Cache-Control: no-cache` from the probe request which caused CDN bypass
-* Added a 90-second transient cache on the status result
-* Added ↺ refresh button to re-check status via AJAX
-* Added tooltip explaining Batcache behavior
-* Status transient clears after a manual cache flush
-
-**Cache Flush Improvements**
-
-* Flush on plugin/theme update now records the plugin or theme name
-* Flush on post/page edit records the post title and post type
-* Page URL field now shows the human-readable URL instead of the Batcache MD5 hash
-* Page URL now saves correctly when flushing from preview toolbar
-* Renamed Object Cache page button **Flush Cache → Flush All Cache**
-
-**GitHub Auto-Updates**
-
-* Integrated `YahnisElsts/plugin-update-checker v5.6`
-* Plugin checks the GitHub repository for new releases automatically
-* WordPress shows update notices when a GitHub release is published
-* Added `readme.txt` for the update details popup
-* Added `SETUP.md` with instructions for future GitHub releases
-* Removed unused library files to reduce plugin size
-
-**Translations**
-
-* Added French (fr_FR) translation
-* Added Dutch (nl_NL) translation
-* Added Simplified Chinese (zh_CN) translation
-* Added Hindi (hi_IN) translation
-* Updated Spanish (es_ES) translation
-* Fixed `load_plugin_textdomain()` path so all locales load correctly
-* Wrapped all UI strings for translation
-* All tooltip and badge strings included in all languages
-
-**Uninstall Cleanup**
-
-* Rewrote `uninstall.php` to remove all option keys created by the plugin
-* Added `$wpdb->query()` cleanup for plugin-update-checker transients
+- Translation support for English, Spanish, French, Dutch, Simplified Chinese, and Hindi.
+- GitHub release-based plugin update checks (plugin-update-checker integration).
 
 ---
 
-#### **Version 5.2.2 (Oct 15, 2025)**
+## 2026 Caching Suite modules included in this codebase
 
-* Fixed admin bar option not updating quickly after Edge Cache is enabled or disabled
+These modules are scaffolded/implemented in `includes/` and are designed for staged rollout via feature flags.
 
-#### **Version 5.2.1 (Oct 7, 2025)**
+- **Cacheability Advisor**
+  URL sampling, cacheability scans, finding storage, template scoring, and scan result endpoints.
 
-* Added option to purge Edge Cache for a single URL
-* Removed API connection features for Edge Cache
-* Added ability to control Edge Cache without API connection
-* Added dropdown to flush Object and Edge Cache together
-* Added auto-purge for WooCommerce products updated via API
-* Removed all support for the CDN
+- **Cache-Busting Detector**
+  Detector framework for cookie/query/vary/no-cache/purge-pattern signals plus trend/top-source insights.
 
-#### **Version 5.1.0 (Jul 30, 2025)**
+- **Object Cache Intelligence**
+  Object-cache stats providers, health evaluation, snapshots, and trend endpoints.
 
-* Updated permissions: Administrators, Editors, and users with `manage_woocommerce` can see the **Flush Cache** option
+- **PHP OPcache Awareness**
+  OPcache snapshots, recommendation engine, and trend endpoints.
 
-#### **Version 5.0.0 (May 30, 2025)**
+- **Redirect Assistant**
+  Candidate discovery, rule simulation, import/export, and management endpoints for cache-friendly redirects.
 
-* Removed CDN tab as the CDN feature was phased out from Pressable
+- **Smart Purge Strategy**
+  Event normalization, recommendation engine, and queue primitives for scoped/deferred purge behavior.
+
+- **Observability & Reporting**
+  Metric rollups, trends, exports, digest services, and optional WP-CLI integration.
+
+- **Guided Remediation Playbooks**
+  Markdown-backed playbook repository, rule-to-playbook lookup, and per-playbook progress/verification state.
+
+- **Permissions, Safety, and Privacy baseline**
+  Capability matrix, audit log service, retention/redaction settings, and privacy-first telemetry middleware.
+
+> Note: most advanced suite modules are feature-gated so they can be enabled progressively per environment.
+
+---
+
+## Feature flags (advanced modules)
+
+Examples of toggles available through WordPress filters:
+
+- `pcm_enable_cacheability_advisor`
+- `pcm_enable_cache_busters`
+- `pcm_enable_object_cache_intelligence`
+- `pcm_enable_opcache_awareness`
+- `pcm_enable_redirect_assistant`
+- `pcm_enable_smart_purge_strategy`
+- `pcm_enable_observability_reporting`
+- `pcm_enable_guided_playbooks`
+- `pcm_enable_security_privacy`
+
+---
+
+## Installation
+
+1. Upload the plugin to `/wp-content/plugins/pressable-cache-management`, or install it from your internal distribution flow.
+2. Activate the plugin in **Plugins**.
+3. Open **Settings → Pressable Cache Management** (or the plugin’s Cache Management menu entry).
+4. (Optional) Enable advanced modules via feature flags in environment-specific code.
+
+---
+
+## Documentation
+
+- Product roadmap: `docs/CACHING_SUITE_ROADMAP.md`
+- 2026 implementation specs: `docs/2026-dev/README.md`
+- Release/setup notes: `SETUP.md`
+- WordPress.org-style plugin readme: `readme.txt`
+
+---
+
+## Compatibility
+
+- Requires at least WordPress 5.0
+- Tested up to WordPress 6.7
+- Requires PHP 7.4+
+
+---
+
+## License
+
+GPL v2 or later
