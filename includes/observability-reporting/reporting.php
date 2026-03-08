@@ -547,9 +547,6 @@ function pcm_ajax_reporting_trends() {
     $range       = isset( $_REQUEST['range'] ) ? sanitize_key( wp_unslash( $_REQUEST['range'] ) ) : '7d';
     $metric_keys = isset( $_REQUEST['metric_keys'] ) ? (array) wp_unslash( $_REQUEST['metric_keys'] ) : array();
 
-    // Ensure operators see fresh data immediately after enabling features.
-    pcm_reporting_daily_rollup();
-
     $service = new PCM_Metric_Rollup_Service();
 
     wp_send_json_success(

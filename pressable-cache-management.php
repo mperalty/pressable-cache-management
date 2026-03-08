@@ -3,8 +3,8 @@
 Plugin Name:  Pressable Cache Management
 Description:  Pressable cache management made easy
 Plugin URI:   https://pressable.com/knowledgebase/pressable-cache-management-plugin/#overview
-Author:       Pressable CS Team
-Version:      5.8.7
+Author:       Malcolm Peralty and Pressable Customer Support Team
+Version:      5.8.8
 Requires at least: 5.0
 Tested up to: 6.7
 Requires PHP: 7.4
@@ -23,19 +23,28 @@ if ( ! defined( 'ABSPATH' ) ) {
 // How updates are triggered: create a GitHub Release (or tag) on the repo and
 // bump the Version header in this file. WordPress will show the update notice
 // to all sites running the plugin within ~12 hours.
-require_once plugin_dir_path( __FILE__ ) . 'includes/plugin-update-checker/plugin-update-checker.php';
+$pcm_puc_file = plugin_dir_path( __FILE__ ) . 'includes/plugin-update-checker/plugin-update-checker.php';
 
-use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+if ( file_exists( $pcm_puc_file ) ) {
+    require_once $pcm_puc_file;
+}
 
-$pcm_update_checker = PucFactory::buildUpdateChecker(
-    'https://github.com/pressable/pressable-cache-management/', // GitHub repo URL (with trailing slash)
-    __FILE__,                                                     // Full path to main plugin file
-    'pressable-cache-management'                                  // Plugin slug (folder name)
-);
+if ( class_exists( '\\YahnisElsts\\PluginUpdateChecker\\v5\\PucFactory' ) ) {
+    $pcm_update_checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+        'https://github.com/pressable/pressable-cache-management/', // GitHub repo URL (with trailing slash)
+        __FILE__,                                                     // Full path to main plugin file
+        'pressable-cache-management'                                  // Plugin slug (folder name)
+    );
 
-// Use tagged GitHub Releases as the update source.
-// To release an update: tag the commit as v5.x.x in GitHub and publish a Release.
-$pcm_update_checker->getVcsApi()->enableReleaseAssets();
+    // Use tagged GitHub Releases as the update source.
+    // To release an update: tag the commit as v5.x.x in GitHub and publish a Release.
+    if ( is_object( $pcm_update_checker ) && method_exists( $pcm_update_checker, 'getVcsApi' ) ) {
+        $pcm_vcs_api = $pcm_update_checker->getVcsApi();
+        if ( is_object( $pcm_vcs_api ) && method_exists( $pcm_vcs_api, 'enableReleaseAssets' ) ) {
+            $pcm_vcs_api->enableReleaseAssets();
+        }
+    }
+}
 
 // ─── Platform check ──────────────────────────────────────────────────────────
 if ( ! defined( 'IS_PRESSABLE' ) ) {

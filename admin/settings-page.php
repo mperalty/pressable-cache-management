@@ -121,8 +121,9 @@ function pcm_ajax_report_batcache_header() {
         $status = 'broken';
     }
 
-    // Active: cache 5 min (stable). Broken: cache 2 min to limit probe frequency.
-    $ttl = ( $status === 'active' ) ? 300 : 120;
+    // Active: 24 hrs — prevents the badge falsely flipping to broken after 5 min.
+    // Broken: 2 min — re-probe frequently until resolved.
+    $ttl = ( $status === 'active' ) ? 86400 : 120;
     set_transient( 'pcm_batcache_status', $status, $ttl );
 
     $labels = array(
@@ -186,12 +187,6 @@ function pressable_cache_management_display_settings_page() {
         $enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
         update_option( 'pcm_enable_caching_suite_features', $enabled, false );
 
-        if ( $enabled && function_exists( 'pcm_get_privacy_settings' ) && function_exists( 'pcm_save_privacy_settings' ) ) {
-            $privacy_settings                          = pcm_get_privacy_settings();
-            $privacy_settings['advanced_scan_opt_in'] = true;
-            pcm_save_privacy_settings( $privacy_settings );
-        }
-
         if ( function_exists( 'pcm_audit_log' ) ) {
             pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $enabled ) );
         }
@@ -224,8 +219,15 @@ function pressable_cache_management_display_settings_page() {
         $options = get_option('pressable_cache_management_options');
 
         // Batcache status badge
-        $bc_status = pcm_get_batcache_status();
-        $bc_label  = $bc_status === 'active' ? __( 'Batcache Active', 'pressable_cache_management' ) : ( $bc_status === 'cloudflare' ? __( 'Cloudflare Detected', 'pressable_cache_management' ) : __( 'Batcache Broken', 'pressable_cache_management' ) );
+        $bc_status     = pcm_get_batcache_status();
+        $bc_is_unknown = ( $bc_status === 'unknown' );
+        $bc_label      = $bc_is_unknown
+            ? __( 'Checking…', 'pressable_cache_management' )
+            : ( $bc_status === 'active'
+                ? __( 'Batcache Active', 'pressable_cache_management' )
+                : ( $bc_status === 'cloudflare'
+                    ? __( 'Cloudflare Detected', 'pressable_cache_management' )
+                    : __( 'Batcache Broken', 'pressable_cache_management' ) ) );
         $bc_class  = $bc_status === 'active' ? 'active' : 'broken';
     ?>
 
@@ -312,7 +314,19 @@ function pressable_cache_management_display_settings_page() {
             .then(function(resp) {
                 var xNananana    = resp.headers.get('x-nananana') || '';
                 var serverHdr    = resp.headers.get('server') || '';
+                var cacheControl = resp.headers.get('cache-control') || '';
+                var age          = resp.headers.get('age') || '';
                 var isCloudflare = serverHdr.toLowerCase().indexOf('cloudflare') !== -1 ? '1' : '0';
+
+                // Parse max-age and display as human readable
+                var ttlHuman = '—';
+                var maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+                if (maxAgeMatch) {
+                    ttlHuman = pcmSecondsToHuman(parseInt(maxAgeMatch[1]));
+                }
+                var ttlEl = document.getElementById('pcm-ttl-value');
+                if (ttlEl && ttlHuman !== '—') ttlEl.textContent = ttlHuman;
+
                 var body = 'action=pcm_report_batcache_header'
                          + '&nonce='         + encodeURIComponent(pcmBatcacheNonce)
                          + '&x_nananana='    + encodeURIComponent(xNananana)
@@ -334,6 +348,22 @@ function pressable_cache_management_display_settings_page() {
             });
         }
 
+        function pcmSecondsToHuman(s) {
+            s = parseInt(s);
+            if (s <= 0) return '0 sec';
+            if (s < 60) return s + ' sec';
+            if (s < 3600) {
+                var m = Math.floor(s / 60), sec = s % 60;
+                return sec > 0 ? m + ' min ' + sec + ' sec' : m + ' min';
+            }
+            if (s < 86400) {
+                var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+                return m > 0 ? h + ' hr ' + m + ' min' : h + ' hr';
+            }
+            var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600);
+            return h > 0 ? d + ' day' + (d !== 1 ? 's' : '') + ' ' + h + ' hr' : d + ' day' + (d !== 1 ? 's' : '');
+        }
+
         // Manual refresh button
         function pcmRefreshBatcacheStatus() {
             var btn   = document.getElementById('pcm-bc-refresh');
@@ -347,8 +377,7 @@ function pressable_cache_management_display_settings_page() {
             });
         }
 
-        // Auto-poll: re-probe every 60s while status is broken (up to 5 min, 5 attempts max)
-        // Reduced from 15s/12 retries to avoid excessive admin-ajax.php load.
+        // Auto-poll: re-probe every 60s while status is broken (up to 5 attempts max)
         var pcmPollTimer = null, pcmPollCount = 0, pcmPollMax = 5;
         function pcmStartRecoveryPoll() {
             clearInterval(pcmPollTimer);
@@ -364,10 +393,16 @@ function pressable_cache_management_display_settings_page() {
             }, 60000);
         }
 
-        // Start polling immediately if badge is broken on page load.
-        <?php if ( $bc_status !== 'active' ) : ?>
-        pcmStartRecoveryPoll();
+        // Always fire one silent probe on page load to verify stored status.
+        // If transient expired (unknown) → show Checking… then update to real result.
+        // If stored active → silently confirms or corrects without waiting 24 hrs.
+        // If stored broken → re-probes immediately, starts recovery poll if still broken.
+        <?php if ( $bc_is_unknown ) : ?>
+        document.getElementById('pcm-bc-label').textContent = '<?php echo esc_js( __( 'Checking…', 'pressable_cache_management' ) ); ?>';
         <?php endif; ?>
+        pcmProbeAndReport(function(status) {
+            if (status !== 'active') pcmStartRecoveryPoll();
+        });
                 // Tooltip show/hide
         (function() {
             var wrap = document.querySelector('.pcm-bc-tooltip-wrap');
@@ -639,7 +674,7 @@ function pressable_cache_management_display_settings_page() {
     })();
     </script>
     <?php if ( function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-object-cache-intelligence" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -736,7 +771,7 @@ function pressable_cache_management_display_settings_page() {
                 .finally(function(){ refreshBtn.disabled = false; });
         });
 
-        Promise.all([loadSnapshot(true), loadTrends()]).catch(function(){
+        Promise.all([loadSnapshot(false), loadTrends()]).catch(function(){
             summaryEl.textContent = 'Unable to load object cache diagnostics.';
         });
     })();
@@ -744,7 +779,7 @@ function pressable_cache_management_display_settings_page() {
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_opcache_awareness_is_enabled' ) && pcm_opcache_awareness_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-opcache-awareness" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📦 <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review OPcache memory pressure, restart patterns, and recommendations.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -845,7 +880,7 @@ function pressable_cache_management_display_settings_page() {
                 .finally(function(){ refreshBtn.disabled = false; });
         });
 
-        Promise.all([loadSnapshot(true), loadTrends()]).catch(function(){
+        Promise.all([loadSnapshot(false), loadTrends()]).catch(function(){
             summaryEl.textContent = 'Unable to load OPcache diagnostics.';
         });
     })();
@@ -853,7 +888,7 @@ function pressable_cache_management_display_settings_page() {
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_redirect_assistant_is_enabled' ) && pcm_redirect_assistant_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-redirect-assistant" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">↪ <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Discover candidates, edit rules, run dry-run simulation, then export or import redirect payloads.', 'pressable_cache_management' ); ?></p>
 
@@ -1003,7 +1038,7 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_smart_purge_is_enabled' ) && pcm_smart_purge_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-smart-purge-strategy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧹 <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Tune active mode, cooldown, deferred execution, and inspect queued job outcomes.', 'pressable_cache_management' ); ?></p>
         <form method="post" style="margin-bottom:12px;">
@@ -1069,7 +1104,7 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_reporting_is_enabled' ) && pcm_reporting_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-observability-reporting" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -1157,7 +1192,7 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php if ( function_exists( 'pcm_security_privacy_is_enabled' ) && pcm_security_privacy_is_enabled() ) : ?>
-    <div class="pcm-card" style="margin-bottom:20px;">
+    <div class="pcm-card" id="pcm-feature-security-privacy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Permissions, Safety & Privacy', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -1279,6 +1314,13 @@ https://example.com/OLD/"></textarea>
                     <span class="pcm-ts-label"><?php echo esc_html__( 'LAST FLUSHED', 'pressable_cache_management' ); ?></span><br>
                     <span class="pcm-ts-value"><?php echo $ts ? esc_html($ts) : '—'; ?></span>
                 </div>
+
+                <!-- Current Cache TTL -->
+                <?php $pcm_ttl = get_option( 'pcm_last_ttl', array() ); ?>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;">
+                    <span class="pcm-ts-label"><?php esc_html_e( 'CURRENT CACHE MAX-AGE', 'pressable_cache_management' ); ?></span><br>
+                    <span id="pcm-ttl-value" class="pcm-ts-value">—</span>
+                </div>
             </div>
 
             <!-- Automated Rules -->
@@ -1290,17 +1332,17 @@ https://example.com/OLD/"></textarea>
                 <?php
                 $rules = array(
                     'flush_cache_theme_plugin_checkbox' => array(
-                        'title' => __( 'Flush Cache on Plugin/Theme Update', 'pressable_cache_management' ) . ' &#x1F50C;',
+                        'title' => '&#x1F50C; ' . __( 'Flush Cache on Plugin/Theme Update', 'pressable_cache_management' ),
                         'desc'  => __( 'Flush cache automatically on plugin & theme update.', 'pressable_cache_management' ),
                         'ts'    => get_option('flush-cache-theme-plugin-time-stamp'),
                     ),
                     'flush_cache_page_edit_checkbox' => array(
-                        'title' => __( 'Flush Cache on Post/Page Edit', 'pressable_cache_management' ) . ' &#x1F4DD;',
+                        'title' => '&#x1F4DD; ' . __( 'Flush Cache on Post/Page Edit', 'pressable_cache_management' ),
                         'desc'  => __( 'Flush cache automatically when page/post/post_types are updated.', 'pressable_cache_management' ),
                         'ts'    => get_option('flush-cache-page-edit-time-stamp'),
                     ),
                     'flush_cache_on_comment_delete_checkbox' => array(
-                        'title' => __( 'Flush Cache on Comment Delete', 'pressable_cache_management' ) . ' &#x1F4AC;',
+                        'title' => '&#x1F4AC; ' . __( 'Flush Cache on Comment Delete', 'pressable_cache_management' ),
                         'desc'  => __( 'Flush cache automatically when comments are deleted.', 'pressable_cache_management' ),
                         'ts'    => get_option('flush-cache-on-comment-delete-time-stamp'),
                     ),
