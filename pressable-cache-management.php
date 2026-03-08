@@ -118,6 +118,10 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/security-privacy/security-p
 require_once plugin_dir_path( __FILE__ ) . 'includes/observability-reporting/reporting.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/guided-remediation-playbooks/playbooks.php';
 
+if ( (bool) apply_filters( 'pcm_enable_durable_origin_microcache', (bool) get_option( 'pcm_enable_durable_origin_microcache', false ) ) ) {
+    require_once plugin_dir_path( __FILE__ ) . 'includes/durable-origin-microcache/microcache.php';
+}
+
 // ─── Settings link on plugin list page ──────────────────────────────────────
 function pcm_settings_link( $links ) {
     $settings_link = '<a href="admin.php?page=pressable_cache_management">'

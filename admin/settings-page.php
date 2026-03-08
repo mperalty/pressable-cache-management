@@ -260,6 +260,29 @@ function pressable_cache_management_display_settings_page() {
                 <?php echo $caching_suite_enabled ? esc_html__( 'Currently enabled', 'pressable_cache_management' ) : esc_html__( 'Currently disabled', 'pressable_cache_management' ); ?>
             </span>
         </form>
+        <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;" />
+        <?php
+        if ( isset( $_POST['pcm_microcache_toggle_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pcm_microcache_toggle_nonce'] ) ), 'pcm_toggle_durable_microcache' ) ) {
+            $enabled = isset( $_POST['pcm_enable_durable_origin_microcache'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_durable_origin_microcache'] );
+            update_option( 'pcm_enable_durable_origin_microcache', $enabled, false );
+            if ( function_exists( 'pcm_audit_log' ) ) {
+                pcm_audit_log( 'durable_microcache_toggled', 'settings', array( 'enabled' => $enabled ) );
+            }
+        }
+        $microcache_enabled = (bool) get_option( 'pcm_enable_durable_origin_microcache', false );
+        ?>
+        <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Enable Durable Origin Microcache for anonymous-safe JSON/HTML artifact caching with tag-based invalidation.', 'pressable_cache_management' ); ?></p>
+        <form method="post" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <input type="hidden" name="pcm_microcache_toggle_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_toggle_durable_microcache' ) ); ?>" />
+            <label>
+                <input type="checkbox" name="pcm_enable_durable_origin_microcache" value="1" <?php checked( $microcache_enabled ); ?> />
+                <?php echo esc_html__( 'Enable Durable Origin Microcache', 'pressable_cache_management' ); ?>
+            </label>
+            <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save', 'pressable_cache_management' ); ?></button>
+            <span style="color:#374151;font-size:12px;">
+                <?php echo $microcache_enabled ? esc_html__( 'Currently enabled', 'pressable_cache_management' ) : esc_html__( 'Currently disabled', 'pressable_cache_management' ); ?>
+            </span>
+        </form>
     </div>
     <?php endif; ?>
 
@@ -1195,6 +1218,10 @@ https://example.com/OLD/"></textarea>
             </div>
         </div>
     </div>
+    <?php endif; ?>
+
+    <?php if ( $is_deep_dive_tab && function_exists( 'pcm_microcache_render_deep_dive_card' ) ) : ?>
+        <?php pcm_microcache_render_deep_dive_card(); ?>
     <?php endif; ?>
 
     <?php if ( $is_settings_tab ) : ?>
