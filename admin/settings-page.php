@@ -452,6 +452,10 @@ function pressable_cache_management_display_settings_page() {
                 <div id="pcm-advisor-findings" style="font-size:13px;color:#111827;max-height:220px;overflow:auto;"></div>
             </div>
         </div>
+        <div style="margin-top:14px;">
+            <h4 style="margin:8px 0;"><?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?></h4>
+            <div id="pcm-advisor-diagnosis" style="font-size:13px;color:#111827;border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb;"><em><?php echo esc_html__( 'Select a route from findings to view diagnosis.', 'pressable_cache_management' ); ?></em></div>
+        </div>
         <div id="pcm-advisor-playbook" style="margin-top:14px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;display:none;"></div>
     </div>
     <script>
@@ -461,7 +465,9 @@ function pressable_cache_management_display_settings_page() {
         var runStatus = document.getElementById('pcm-advisor-run-status');
         var scoreWrap = document.getElementById('pcm-advisor-template-scores');
         var findingsWrap = document.getElementById('pcm-advisor-findings');
+        var diagnosisWrap = document.getElementById('pcm-advisor-diagnosis');
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
+        var currentRunId = 0;
 
         function post(bodyObj) {
             var params = new URLSearchParams();
@@ -495,7 +501,62 @@ function pressable_cache_management_display_settings_page() {
                 html += '<li><strong>' + type + '</strong>: ' + avg + '/100 (' + agg[type].count + ' URLs)</li>';
             });
             html += '</ul>';
+
+            html += '<div style="margin-top:8px;font-size:12px;color:#6b7280;">Sampled routes:</div><ul style="margin:4px 0 0;padding-left:18px;max-height:120px;overflow:auto;">';
+            results.slice(0, 20).forEach(function(row){
+                var routeUrl = row.url || '';
+                html += '<li><button type="button" class="button-link" style="padding:0;height:auto;line-height:1.4;" data-action="open-diagnosis" data-url="' + escapeHtml(routeUrl) + '">' + escapeHtml(routeUrl) + '</button></li>';
+            });
+            html += '</ul>';
             scoreWrap.innerHTML = html;
+        }
+
+        function chips(items) {
+            if (!Array.isArray(items) || !items.length) return '<em>None</em>';
+            return items.map(function(item){
+                var reason = item && item.reason ? item.reason : (item && item.label ? item.label : 'signal');
+                var evidence = item && item.evidence ? (' <span style="color:#6b7280;">(' + escapeHtml(typeof item.evidence === 'string' ? item.evidence : JSON.stringify(item.evidence)) + ')</span>') : '';
+                return '<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;">' + escapeHtml(reason) + evidence + '</span>';
+            }).join('');
+        }
+
+        function renderDiagnosis(payload) {
+            var diagnosis = payload && payload.diagnosis ? payload.diagnosis : {};
+            var data = diagnosis.diagnosis || {};
+            var trace = data.decision_trace || {};
+            var probe = data.probe || {};
+            var poisoning = Array.isArray(trace.poisoning_signals) ? trace.poisoning_signals : [];
+
+            var topCookieSignals = poisoning.filter(function(p){ return p.type === 'cookie'; }).slice(0, 5);
+            var topHeaderSignals = poisoning.filter(function(p){ return p.type === 'header'; }).slice(0, 5);
+
+            diagnosisWrap.innerHTML = [
+                '<div style="margin-bottom:6px;"><strong>URL:</strong> ' + escapeHtml(diagnosis.url || payload.url || '') + '</div>',
+                '<div style="margin-bottom:6px;"><strong>Final URL:</strong> ' + escapeHtml(probe.effective_url || diagnosis.url || '') + '</div>',
+                '<div style="margin-bottom:8px;"><strong>Redirect chain:</strong> ' + escapeHtml((probe.redirect_chain || []).join(' → ') || 'None') + '</div>',
+                '<div style="margin-bottom:6px;"><strong>Why bypassed (Edge):</strong><br>' + chips(trace.edge_bypass_reasons || []) + '</div>',
+                '<div style="margin-bottom:6px;"><strong>Why bypassed (Batcache):</strong><br>' + chips(trace.batcache_bypass_reasons || []) + '</div>',
+                '<div style="margin-bottom:6px;"><strong>Top poisoning cookies:</strong><br>' + chips(topCookieSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div>',
+                '<div style="margin-bottom:6px;"><strong>Top poisoning headers:</strong><br>' + chips(topHeaderSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div>',
+                '<div style="margin-bottom:6px;"><strong>Route risk badges:</strong><br>' + chips(trace.route_risk_labels || []) + '</div>',
+                '<div style="margin-top:8px;color:#4b5563;"><strong>Timing:</strong> total=' + escapeHtml((probe.timing && probe.timing.total_time) ? String(probe.timing.total_time) : 'n/a') + 's, dns=' + escapeHtml((probe.timing && probe.timing.namelookup_time) ? String(probe.timing.namelookup_time) : 'n/a') + 's, connect=' + escapeHtml((probe.timing && probe.timing.connect_time) ? String(probe.timing.connect_time) : 'n/a') + 's, ttfb=' + escapeHtml((probe.timing && probe.timing.starttransfer_time) ? String(probe.timing.starttransfer_time) : 'n/a') + 's</div>',
+                '<div style="color:#4b5563;"><strong>Response size:</strong> ' + escapeHtml(String(probe.response_size || 0)) + ' bytes</div>'
+            ].join('');
+        }
+
+        function loadRouteDiagnosis(runId, url) {
+            if (!runId || !url) return Promise.resolve();
+            diagnosisWrap.innerHTML = '<em>Loading route diagnosis…</em>';
+            return post({ action: 'pcm_cacheability_route_diagnosis', nonce: nonce, run_id: String(runId), url: url })
+                .then(function(payload){
+                    if (!payload || !payload.success || !payload.data) {
+                        throw new Error('Unable to load diagnosis');
+                    }
+                    renderDiagnosis(payload.data);
+                })
+                .catch(function(){
+                    diagnosisWrap.innerHTML = '<em>Unable to load route diagnosis for selected URL.</em>';
+                });
         }
 
         function escapeHtml(input) {
@@ -610,6 +671,10 @@ function pressable_cache_management_display_settings_page() {
                 var findingsPayload = payloads[1];
                 renderScores(resultsPayload && resultsPayload.success ? resultsPayload.data.results : []);
                 renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
+                var firstResult = (resultsPayload && resultsPayload.success && resultsPayload.data && Array.isArray(resultsPayload.data.results)) ? resultsPayload.data.results[0] : null;
+                if (firstResult && firstResult.url) {
+                    return loadRouteDiagnosis(runId, firstResult.url);
+                }
             });
         }
 
@@ -623,6 +688,7 @@ function pressable_cache_management_display_settings_page() {
                 }
 
                 var run = payload.data.run;
+                currentRunId = Number(run.id || 0);
                 runStatus.textContent = 'Latest run #' + run.id + ' — ' + (run.status || 'unknown');
                 return loadRunDetails(run.id);
             });
@@ -648,6 +714,15 @@ function pressable_cache_management_display_settings_page() {
         });
 
         findingsWrap.addEventListener('click', function(event){
+            var diagnosisTrigger = event.target.closest('[data-action="open-diagnosis"]');
+            if (diagnosisTrigger) {
+                var diagnosisUrl = diagnosisTrigger.getAttribute('data-url') || '';
+                if (diagnosisUrl) {
+                    loadRouteDiagnosis(currentRunId, diagnosisUrl);
+                }
+                return;
+            }
+
             var trigger = event.target.closest('[data-action="open-playbook"]');
             if (!trigger) return;
             var ruleId = trigger.getAttribute('data-rule-id') || '';
@@ -722,6 +797,14 @@ function pressable_cache_management_display_settings_page() {
                     runStatus.textContent = 'Unable to run post-fix verification.';
                 });
             }
+        });
+
+        scoreWrap.addEventListener('click', function(event){
+            var trigger = event.target.closest('[data-action="open-diagnosis"]');
+            if (!trigger) return;
+            var url = trigger.getAttribute('data-url') || '';
+            if (!url) return;
+            loadRouteDiagnosis(currentRunId, url);
         });
 
         loadLatestRun();
