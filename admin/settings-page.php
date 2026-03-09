@@ -353,7 +353,7 @@ function pressable_cache_management_display_settings_page() {
                 : ( $bc_status === 'cloudflare'
                     ? __( 'Cloudflare Detected', 'pressable_cache_management' )
                     : __( 'Batcache Broken', 'pressable_cache_management' ) ) );
-        $bc_class  = $bc_status === 'active' ? 'active' : 'broken';
+        $bc_class  = $bc_is_unknown ? 'checking' : ( $bc_status === 'active' ? 'active' : 'broken' );
     ?>
 
     <?php if ( $is_settings_tab ) : ?>
@@ -1324,9 +1324,12 @@ https://example.com/OLD/"></textarea>
     .pcm-timing-row{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:8px;font-size:12px;color:#374151}
     .pcm-timing-track{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}
     .pcm-timing-track span{display:block;height:100%;background:#6366f1;border-radius:999px;transition:width .3s ease}
+    .pcm-batcache-status{position:relative;overflow:hidden}
     .pcm-batcache-status .pcm-dot{animation:none}
     .pcm-batcache-status.checking .pcm-dot{animation:pcm-pulse 1s infinite}
-    @keyframes pcm-pulse{0%{opacity:.35}50%{opacity:1}100%{opacity:.35}}
+    .pcm-batcache-status.checking::after{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.35) 45%,transparent 90%);transform:translateX(-140%);animation:pcm-badge-shimmer 1.2s ease-in-out infinite;pointer-events:none}
+    @keyframes pcm-pulse{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
+    @keyframes pcm-badge-shimmer{100%{transform:translateX(140%)}}
     .pcm-wrap .nav-tab:focus-visible,.pcm-wrap button:focus-visible,.pcm-wrap a:focus-visible,.pcm-wrap input:focus-visible,.pcm-wrap select:focus-visible,.pcm-wrap textarea:focus-visible{outline:2px solid #03fcc2;outline-offset:2px}
     @media (max-width:1024px){.pcm-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
     @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-responsive-two-col,.pcm-object-cache-grid,.pcm-advisor-grid{grid-template-columns:1fr !important}.pcm-diagnosis-grid{grid-template-columns:1fr}.pcm-sp-two-col-grid,.pcm-sp-insights-grid{grid-template-columns:1fr}.pcm-sp-number-wrap{max-width:100%}.pcm-edge-cache-card-wrap{max-width:100%}}

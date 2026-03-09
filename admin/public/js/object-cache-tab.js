@@ -16,7 +16,7 @@ var pcmBatcacheNonce = window.pcmObjectCacheData && window.pcmObjectCacheData.no
             var label = document.getElementById('pcm-bc-label');
             if (!badge || !label) return null;
             label.textContent = res.data.label;
-            ['active','broken','cloudflare'].forEach(function(cls) {
+            ['active','broken','cloudflare','checking'].forEach(function(cls) {
                 badge.classList.remove(cls);
             });
             badge.classList.add(res.data.status === 'active' ? 'active' : 'broken');
@@ -26,7 +26,11 @@ var pcmBatcacheNonce = window.pcmObjectCacheData && window.pcmObjectCacheData.no
         var pcmProbeInProgress = false;
 
         function pcmSetProbeBusyState(isBusy) {
+            var badge = document.getElementById('pcm-bc-badge');
             var btn = document.getElementById('pcm-bc-refresh');
+            if (badge) {
+                badge.classList.toggle('checking', !!isBusy);
+            }
             if (!btn) return;
             btn.disabled = !!isBusy;
             btn.style.opacity = isBusy ? '0.3' : '0.6';
