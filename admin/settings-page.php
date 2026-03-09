@@ -235,8 +235,13 @@ function pressable_cache_management_display_settings_page() {
     $bc_status             = pcm_get_batcache_status();
     $bc_is_unknown         = ( $bc_status === 'unknown' );
 
+    $css_path = dirname( __DIR__ ) . '/public/css/style.css';
     wp_enqueue_style( 'pressable_cache_management',
-        plugin_dir_url( dirname( __FILE__ ) ) . 'public/css/style.css', array(), '3.0.0', 'screen' );
+        plugin_dir_url( dirname( __DIR__ ) ) . 'public/css/style.css',
+        array(),
+        file_exists( $css_path ) ? (string) filemtime( $css_path ) : '3.0.0',
+        'screen'
+    );
     wp_enqueue_style( 'pcm-google-fonts',
         'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', array(), null );
 
