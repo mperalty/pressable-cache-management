@@ -81,8 +81,7 @@
     })();
 
 (function(){
-        var nonce = window.pcmSettingsData && window.pcmSettingsData.nonces ? window.pcmSettingsData.nonces.cacheabilityScan : '';
-        if (!nonce) return;
+        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var initialSettings = (window.pcmSettingsData && window.pcmSettingsData.privacySettings) || {};
         var retentionEl = document.getElementById('pcm-privacy-retention');
         var redactionEl = document.getElementById('pcm-privacy-redaction');
@@ -141,7 +140,7 @@
                 loadMoreEl.style.display = 'none';
             }
 
-            return window.pcmPost({ action: 'pcm_audit_log_list', nonce: nonce, limit: pageSize, offset: currentOffset }).then(function(res){
+            return window.pcmPost({ action: 'pcm_audit_log_list', nonce: window.pcmGetCacheabilityNonce(), limit: pageSize, offset: currentOffset }).then(function(res){
                 if (!res || !res.success || !res.data || !Array.isArray(res.data.rows)) throw new Error('audit_failed');
                 allRows = allRows.concat(res.data.rows);
                 currentOffset += res.data.rows.length;
@@ -157,7 +156,7 @@
             statusEl.textContent = 'Saving…';
             window.pcmPost({
                 action: 'pcm_privacy_settings_save',
-                nonce: nonce,
+                nonce: window.pcmGetCacheabilityNonce(),
                 settings: JSON.stringify({
                     retention_days: retentionEl.value,
                     redaction_level: redactionEl.value,

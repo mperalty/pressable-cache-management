@@ -56,10 +56,75 @@ window.pcmPost = window.pcmPost || function(bodyObj) {
         if (error && (error.isTimeout || error.message === 'timeout')) {
             message = 'This is taking longer than expected...';
         } else if (error && (error.status === 403 || /nonce|forbidden|permission|rest_forbidden/i.test(error.message || ''))) {
-            message = "You don't have permission to perform this action.";
+            message = 'Your session has expired. Please reload the page.';
         }
         if (targetEl) {
             targetEl.innerHTML = '<div class="pcm-inline-error"><strong>' + esc(context) + ':</strong> ' + esc(message) + '</div>';
         }
         return message;
     };
+
+    (function(){
+        function setNonce(nextNonce) {
+            if (!nextNonce) return;
+            if (window.pcmSettingsData && window.pcmSettingsData.nonces) {
+                window.pcmSettingsData.nonces.cacheabilityScan = nextNonce;
+            }
+            if (window.pcmDeepDiveData && window.pcmDeepDiveData.nonces) {
+                window.pcmDeepDiveData.nonces.cacheabilityScan = nextNonce;
+            }
+        }
+
+        window.pcmGetCacheabilityNonce = window.pcmGetCacheabilityNonce || function() {
+            if (window.pcmDeepDiveData && window.pcmDeepDiveData.nonces && window.pcmDeepDiveData.nonces.cacheabilityScan) {
+                return window.pcmDeepDiveData.nonces.cacheabilityScan;
+            }
+            if (window.pcmSettingsData && window.pcmSettingsData.nonces && window.pcmSettingsData.nonces.cacheabilityScan) {
+                return window.pcmSettingsData.nonces.cacheabilityScan;
+            }
+            return '';
+        };
+
+        function refreshCacheabilityNonce() {
+            var params = new URLSearchParams();
+            params.append('action', 'pcm_refresh_cacheability_nonce');
+
+            return fetch(ajaxurl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                body: params.toString()
+            }).then(function(response){
+                if (!response.ok) {
+                    var error = new Error('http_' + response.status);
+                    error.status = response.status;
+                    throw error;
+                }
+                return response.json();
+            }).then(function(payload){
+                if (payload && payload.success && payload.data && payload.data.nonce) {
+                    setNonce(payload.data.nonce);
+                    return payload.data.nonce;
+                }
+                throw new Error('nonce_refresh_failed');
+            });
+        }
+
+        function startNonceRefresh() {
+            var existingNonce = window.pcmGetCacheabilityNonce();
+            if (!existingNonce) return;
+            if (window.pcmCacheabilityNonceRefreshStarted) return;
+            window.pcmCacheabilityNonceRefreshStarted = true;
+
+            window.setInterval(function(){
+                refreshCacheabilityNonce().catch(function(){
+                    return null;
+                });
+            }, 30 * 60 * 1000);
+        }
+
+        window.pcmRefreshCacheabilityNonce = window.pcmRefreshCacheabilityNonce || refreshCacheabilityNonce;
+        window.pcmStartCacheabilityNonceRefresh = window.pcmStartCacheabilityNonceRefresh || startNonceRefresh;
+
+        startNonceRefresh();
+    })();
