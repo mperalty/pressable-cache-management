@@ -553,6 +553,13 @@
             var evictionNote = snapshot.evictions == null
                 ? ' <span style="color:#6b7280;">(provider did not report eviction counters)</span>'
                 : '';
+            var meta = snapshot.meta || {};
+            var usedGb = (meta.used_gb == null ? 'n/a' : Number(meta.used_gb).toFixed(2) + ' GB');
+            var limitGb = (meta.limit_gb == null ? 'n/a' : Number(meta.limit_gb).toFixed(2) + ' GB');
+            var itemsNow = (meta.curr_items == null ? 'n/a' : Number(meta.curr_items));
+            var itemsTotal = (meta.total_items == null ? 'n/a' : Number(meta.total_items));
+            var connsNow = (meta.curr_connections == null ? 'n/a' : Number(meta.curr_connections));
+            var uptime = (meta.uptime_human == null ? 'n/a' : String(meta.uptime_human));
 
             latestEl.innerHTML = [
                 '<ul style="margin:0;padding-left:18px;">',
@@ -560,6 +567,10 @@
                 '<li><strong>Hit Ratio</strong>: ' + (snapshot.hit_ratio == null ? 'n/a' : snapshot.hit_ratio + '%') + '</li>',
                 '<li><strong>Evictions</strong>: ' + evictionsText + evictionNote + '</li>',
                 '<li><strong>Memory Pressure</strong>: ' + memoryText + memoryNote + '</li>',
+                '<li><strong>Memory Used / Limit</strong>: ' + usedGb + ' / ' + limitGb + '</li>',
+                '<li><strong>Current / Total Items</strong>: ' + itemsNow + ' / ' + itemsTotal + '</li>',
+                '<li><strong>Current Connections</strong>: ' + connsNow + '</li>',
+                '<li><strong>Node Uptime</strong>: ' + uptime + '</li>',
                 '<li><strong>Captured</strong>: ' + snapshot.taken_at + '</li>',
                 '</ul>'
             ].join('');
