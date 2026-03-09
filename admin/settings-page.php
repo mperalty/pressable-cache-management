@@ -857,6 +857,12 @@ https://example.com/OLD/"></textarea>
     <div class="pcm-card" id="pcm-feature-security-privacy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
+        <?php if ( function_exists( 'pcm_security_privacy_is_enabled' ) && ! pcm_security_privacy_is_enabled() ) : ?>
+        <div style="display:flex;align-items:flex-start;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:12px 14px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:8px;font-weight:600;">
+            <span aria-hidden="true" style="font-size:18px;line-height:1;">⚠️</span>
+            <span><?php echo esc_html__( 'Privacy & Security is currently disabled by feature filter. Enable pcm_enable_security_privacy to use retention controls and audit logs.', 'pressable_cache_management' ); ?></span>
+        </div>
+        <?php else : ?>
         <div class="pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Privacy Settings', 'pressable_cache_management' ); ?></h4>
@@ -876,6 +882,7 @@ https://example.com/OLD/"></textarea>
                 <p style="margin-top:8px;"><button type="button" class="pcm-btn-secondary" id="pcm-audit-load-more" style="display:none;"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
             </div>
         </div>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
