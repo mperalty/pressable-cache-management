@@ -5,6 +5,22 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+:root {
+  --pcm-bg: #f0f2f5;
+  --pcm-card-bg: #ffffff;
+  --pcm-text: #040024;
+  --pcm-border: #e2e8f0;
+  --pcm-muted: #64748b;
+}
+
+body.admin-color-modern {
+  --pcm-bg: #1d2327;
+  --pcm-card-bg: #2c3338;
+  --pcm-text: #f0f6fc;
+  --pcm-border: #3c434a;
+  --pcm-muted: #c3c4c7;
+}
+
 /* ---- Base ---- */
 #wpwrap .wrap,
 #wpwrap .wrap * {
@@ -222,7 +238,7 @@
 
 /* ---- Toggle Label Text ---- */
 .pcm-wrap label.rad-text {
-  color: #040024;
+  color: var(--pcm-text);
   font-size: 13.5px;
   font-weight: 600;
   margin-left: 0;
@@ -238,11 +254,11 @@ input[type="text"] {
   width: 100% !important;
   height: 40px !important;
   padding: 0 14px !important;
-  border: 1px solid #e2e8f0 !important;
+  border: 1px solid var(--pcm-border) !important;
   border-radius: 8px !important;
   font-size: 13px !important;
-  color: #040024 !important;
-  background: #f8fafc !important;
+  color: var(--pcm-text) !important;
+  background: var(--pcm-bg) !important;
   transition: border-color 0.2s, box-shadow 0.2s !important;
   font-family: 'Inter', sans-serif !important;
   box-shadow: none !important;
@@ -253,7 +269,7 @@ input[type="text"]:focus {
   outline: none !important;
   border-color: #03fcc2 !important;
   box-shadow: 0 0 0 3px rgba(3,252,194,0.2) !important;
-  background: #ffffff !important;
+  background: var(--pcm-card-bg) !important;
 }
 
 ::placeholder {
@@ -269,13 +285,13 @@ input[type="text"]:focus {
   border-radius: 8px;
   margin: 6px 0;
   cursor: pointer;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--pcm-border);
   transition: background 0.2s, border-color 0.2s;
 }
 
 .pcm-wrap .rad-label:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--pcm-bg);
+  border-color: var(--pcm-border);
 }
 
 .pcm-wrap .rad-input {
@@ -301,7 +317,7 @@ input[type="text"]:focus {
   width: inherit;
   height: inherit;
   border-radius: inherit;
-  background: #e2e8f0;
+  background: var(--pcm-border);
   transform: scale(1.1);
   transition: 0.25s;
 }
@@ -311,7 +327,7 @@ input[type="text"]:focus {
 }
 
 .pcm-wrap .rad-text {
-  color: #374151;
+  color: var(--pcm-muted);
   margin-left: 12px;
   font-size: 13px;
   font-weight: 500;
@@ -322,7 +338,7 @@ input[type="text"]:focus {
 }
 
 .pcm-wrap .rad-input:checked ~ .rad-text {
-  color: #040024;
+  color: var(--pcm-text);
   font-weight: 600;
 }
 
@@ -339,14 +355,14 @@ input[type="text"]:focus {
   align-items: center !important;
   height: 30px !important;
   font-style: italic !important;
-  color: #94a3b8 !important;
+  color: var(--pcm-muted) !important;
   font-size: 13px !important;
   font-family: 'Inter', sans-serif !important;
 }
 
 .edge-cache-loader::before {
   content: '' !important;
-  border: 3px solid #e2e8f0 !important;
+  border: 3px solid var(--pcm-border) !important;
   border-top: 3px solid #03fcc2 !important;
   border-radius: 50% !important;
   width: 14px !important;
@@ -367,7 +383,7 @@ div.notice.pcm-branded,
 div.updated.pcm-branded,
 div.error.pcm-branded {
   border-left: 4px solid #03fcc2 !important;
-  background: #ffffff !important;
+  background: var(--pcm-card-bg) !important;
   border-radius: 0 8px 8px 0 !important;
   padding: 14px 18px !important;
   font-family: 'Inter', sans-serif !important;
@@ -397,14 +413,14 @@ div.notice.pcm-branded.pcm-warning {
   margin: 0 0 8px !important;
   font-size: 14px !important;
   font-weight: 700 !important;
-  color: #040024 !important;
+  color: var(--pcm-text) !important;
   font-family: 'Inter', sans-serif !important;
 }
 
 .pcm-notice-body p {
   margin: 0 0 6px !important;
   font-size: 13px !important;
-  color: #475569 !important;
+  color: var(--pcm-muted) !important;
   font-family: 'Inter', sans-serif !important;
 }
 
@@ -422,7 +438,7 @@ div.notice.pcm-branded.pcm-warning {
   background: none !important;
   border: none !important;
   cursor: pointer !important;
-  color: #94a3b8 !important;
+  color: var(--pcm-muted) !important;
   font-size: 18px !important;
   line-height: 1 !important;
   padding: 0 !important;
@@ -431,7 +447,7 @@ div.notice.pcm-branded.pcm-warning {
 }
 
 .pcm-notice-close:hover {
-  color: #040024 !important;
+  color: var(--pcm-text) !important;
 }
 
 /* ---- Batcache Status Badge ---- */
@@ -444,6 +460,7 @@ div.notice.pcm-branded.pcm-warning {
   padding: 5px 13px;
   border-radius: 20px;
   font-family: 'Inter', sans-serif;
+  border: 1px solid var(--pcm-border);
 }
 
 .pcm-batcache-status.active {
@@ -478,18 +495,18 @@ div.notice.pcm-branded.pcm-warning {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: var(--pcm-bg);
+  border: 1px solid var(--pcm-border);
   border-radius: 20px;
   padding: 4px 8px 4px 12px;
   font-size: 12px;
-  color: #040024;
+  color: var(--pcm-text);
   font-weight: 500;
   font-family: 'Inter', sans-serif;
 }
 
 .pcm-wrap .pcm-chip-remove {
-  background: #e2e8f0;
+  background: var(--pcm-border);
   border: none;
   border-radius: 50%;
   width: 18px;
@@ -499,7 +516,7 @@ div.notice.pcm-branded.pcm-warning {
   justify-content: center;
   cursor: pointer;
   font-size: 11px;
-  color: #64748b;
+  color: var(--pcm-muted);
   padding: 0;
   line-height: 1;
   transition: background 0.15s, color 0.15s;
@@ -540,7 +557,7 @@ div.notice.pcm-branded.pcm-warning {
 /* ── Timestamp display – always visible ── */
 .pcm-wrap .pcm-ts-label {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--pcm-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-family: 'Inter', sans-serif;
@@ -550,7 +567,7 @@ div.notice.pcm-branded.pcm-warning {
 
 .pcm-wrap .pcm-ts-value {
   font-size: 12.5px;
-  color: #040024;
+  color: var(--pcm-text);
   font-family: 'Inter', sans-serif;
   font-weight: 500;
   display: block;
@@ -559,7 +576,7 @@ div.notice.pcm-branded.pcm-warning {
 
 .pcm-wrap .pcm-ts-inline {
   font-size: 11.5px;
-  color: #1e293b;
+  color: var(--pcm-muted);
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -573,20 +590,20 @@ div.notice.pcm-branded.pcm-warning {
 }
 .pcm-wrap .pcm-ts-inline strong {
   font-weight: 700;
-  color: #040024;
+  color: var(--pcm-text);
   flex-shrink: 0;
   white-space: nowrap;
 }
 .pcm-wrap .pcm-ts-inline b {
   font-weight: 700;
-  color: #040024;
+  color: var(--pcm-text);
 }
 
 /* ── Card helpers ── */
 .pcm-wrap .pcm-card {
-  background: #fff;
+  background: var(--pcm-card-bg);
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--pcm-border);
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
@@ -594,7 +611,7 @@ div.notice.pcm-branded.pcm-warning {
 .pcm-wrap .pcm-card-title {
   font-size: 15px;
   font-weight: 700;
-  color: #040024;
+  color: var(--pcm-text);
   margin: 0 0 16px;
   font-family: 'Inter', sans-serif;
 }
@@ -604,20 +621,20 @@ div.notice.pcm-branded.pcm-warning {
   align-items: flex-start;
   gap: 14px;
   padding: 14px 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--pcm-border);
 }
 
 .pcm-wrap .pcm-toggle-title {
   font-size: 13.5px;
   font-weight: 600;
-  color: #040024;
+  color: var(--pcm-text);
   font-family: 'Inter', sans-serif;
   line-height: 1.3;
 }
 
 .pcm-wrap .pcm-toggle-desc {
   font-size: 12px;
-  color: #64748b;
+  color: var(--pcm-muted);
   margin-top: 2px;
   font-family: 'Inter', sans-serif;
 }
