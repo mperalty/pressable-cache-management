@@ -62,24 +62,31 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             return array();
         }
 
-        $hits   = property_exists( $wp_object_cache, 'cache_hits' ) ? absint( $wp_object_cache->cache_hits ) : null;
-        $misses = property_exists( $wp_object_cache, 'cache_misses' ) ? absint( $wp_object_cache->cache_misses ) : null;
+        $hits   = $this->read_metric_from_dropin( $wp_object_cache, array( 'cache_hits', 'get_hits', 'hits' ) );
+        $misses = $this->read_metric_from_dropin( $wp_object_cache, array( 'cache_misses', 'get_misses', 'misses' ) );
 
-        $evictions = null;
-        $bytes     = null;
-        $limit     = null;
+        $evictions = $this->read_metric_from_dropin( $wp_object_cache, array( 'evictions', 'evicted', 'evicted_unfetched' ) );
+        $bytes     = $this->read_metric_from_dropin( $wp_object_cache, array( 'bytes', 'bytes_used', 'used_bytes' ) );
+        $limit     = $this->read_metric_from_dropin( $wp_object_cache, array( 'limit_maxbytes', 'maxbytes', 'bytes_limit' ) );
 
         if ( method_exists( $wp_object_cache, 'stats' ) ) {
             ob_start();
-            $wp_object_cache->stats();
-            $stats_text = (string) ob_get_clean();
+            $stats_result = $wp_object_cache->stats();
+            $stats_text   = (string) ob_get_clean();
 
-            $parsed = $this->parse_dropin_stats_text( $stats_text );
-            $hits   = null !== $parsed['hits'] ? $parsed['hits'] : $hits;
-            $misses = null !== $parsed['misses'] ? $parsed['misses'] : $misses;
-            $evictions = $parsed['evictions'];
-            $bytes     = $parsed['bytes_used'];
-            $limit     = $parsed['bytes_limit'];
+            $parsed_text   = $this->parse_dropin_stats_text( $stats_text );
+            $parsed_struct = $this->parse_dropin_stats_struct( $stats_result );
+
+            $hits      = null !== $parsed_text['hits'] ? $parsed_text['hits'] : $hits;
+            $hits      = null !== $parsed_struct['hits'] ? $parsed_struct['hits'] : $hits;
+            $misses    = null !== $parsed_text['misses'] ? $parsed_text['misses'] : $misses;
+            $misses    = null !== $parsed_struct['misses'] ? $parsed_struct['misses'] : $misses;
+            $evictions = null !== $parsed_text['evictions'] ? $parsed_text['evictions'] : $evictions;
+            $evictions = null !== $parsed_struct['evictions'] ? $parsed_struct['evictions'] : $evictions;
+            $bytes     = null !== $parsed_text['bytes_used'] ? $parsed_text['bytes_used'] : $bytes;
+            $bytes     = null !== $parsed_struct['bytes_used'] ? $parsed_struct['bytes_used'] : $bytes;
+            $limit     = null !== $parsed_text['bytes_limit'] ? $parsed_text['bytes_limit'] : $limit;
+            $limit     = null !== $parsed_struct['bytes_limit'] ? $parsed_struct['bytes_limit'] : $limit;
         }
 
         $client_stats = $this->get_client_stats( $wp_object_cache );
@@ -212,12 +219,83 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     }
 
     /**
-     * Parse plain-text output from drop-in stats methods.
+     * Read one metric from known drop-in properties.
      *
-     * @param string $stats_text Raw output.
+     * @param object $wp_object_cache Active object cache drop-in instance.
+     * @param array  $keys            Candidate keys.
+     *
+     * @return int|null
+     */
+    protected function read_metric_from_dropin( $wp_object_cache, $keys ) {
+        $value = $this->extract_metric_value( $wp_object_cache, (array) $keys );
+
+        return null === $value ? null : absint( $value );
+    }
+
+    /**
+     * Parse structured output returned by drop-in stats methods.
+     *
+     * @param mixed $stats_result Return value from $wp_object_cache->stats().
      *
      * @return array
      */
+    protected function parse_dropin_stats_struct( $stats_result ) {
+        return array(
+            'hits'       => $this->extract_metric_value( $stats_result, array( 'get_hits', 'cache_hits', 'hits' ) ),
+            'misses'     => $this->extract_metric_value( $stats_result, array( 'get_misses', 'cache_misses', 'misses' ) ),
+            'evictions'  => $this->extract_metric_value( $stats_result, array( 'evictions', 'evicted', 'evicted_unfetched' ) ),
+            'bytes_used' => $this->extract_metric_value( $stats_result, array( 'bytes', 'bytes_used', 'used_bytes' ) ),
+            'bytes_limit'=> $this->extract_metric_value( $stats_result, array( 'limit_maxbytes', 'maxbytes', 'bytes_limit' ) ),
+        );
+    }
+
+    /**
+     * Recursively read numeric metric values from nested array/object structures.
+     *
+     * @param mixed $source Value to inspect.
+     * @param array $keys   Candidate keys.
+     *
+     * @return int|null
+     */
+    protected function extract_metric_value( $source, $keys ) {
+        if ( is_scalar( $source ) || null === $source ) {
+            return null;
+        }
+
+        $normalized_keys = array_map( 'strtolower', array_map( 'strval', (array) $keys ) );
+        $stack           = array( $source );
+        $sum             = null;
+
+        while ( ! empty( $stack ) ) {
+            $node = array_pop( $stack );
+            if ( is_object( $node ) ) {
+                $node = get_object_vars( $node );
+            }
+
+            if ( ! is_array( $node ) ) {
+                continue;
+            }
+
+            foreach ( $node as $key => $value ) {
+                if ( is_array( $value ) || is_object( $value ) ) {
+                    $stack[] = $value;
+                }
+
+                if ( ! is_string( $key ) ) {
+                    continue;
+                }
+
+                if ( ! in_array( strtolower( $key ), $normalized_keys, true ) || ! is_numeric( $value ) ) {
+                    continue;
+                }
+
+                $sum = ( null === $sum ? 0 : $sum ) + absint( $value );
+            }
+        }
+
+        return $sum;
+    }
+
     protected function parse_dropin_stats_text( $stats_text ) {
         $output = array(
             'hits'       => null,
