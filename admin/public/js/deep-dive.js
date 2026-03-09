@@ -311,20 +311,33 @@
             window.pcmRenderSkeletonRows(scoreWrap, 4, ['100%', '100%', '100%', '85%']);
             window.pcmRenderSkeletonRows(findingsWrap, 4, ['100%', '94%', '100%', '88%']);
             window.pcmRenderSkeletonRows(sensitivityWrap, 4, ['100%', '86%', '92%', '74%']);
-            return Promise.all([
-                window.pcmPost({ action: 'pcm_cacheability_scan_results', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }),
-                window.pcmPost({ action: 'pcm_cacheability_scan_findings', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }),
-                window.pcmPost({ action: 'pcm_route_memcache_sensitivity', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) })
-            ]).then(function(payloads){
-                var resultsPayload = payloads[0];
-                var findingsPayload = payloads[1];
-                var sensitivityPayload = payloads[2];
-                if (!resultsPayload || !resultsPayload.success) throw new Error(window.pcmPayloadErrorMessage(resultsPayload, 'Unable to load cacheability results endpoint.'));
-                if (!findingsPayload || !findingsPayload.success) throw new Error(window.pcmPayloadErrorMessage(findingsPayload, 'Unable to load findings endpoint.'));
-                if (!sensitivityPayload || !sensitivityPayload.success) throw new Error(window.pcmPayloadErrorMessage(sensitivityPayload, 'Unable to load sensitivity endpoint.'));
+            var resultsRequest = window.pcmPost({ action: 'pcm_cacheability_scan_results', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
+            var findingsRequest = window.pcmPost({ action: 'pcm_cacheability_scan_findings', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
+            var sensitivityRequest = window.pcmPost({ action: 'pcm_route_memcache_sensitivity', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
+
+            return Promise.allSettled([resultsRequest, findingsRequest, sensitivityRequest]).then(function(settled){
+                var resultsPayload = settled[0] && settled[0].status === 'fulfilled' ? settled[0].value : null;
+                var findingsPayload = settled[1] && settled[1].status === 'fulfilled' ? settled[1].value : null;
+                var sensitivityPayload = settled[2] && settled[2].status === 'fulfilled' ? settled[2].value : null;
+
+                if (!resultsPayload || !resultsPayload.success) {
+                    throw new Error(window.pcmPayloadErrorMessage(resultsPayload, 'Unable to load cacheability results endpoint.'));
+                }
+
                 renderScores(resultsPayload && resultsPayload.success ? resultsPayload.data.results : []);
-                renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
-                renderSensitivity(sensitivityPayload);
+
+                if (!findingsPayload || !findingsPayload.success) {
+                    findingsWrap.innerHTML = '<em>Unable to load findings for the latest run.</em>';
+                } else {
+                    renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
+                }
+
+                if (!sensitivityPayload || !sensitivityPayload.success) {
+                    sensitivityWrap.innerHTML = '<em>Route sensitivity insights are unavailable for this run.</em>';
+                } else {
+                    renderSensitivity(sensitivityPayload);
+                }
+
                 var firstResult = (resultsPayload && resultsPayload.success && resultsPayload.data && Array.isArray(resultsPayload.data.results)) ? resultsPayload.data.results[0] : null;
                 if (firstResult && firstResult.url) {
                     return loadRouteDiagnosis(runId, firstResult.url);
