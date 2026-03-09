@@ -503,13 +503,28 @@ add_action( 'wp_ajax_pcm_privacy_settings_save', 'pcm_ajax_privacy_settings_save
 function pcm_ajax_audit_log_list() {
     pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_privacy_settings' );
 
-    $limit   = isset( $_REQUEST['limit'] ) ? max( 1, min( 200, absint( $_REQUEST['limit'] ) ) ) : 50;
+    $limit   = isset( $_REQUEST['limit'] ) ? max( 1, min( 200, absint( $_REQUEST['limit'] ) ) ) : 20;
+    $offset  = isset( $_REQUEST['offset'] ) ? max( 0, absint( $_REQUEST['offset'] ) ) : 0;
     $service = new PCM_Audit_Log_Service();
-    $rows    = array_slice( array_reverse( $service->all() ), 0, $limit );
+    $all_rows = array_reverse( $service->all() );
+    $rows     = array_slice( $all_rows, $offset, $limit );
+
+    foreach ( $rows as $index => $row ) {
+        $actor_id = isset( $row['actor_id'] ) ? absint( $row['actor_id'] ) : 0;
+        $user     = $actor_id ? get_userdata( $actor_id ) : false;
+
+        $rows[ $index ]['actor_display'] = $user && isset( $user->display_name )
+            ? (string) $user->display_name
+            : __( 'System', 'pressable_cache_management' );
+    }
 
     wp_send_json_success(
         array(
             'rows'            => $rows,
+            'offset'          => $offset,
+            'limit'           => $limit,
+            'total'           => count( $all_rows ),
+            'has_more'        => ( $offset + count( $rows ) ) < count( $all_rows ),
             'chain_integrity' => $service->verify_chain(),
         )
     );
