@@ -525,6 +525,8 @@ function pressable_cache_management_display_settings_page() {
         </div>
         <div id="pcm-advisor-playbook" style="margin-top:14px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;display:none;"></div>
     </div>
+    <?php endif; ?>
+
     <?php if ( $is_deep_dive_tab && function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) : ?>
     <div class="pcm-card pcm-card-hover" id="pcm-feature-object-cache-intelligence" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
@@ -849,8 +851,8 @@ https://example.com/OLD/"></textarea>
             <button type="button" class="pcm-btn-secondary" id="pcm-report-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
         </p>
         <div id="pcm-report-output" style="max-height:260px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;border-radius:6px;font-size:12px;"></div>
-    </div>
         <?php endif; ?>
+    </div>
     <?php endif; ?>
 
     <?php if ( $is_settings_tab ) : ?>
@@ -886,7 +888,6 @@ https://example.com/OLD/"></textarea>
     </div>
     <?php endif; ?>
 
-    <?php endif; ?>
 
     <?php if ( $is_object_tab ) : ?>
 
