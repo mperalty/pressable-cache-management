@@ -84,13 +84,25 @@
             });
             html += '</div>';
 
-            html += '<div style="margin-top:8px;font-size:12px;color:#6b7280;">Sampled routes:</div><ul style="margin:4px 0 0;padding-left:18px;max-height:120px;overflow:auto;">';
-            results.slice(0, 20).forEach(function(row){
-                var routeUrl = row.url || '';
-                html += '<li><button type="button" class="pcm-btn-text" style="padding:0;height:auto;line-height:1.4;" data-action="open-diagnosis" data-url="' + escapeHtml(routeUrl) + '">' + escapeHtml(routeUrl) + '</button></li>';
-            });
-            html += '</ul>';
+            html += '<div style="margin-top:8px;">';
+            html += renderCollapsibleSection('pcm-sampled-routes-panel', 'Sampled routes', function(){
+                var routesHtml = '<ul style="margin:4px 0 0;padding-left:18px;">';
+                results.slice(0, 20).forEach(function(row){
+                    var routeUrl = row.url || '';
+                    routesHtml += '<li><span style="word-break:break-word;">' + escapeHtml(routeUrl) + '</span></li>';
+                });
+                routesHtml += '</ul>';
+                return routesHtml;
+            }());
+            html += '</div>';
             scoreWrap.innerHTML = html;
+        }
+
+        function renderCollapsibleSection(id, label, contentHtml) {
+            return '<div class="pcm-collapsible-panel">'
+                + '<button type="button" class="pcm-btn-text" style="padding:0;height:auto;line-height:1.4;font-size:12px;color:#4b5563;" data-action="toggle-panel" data-target="' + escapeHtml(id) + '" aria-expanded="false">Show ' + escapeHtml(label) + '</button>'
+                + '<div id="' + escapeHtml(id) + '" style="display:none;margin-top:6px;">' + contentHtml + '</div>'
+                + '</div>';
         }
 
         function chips(items) {
@@ -281,7 +293,7 @@
                 if (uniqueUrls.length) {
                     html += '<div class="pcm-finding-urls">';
                     uniqueUrls.forEach(function(url){
-                        html += '<div><button type="button" class="pcm-btn-text" style="padding:0;height:auto;line-height:1.4;font-size:12px;" data-action="open-diagnosis" data-url="' + escapeHtml(url) + '">' + escapeHtml(url) + '</button></div>';
+                        html += '<div><span style="font-size:12px;word-break:break-word;">' + escapeHtml(url) + '</span></div>';
                     });
                     html += '</div>';
                 }
@@ -306,19 +318,22 @@
 
             var html = '';
             html += '<p style="margin:0 0 8px;color:#4b5563;">High-sensitivity routes: 24h=' + Number(summary.high_24h || 0) + ', 7d=' + Number(summary.high_7d || 0) + '</p>';
-            html += '<ul style="margin:0;padding-left:18px;">';
-            topRoutes.forEach(function(row){
-                var metrics = row.metrics || {};
-                var reasons = Array.isArray(metrics.reasons) ? metrics.reasons.join(', ') : '';
-                html += '<li><strong>' + escapeHtml(row.route || row.url || 'unknown') + '</strong> '
-                    + '<span style="text-transform:uppercase;font-size:11px;border:1px solid #d1d5db;padding:1px 4px;border-radius:4px;">' + escapeHtml(row.memcache_sensitivity || 'low') + '</span>'
-                    + ' — score ' + Number(metrics.score || 0)
-                    + ', hit ' + (metrics.hit_ratio === null || typeof metrics.hit_ratio === 'undefined' ? 'n/a' : Number(metrics.hit_ratio).toFixed(2) + '%')
-                    + ', evictions ' + (metrics.evictions === null || typeof metrics.evictions === 'undefined' ? 'n/a' : Number(metrics.evictions))
-                    + (reasons ? '<br><span style="font-size:12px;color:#6b7280;">Signals: ' + escapeHtml(reasons) + '</span>' : '')
-                    + '</li>';
-            });
-            html += '</ul>';
+            html += renderCollapsibleSection('pcm-route-sensitivity-panel', 'route sensitivity', (function(){
+                var sensitivityHtml = '<ul style="margin:0;padding-left:18px;">';
+                topRoutes.forEach(function(row){
+                    var metrics = row.metrics || {};
+                    var reasons = Array.isArray(metrics.reasons) ? metrics.reasons.join(', ') : '';
+                    sensitivityHtml += '<li><strong>' + escapeHtml(row.route || row.url || 'unknown') + '</strong> '
+                        + '<span style="text-transform:uppercase;font-size:11px;border:1px solid #d1d5db;padding:1px 4px;border-radius:4px;">' + escapeHtml(row.memcache_sensitivity || 'low') + '</span>'
+                        + ' — score ' + Number(metrics.score || 0)
+                        + ', hit ' + (metrics.hit_ratio === null || typeof metrics.hit_ratio === 'undefined' ? 'n/a' : Number(metrics.hit_ratio).toFixed(2) + '%')
+                        + ', evictions ' + (metrics.evictions === null || typeof metrics.evictions === 'undefined' ? 'n/a' : Number(metrics.evictions))
+                        + (reasons ? '<br><span style="font-size:12px;color:#6b7280;">Signals: ' + escapeHtml(reasons) + '</span>' : '')
+                        + '</li>';
+                });
+                sensitivityHtml += '</ul>';
+                return sensitivityHtml;
+            }()));
             sensitivityWrap.innerHTML = html;
         }
 
@@ -397,15 +412,6 @@
         });
 
         findingsWrap.addEventListener('click', function(event){
-            var diagnosisTrigger = event.target.closest('[data-action="open-diagnosis"]');
-            if (diagnosisTrigger) {
-                var diagnosisUrl = diagnosisTrigger.getAttribute('data-url') || '';
-                if (diagnosisUrl) {
-                    loadRouteDiagnosis(currentRunId, diagnosisUrl);
-                }
-                return;
-            }
-
             var trigger = event.target.closest('[data-action="open-playbook"]');
             if (!trigger) return;
             var ruleId = trigger.getAttribute('data-rule-id') || '';
@@ -421,6 +427,19 @@
                 .catch(function(error){
                     showError(playbookWrap, 'reload-section', error);
                 });
+        });
+
+        section.addEventListener('click', function(event){
+            var toggle = event.target.closest('[data-action="toggle-panel"]');
+            if (!toggle) return;
+            var targetId = toggle.getAttribute('data-target') || '';
+            var panel = targetId ? document.getElementById(targetId) : null;
+            if (!panel) return;
+            var isOpen = panel.style.display !== 'none';
+            panel.style.display = isOpen ? 'none' : 'block';
+            toggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+            var labelText = (toggle.textContent || '').replace(/^\s*(Show|Hide)\s+/i, '');
+            toggle.textContent = (isOpen ? 'Show ' : 'Hide ') + labelText;
         });
 
         section.addEventListener('click', function(event){
