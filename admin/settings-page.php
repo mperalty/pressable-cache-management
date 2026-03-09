@@ -235,9 +235,9 @@ function pressable_cache_management_display_settings_page() {
     $bc_status             = pcm_get_batcache_status();
     $bc_is_unknown         = ( $bc_status === 'unknown' );
 
-    $css_path = __DIR__ . '/public/css/style.css';
+    $css_path = dirname( __DIR__ ) . '/public/css/style.css';
     wp_enqueue_style( 'pressable_cache_management',
-        plugin_dir_url( __FILE__ ) . 'public/css/style.css',
+        plugins_url( 'public/css/style.css', dirname( __DIR__ ) . '/pressable-cache-management.php' ),
         array(),
         file_exists( $css_path ) ? (string) filemtime( $css_path ) : '3.0.0',
         'screen'
