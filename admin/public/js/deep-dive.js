@@ -1,6 +1,5 @@
 (function(){
-        var nonce = window.pcmDeepDiveData && window.pcmDeepDiveData.nonces ? window.pcmDeepDiveData.nonces.cacheabilityScan : '';
-        if (!nonce) return;
+        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var runBtn = document.getElementById('pcm-advisor-run-btn');
         var runStatus = document.getElementById('pcm-advisor-run-status');
         var scoreWrap = document.getElementById('pcm-advisor-template-scores');
@@ -114,7 +113,7 @@
         function loadRouteDiagnosis(runId, url) {
             if (!runId || !url) return Promise.resolve();
             diagnosisWrap.innerHTML = '<em>Loading route diagnosis…</em>';
-            return window.pcmPost({ action: 'pcm_cacheability_route_diagnosis', nonce: nonce, run_id: String(runId), url: url })
+            return window.pcmPost({ action: 'pcm_cacheability_route_diagnosis', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId), url: url })
                 .then(function(payload){
                     if (!payload || !payload.success || !payload.data) {
                         throw new Error('Unable to load diagnosis');
@@ -260,9 +259,9 @@
 
         function loadRunDetails(runId) {
             return Promise.all([
-                window.pcmPost({ action: 'pcm_cacheability_scan_results', nonce: nonce, run_id: String(runId) }),
-                window.pcmPost({ action: 'pcm_cacheability_scan_findings', nonce: nonce, run_id: String(runId) }),
-                window.pcmPost({ action: 'pcm_route_memcache_sensitivity', nonce: nonce, run_id: String(runId) })
+                window.pcmPost({ action: 'pcm_cacheability_scan_results', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }),
+                window.pcmPost({ action: 'pcm_cacheability_scan_findings', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }),
+                window.pcmPost({ action: 'pcm_route_memcache_sensitivity', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) })
             ]).then(function(payloads){
                 var resultsPayload = payloads[0];
                 var findingsPayload = payloads[1];
@@ -277,7 +276,7 @@
         }
 
         function loadLatestRun() {
-            return window.pcmPost({ action: 'pcm_cacheability_scan_status', nonce: nonce }).then(function(payload){
+            return window.pcmPost({ action: 'pcm_cacheability_scan_status', nonce: window.pcmGetCacheabilityNonce() }).then(function(payload){
                 if (!payload || !payload.success || !payload.data || !payload.data.run || !payload.data.run.id) {
                     runStatus.textContent = 'No scan runs found yet.';
                     renderScores([]);
@@ -295,7 +294,7 @@
         runBtn.addEventListener('click', function(){
             runBtn.disabled = true;
             runStatus.textContent = 'Running scan…';
-            window.pcmPost({ action: 'pcm_cacheability_scan_start', nonce: nonce })
+            window.pcmPost({ action: 'pcm_cacheability_scan_start', nonce: window.pcmGetCacheabilityNonce() })
                 .then(function(payload){
                     if (!payload || !payload.success || !payload.data || !payload.data.run_id) {
                         throw new Error('Unable to start run');
@@ -326,7 +325,7 @@
             var ruleId = trigger.getAttribute('data-rule-id') || '';
             if (!ruleId) return;
 
-            window.pcmPost({ action: 'pcm_playbook_lookup', nonce: nonce, rule_id: ruleId })
+            window.pcmPost({ action: 'pcm_playbook_lookup', nonce: window.pcmGetCacheabilityNonce(), rule_id: ruleId })
                 .then(function(payload){
                     if (!payload || !payload.success || !payload.data || !payload.data.available) {
                         throw new Error('Playbook unavailable');
@@ -358,7 +357,7 @@
 
                 window.pcmPost({
                     action: 'pcm_playbook_progress_save',
-                    nonce: nonce,
+                    nonce: window.pcmGetCacheabilityNonce(),
                     playbook_id: playbookId,
                     checklist: JSON.stringify(checklist)
                 }).then(function(){
@@ -379,7 +378,7 @@
 
                 window.pcmPost({
                     action: 'pcm_playbook_verify',
-                    nonce: nonce,
+                    nonce: window.pcmGetCacheabilityNonce(),
                     playbook_id: pbId,
                     rule_id: ruleId
                 }).then(function(payload){
@@ -410,8 +409,7 @@
     })();
 
 (function(){
-        var nonce = window.pcmDeepDiveData && window.pcmDeepDiveData.nonces ? window.pcmDeepDiveData.nonces.cacheabilityScan : '';
-        if (!nonce) return;
+        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var refreshBtn = document.getElementById('pcm-oci-refresh-btn');
         var summaryEl = document.getElementById('pcm-oci-summary');
         var latestEl = document.getElementById('pcm-oci-latest');
@@ -545,14 +543,14 @@
         }
 
         function loadSnapshot(refresh) {
-            return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: nonce, refresh: refresh ? '1' : '0' })
+            return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' })
                 .then(function(payload){
                     renderLatest(payload && payload.success ? payload.data.snapshot : null);
                 });
         }
 
         function loadTrends() {
-            return window.pcmPost({ action: 'pcm_object_cache_trends', nonce: nonce, range: '7d' })
+            return window.pcmPost({ action: 'pcm_object_cache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' })
                 .then(function(payload){
                     renderTrends(payload && payload.success ? payload.data.points : []);
                 });
@@ -572,8 +570,7 @@
     })();
 
 (function(){
-        var nonce = window.pcmDeepDiveData && window.pcmDeepDiveData.nonces ? window.pcmDeepDiveData.nonces.cacheabilityScan : '';
-        if (!nonce) return;
+        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var refreshBtn = document.getElementById('pcm-opcache-refresh-btn');
         var summaryEl = document.getElementById('pcm-opcache-summary');
         var latestEl = document.getElementById('pcm-opcache-latest');
@@ -709,14 +706,14 @@
         }
 
         function loadSnapshot(refresh) {
-            return window.pcmPost({ action: 'pcm_opcache_snapshot', nonce: nonce, refresh: refresh ? '1' : '0' })
+            return window.pcmPost({ action: 'pcm_opcache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' })
                 .then(function(payload){
                     return renderLatest(payload && payload.success ? payload.data.snapshot : null);
                 });
         }
 
         function loadTrends() {
-            return window.pcmPost({ action: 'pcm_opcache_trends', nonce: nonce, range: '7d' })
+            return window.pcmPost({ action: 'pcm_opcache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' })
                 .then(function(payload){
                     renderTrends(payload && payload.success ? payload.data.points : []);
                 });
@@ -749,8 +746,7 @@
     })();
 
 (function(){
-        var nonce = window.pcmDeepDiveData && window.pcmDeepDiveData.nonces ? window.pcmDeepDiveData.nonces.cacheabilityScan : '';
-        if (!nonce) return;
+        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var out = document.getElementById('pcm-ra-output');
         var rulesBox = document.getElementById('pcm-ra-rules-json');
         var exportBox = document.getElementById('pcm-ra-export-content');
@@ -1040,7 +1036,7 @@
         });
 
         document.getElementById('pcm-ra-discover').addEventListener('click', function(){
-            window.pcmPost({ action: 'pcm_redirect_assistant_discover_candidates', nonce: nonce, urls: document.getElementById('pcm-ra-urls').value })
+            window.pcmPost({ action: 'pcm_redirect_assistant_discover_candidates', nonce: window.pcmGetCacheabilityNonce(), urls: document.getElementById('pcm-ra-urls').value })
                 .then(function(res){
                     if (res && res.success && res.data && Array.isArray(res.data.candidates)) {
                         rulesBox.value = JSON.stringify(res.data.candidates, null, 2);
@@ -1052,7 +1048,7 @@
         });
 
         document.getElementById('pcm-ra-load-rules').addEventListener('click', function(){
-            window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: nonce })
+            window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: window.pcmGetCacheabilityNonce() })
                 .then(function(res){
                     if (res && res.success && res.data) {
                         rulesBox.value = JSON.stringify(res.data.rules || [], null, 2);
@@ -1069,14 +1065,14 @@
                 return;
             }
             syncJsonFromState();
-            window.pcmPost({ action: 'pcm_redirect_assistant_save_rules', nonce: nonce, rules: rulesBox.value, confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
+            window.pcmPost({ action: 'pcm_redirect_assistant_save_rules', nonce: window.pcmGetCacheabilityNonce(), rules: rulesBox.value, confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
                 .then(render)
                 .catch(function(error){ window.pcmHandleError('Save Redirect Rules', error, out); });
         });
 
         document.getElementById('pcm-ra-simulate').addEventListener('click', function(){
             syncJsonFromState();
-            window.pcmPost({ action: 'pcm_redirect_assistant_simulate', nonce: nonce, urls: document.getElementById('pcm-ra-sim-urls').value, rules: rulesBox.value })
+            window.pcmPost({ action: 'pcm_redirect_assistant_simulate', nonce: window.pcmGetCacheabilityNonce(), urls: document.getElementById('pcm-ra-sim-urls').value, rules: rulesBox.value })
                 .then(function(res){
                     renderDryRunTable(res);
                 })
@@ -1085,7 +1081,7 @@
 
         document.getElementById('pcm-ra-export').addEventListener('click', function(){
             syncJsonFromState();
-            window.pcmPost({ action: 'pcm_redirect_assistant_export', nonce: nonce, confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
+            window.pcmPost({ action: 'pcm_redirect_assistant_export', nonce: window.pcmGetCacheabilityNonce(), confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
                 .then(function(res){
                     if (res && res.success && res.data && res.data.export) {
                         var content = (res.data.export.content || "") + "\n\n/* JSON PAYLOAD FOR IMPORT */\n" + (res.data.meta_json || "");
@@ -1120,11 +1116,11 @@
             var raw = exportBox.value || '';
             var marker = '/* JSON PAYLOAD FOR IMPORT */';
             var payload = raw.indexOf(marker) > -1 ? raw.substring(raw.indexOf(marker) + marker.length).trim() : raw.trim();
-            window.pcmPost({ action: 'pcm_redirect_assistant_import', nonce: nonce, payload: payload })
+            window.pcmPost({ action: 'pcm_redirect_assistant_import', nonce: window.pcmGetCacheabilityNonce(), payload: payload })
                 .then(function(res){
                     render(res);
                     if (res && res.success) {
-                        return window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: nonce });
+                        return window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: window.pcmGetCacheabilityNonce() });
                     }
                 })
                 .then(function(res){
@@ -1163,8 +1159,7 @@
     })();
 
 (function(){
-        var nonce = window.pcmDeepDiveData && window.pcmDeepDiveData.nonces ? window.pcmDeepDiveData.nonces.cacheabilityScan : '';
-        if (!nonce) return;
+        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var out = document.getElementById('pcm-report-output');
         var rangeEl = document.getElementById('pcm-report-range');
 
@@ -1272,7 +1267,7 @@
         document.getElementById('pcm-report-load').addEventListener('click', function(){
             window.pcmPost({
                 action: 'pcm_reporting_trends',
-                nonce: nonce,
+                nonce: window.pcmGetCacheabilityNonce(),
                 range: rangeEl.value,
                 metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(render).catch(function(error){ window.pcmHandleError('Load Trends', error, out); });
@@ -1281,7 +1276,7 @@
         function doExport(format){
             window.pcmPost({
                 action: 'pcm_reporting_export',
-                nonce: nonce,
+                nonce: window.pcmGetCacheabilityNonce(),
                 format: format,
                 range: rangeEl.value,
                 metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']

@@ -530,3 +530,21 @@ function pcm_ajax_audit_log_list() {
     );
 }
 add_action( 'wp_ajax_pcm_audit_log_list', 'pcm_ajax_audit_log_list' );
+
+
+/**
+ * AJAX: Refresh cacheability nonce for long-lived admin pages.
+ */
+function pcm_ajax_refresh_cacheability_nonce() {
+    if ( ! pcm_current_user_can( 'pcm_view_diagnostics' ) ) {
+        wp_send_json_error( array( 'message' => __( 'Permission denied.', 'pressable_cache_management' ) ), 403 );
+    }
+
+    wp_send_json_success(
+        array(
+            'nonce' => wp_create_nonce( 'pcm_cacheability_scan' ),
+        )
+    );
+}
+add_action( 'wp_ajax_pcm_refresh_cacheability_nonce', 'pcm_ajax_refresh_cacheability_nonce' );
+
