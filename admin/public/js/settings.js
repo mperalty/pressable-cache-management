@@ -71,9 +71,9 @@
                 }
                 pcmSyncCachingSuiteUi(!!res.data.enabled);
                 pcmShowToast(res.data.label || (enabled ? 'Caching Suite enabled' : 'Caching Suite disabled'));
-            }).catch(function(){
+            }).catch(function(error){
                 toggle.checked = !enabled;
-                pcmShowToast('Unable to save Caching Suite setting');
+                pcmShowToast(window.pcmHandleError('Save Caching Suite Setting', error));
             }).finally(function(){
                 toggle.disabled = false;
             });
@@ -147,9 +147,9 @@
                 currentOffset += res.data.rows.length;
                 renderAuditRows(allRows);
                 loadMoreEl.style.display = res.data.has_more ? 'inline-block' : 'none';
-            }).catch(function(){
+            }).catch(function(error){
                 auditLogEl.classList.remove('pcm-skeleton');
-                auditLogEl.innerHTML = '<em>Unable to load audit log.</em>';
+                window.pcmHandleError('Load Audit Log', error, auditLogEl);
             });
         }
 
@@ -168,8 +168,8 @@
             }).then(function(res){
                 statusEl.textContent = (res && res.success) ? 'Saved.' : 'Save failed.';
                 loadAudit(true);
-            }).catch(function(){
-                statusEl.textContent = 'Save failed.';
+            }).catch(function(error){
+                window.pcmHandleError('Save Privacy Settings', error, statusEl);
             });
         });
 
@@ -198,11 +198,11 @@ jQuery(document).ready(function($){
                         }
                     } else {
                         var msg = (r.data && r.data.message) ? r.data.message : (window.pcmSettingsData && window.pcmSettingsData.strings ? window.pcmSettingsData.strings.failedRetrieveStatus : 'Failed to retrieve status.');
-                        wrapper.html('<p style="color:#ef4444;font-size:13px;margin:0;">'+msg+'</p>');
+                        wrapper.html('<div class="pcm-inline-error">' + msg + '</div>');
                     }
                 },
                 error: function() {
-                    wrapper.html('<p style="color:#ef4444;font-size:13px;margin:0;">'+((window.pcmSettingsData && window.pcmSettingsData.strings ? window.pcmSettingsData.strings.couldNotConnect : 'Could not connect to server.'))+'</p>');
+                    window.pcmHandleError('Load Edge Cache Status', { message: 'network_error' }, wrapper[0]);
                 }
             });
         }

@@ -121,8 +121,8 @@
                     }
                     renderDiagnosis(payload.data);
                 })
-                .catch(function(){
-                    diagnosisWrap.innerHTML = '<em>Unable to load route diagnosis for selected URL.</em>';
+                .catch(function(error){
+                    window.pcmHandleError('Load Route Diagnosis', error, diagnosisWrap);
                 });
         }
 
@@ -303,8 +303,8 @@
                     runStatus.textContent = 'Scan completed for run #' + payload.data.run_id + '.';
                     return loadRunDetails(payload.data.run_id);
                 })
-                .catch(function(){
-                    runStatus.textContent = 'Unable to run scan. Check permissions and feature flags.';
+                .catch(function(error){
+                    window.pcmHandleError('Run Cacheability Scan', error, runStatus);
                 })
                 .finally(function(){
                     runBtn.disabled = false;
@@ -333,8 +333,8 @@
                     }
                     renderPlaybook(payload.data.playbook, ruleId, payload.data.progress || {});
                 })
-                .catch(function(){
-                    runStatus.textContent = 'Unable to load playbook.';
+                .catch(function(error){
+                    window.pcmHandleError('Load Playbook', error, runStatus);
                 });
         });
 
@@ -363,8 +363,8 @@
                     checklist: JSON.stringify(checklist)
                 }).then(function(){
                     runStatus.textContent = 'Playbook progress saved.';
-                }).catch(function(){
-                    runStatus.textContent = 'Unable to save playbook progress.';
+                }).catch(function(error){
+                    window.pcmHandleError('Save Playbook Progress', error, runStatus);
                 });
                 return;
             }
@@ -390,9 +390,8 @@
                         statusEl.textContent = 'Last verification: ' + (payload.data.status || 'unknown') + ' (run #' + (payload.data.run_id || 'n/a') + ')';
                     }
                     runStatus.textContent = payload.data.message || 'Verification complete.';
-                }).catch(function(){
-                    if (statusEl) statusEl.textContent = 'Verification failed.';
-                    runStatus.textContent = 'Unable to run post-fix verification.';
+                }).catch(function(error){
+                    window.pcmHandleError('Run Verification', error, statusEl || runStatus);
                 });
             }
         });
@@ -405,7 +404,9 @@
             loadRouteDiagnosis(currentRunId, url);
         });
 
-        loadLatestRun();
+        loadLatestRun().catch(function(error){
+            window.pcmHandleError('Load Latest Scan Run', error, runStatus);
+        });
     })();
 
 (function(){
@@ -561,12 +562,12 @@
             refreshBtn.disabled = true;
             summaryEl.textContent = 'Refreshing…';
             Promise.all([loadSnapshot(true), loadTrends()])
-                .catch(function(){ summaryEl.textContent = 'Unable to refresh object cache diagnostics.'; })
+                .catch(function(error){ window.pcmHandleError('Refresh Object Cache Diagnostics', error, summaryEl); })
                 .finally(function(){ refreshBtn.disabled = false; });
         });
 
-        Promise.all([loadSnapshot(false), loadTrends()]).catch(function(){
-            summaryEl.textContent = 'Unable to load object cache diagnostics.';
+        Promise.all([loadSnapshot(false), loadTrends()]).catch(function(error){
+            window.pcmHandleError('Load Object Cache Diagnostics', error, summaryEl);
         });
     })();
 
@@ -731,7 +732,7 @@
                     }
                     return null;
                 })
-                .catch(function(){ summaryEl.textContent = 'Unable to refresh OPcache diagnostics.'; })
+                .catch(function(error){ window.pcmHandleError('Refresh OPcache Diagnostics', error, summaryEl); })
                 .finally(function(){ refreshBtn.disabled = false; });
         });
 
@@ -742,8 +743,8 @@
                 }
                 return null;
             })
-            .catch(function(){
-                summaryEl.textContent = 'Unable to load OPcache diagnostics.';
+            .catch(function(error){
+                window.pcmHandleError('Load OPcache Diagnostics', error, summaryEl);
             });
     })();
 
@@ -1047,7 +1048,7 @@
                     }
                     render(res);
                 })
-                .catch(function(){ render({ error: 'discover_failed' }); });
+                .catch(function(error){ window.pcmHandleError('Discover Redirect Candidates', error, out); });
         });
 
         document.getElementById('pcm-ra-load-rules').addEventListener('click', function(){
@@ -1059,7 +1060,7 @@
                     }
                     render(res);
                 })
-                .catch(function(){ render({ error: 'load_rules_failed' }); });
+                .catch(function(error){ window.pcmHandleError('Load Redirect Rules', error, out); });
         });
 
         document.getElementById('pcm-ra-save').addEventListener('click', function(){
@@ -1070,7 +1071,7 @@
             syncJsonFromState();
             window.pcmPost({ action: 'pcm_redirect_assistant_save_rules', nonce: nonce, rules: rulesBox.value, confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
                 .then(render)
-                .catch(function(){ render({ error: 'save_failed' }); });
+                .catch(function(error){ window.pcmHandleError('Save Redirect Rules', error, out); });
         });
 
         document.getElementById('pcm-ra-simulate').addEventListener('click', function(){
@@ -1079,7 +1080,7 @@
                 .then(function(res){
                     renderDryRunTable(res);
                 })
-                .catch(function(){ render({ error: 'simulate_failed' }); });
+                .catch(function(error){ window.pcmHandleError('Simulate Redirect Rules', error, out); });
         });
 
         document.getElementById('pcm-ra-export').addEventListener('click', function(){
@@ -1092,7 +1093,7 @@
                     }
                     render(res);
                 })
-                .catch(function(){ render({ error: 'export_failed' }); });
+                .catch(function(error){ window.pcmHandleError('Export Redirect Rules', error, out); });
         });
 
         document.getElementById('pcm-ra-copy').addEventListener('click', function(){
@@ -1132,7 +1133,7 @@
                         setRulesFromJson(rulesBox.value, true);
                     }
                 })
-                .catch(function(){ render({ error: 'import_failed' }); });
+                .catch(function(error){ window.pcmHandleError('Import Redirect Rules', error, out); });
         });
 
         setRulesFromJson(rulesBox.value, true);
