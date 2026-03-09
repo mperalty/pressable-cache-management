@@ -110,11 +110,12 @@
         }
 
         function renderTimingGrid(timing) {
+            timing = timing && typeof timing === 'object' ? timing : {};
             var entries = [
-                { label: 'Total', key: 'total_time', value: formatTimingValue(timing.total_time) },
-                { label: 'DNS', key: 'namelookup_time', value: formatTimingValue(timing.namelookup_time) },
-                { label: 'Connect', key: 'connect_time', value: formatTimingValue(timing.connect_time) },
-                { label: 'TTFB', key: 'starttransfer_time', value: formatTimingValue(timing.starttransfer_time) }
+                { label: 'Total', key: 'total_time', value: formatTimingValue(timing.total_time || timing.total || (timing.total_ms ? Number(timing.total_ms) / 1000 : null)) },
+                { label: 'DNS', key: 'namelookup_time', value: formatTimingValue(timing.namelookup_time || timing.dns || (timing.namelookup_ms ? Number(timing.namelookup_ms) / 1000 : null)) },
+                { label: 'Connect', key: 'connect_time', value: formatTimingValue(timing.connect_time || timing.connect || (timing.connect_ms ? Number(timing.connect_ms) / 1000 : null)) },
+                { label: 'TTFB', key: 'starttransfer_time', value: formatTimingValue(timing.starttransfer_time || timing.ttfb || (timing.starttransfer_ms ? Number(timing.starttransfer_ms) / 1000 : null)) }
             ];
             var max = entries.reduce(function(acc, item){ return item.value !== null ? Math.max(acc, item.value) : acc; }, 0);
             if (max <= 0) {
@@ -136,9 +137,23 @@
 
         function renderDiagnosis(payload) {
             var diagnosis = payload && payload.diagnosis ? payload.diagnosis : {};
-            var data = diagnosis.diagnosis || {};
+            var data = diagnosis.diagnosis || diagnosis || {};
             var trace = data.decision_trace || {};
-            var probe = data.probe || {};
+            var probe = data.probe || diagnosis.probe || {};
+            var probeTiming = probe.timing || data.timing || diagnosis.timing || {};
+            var contentLength = probe.headers && probe.headers['content-length'] ? probe.headers['content-length'] : null;
+            if (Array.isArray(contentLength)) contentLength = contentLength[0];
+            var responseSize = probe.response_size;
+            if ((responseSize === null || typeof responseSize === 'undefined' || responseSize === '') && typeof probe.response_bytes !== 'undefined') {
+                responseSize = probe.response_bytes;
+            }
+            if ((responseSize === null || typeof responseSize === 'undefined' || responseSize === '') && contentLength) {
+                responseSize = contentLength;
+            }
+            var parsedResponseSize = Number(responseSize);
+            var responseSizeLabel = isFinite(parsedResponseSize) && parsedResponseSize >= 0
+                ? String(Math.round(parsedResponseSize))
+                : String(responseSize || 0);
             var poisoning = Array.isArray(trace.poisoning_signals) ? trace.poisoning_signals : [];
 
             var topCookieSignals = poisoning.filter(function(p){ return p.type === 'cookie'; }).slice(0, 5);
@@ -149,14 +164,14 @@
                     '<div class="pcm-diagnosis-card"><dt>URL</dt><dd>' + escapeHtml(diagnosis.url || payload.url || '') + '</dd></div>',
                     '<div class="pcm-diagnosis-card"><dt>Final URL</dt><dd>' + escapeHtml(probe.effective_url || diagnosis.url || '') + '</dd></div>',
                     '<div class="pcm-diagnosis-card"><dt>Redirect chain</dt><dd>' + escapeHtml((probe.redirect_chain || []).join(' → ') || 'None') + '</dd></div>',
-                    '<div class="pcm-diagnosis-card"><dt>Response size</dt><dd>' + escapeHtml(String(probe.response_size || 0)) + ' bytes</dd></div>',
+                    '<div class="pcm-diagnosis-card"><dt>Response size</dt><dd>' + escapeHtml(responseSizeLabel) + ' bytes</dd></div>',
                 '</div>',
                 '<div class="pcm-diagnosis-section"><strong>Why bypassed (Edge)</strong><div>' + chips(trace.edge_bypass_reasons || []) + '</div></div>',
                 '<div class="pcm-diagnosis-section"><strong>Why bypassed (Batcache)</strong><div>' + chips(trace.batcache_bypass_reasons || []) + '</div></div>',
                 '<div class="pcm-diagnosis-section"><strong>Poisoning cookies</strong><div>' + chips(topCookieSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div></div>',
                 '<div class="pcm-diagnosis-section"><strong>Poisoning headers</strong><div>' + chips(topHeaderSignals.map(function(p){ return { reason: p.key, evidence: p.evidence }; })) + '</div></div>',
                 '<div class="pcm-diagnosis-section"><strong>Route risk badges</strong><div>' + chips(trace.route_risk_labels || []) + '</div></div>',
-                '<div class="pcm-diagnosis-section"><strong>Timing</strong><div class="pcm-timing-grid">' + renderTimingGrid(probe.timing || {}) + '</div></div>'
+                '<div class="pcm-diagnosis-section"><strong>Timing</strong><div class="pcm-timing-grid">' + renderTimingGrid(probeTiming) + '</div></div>'
             ].join('');
         }
 
