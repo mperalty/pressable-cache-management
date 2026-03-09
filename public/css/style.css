@@ -77,10 +77,6 @@ body.admin-color-modern .pcm-wrap {
 }
 
 /* ---- Unified Button System ---- */
-.pcm-wrap button,
-.pcm-wrap input[type="submit"],
-.pcm-wrap input[type="button"],
-.pcm-wrap .button,
 .pcm-wrap .pcm-btn-primary,
 .pcm-wrap .pcm-btn-secondary,
 .pcm-wrap .pcm-btn-text,
@@ -106,10 +102,10 @@ body.admin-color-modern .pcm-wrap {
   appearance: none !important;
 }
 
-.pcm-wrap button:hover,
-.pcm-wrap input[type="submit"]:hover,
-.pcm-wrap input[type="button"]:hover,
-.pcm-wrap .button:hover {
+.pcm-wrap .pcm-btn-primary:hover,
+.pcm-wrap .pcm-btn-secondary:hover,
+.pcm-wrap .pcm-btn-text:hover,
+.pcm-wrap .pcm-btn-danger:hover {
   background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
   border-color: #15803d !important;
   color: #ffffff !important;
