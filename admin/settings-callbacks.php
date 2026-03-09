@@ -415,7 +415,7 @@ function pressable_cache_management_generate_enable_disable_content($is_enabled)
   if ($is_enabled) {
     $id = 'disable_edge_cache_nonce';
     $value = __('Disable Edge Cache', 'pressable_cache_management');
-    $submit_class = 'pcm-purge-btn';
+    $submit_class = 'purge-cache-btn';
 
     echo '</form>';
     echo '<form method="post" id="' . esc_attr($id) . '">';
@@ -427,7 +427,7 @@ function pressable_cache_management_generate_enable_disable_content($is_enabled)
 } else {
     $id = 'enable_edge_cache_nonce';
     $value = __('Enable Edge Cache', 'pressable_cache_management');
-    $submit_class = 'pcm-purge-btn';
+    $submit_class = 'purge-cache-btn';
 
     echo '</form>';
     echo '<form method="post" id="' . esc_attr($id) . '">';
@@ -514,7 +514,7 @@ function pressable_edge_cache_flush_management_callback_field_button($args)
     // Disabled attribute and class for initial state
     $disabled_attr = ' disabled="disabled"';
     $disabled_class = ' disabled-button-style';
-    $submit_class = 'pcm-purge-btn' . $disabled_class;
+    $submit_class = 'purge-cache-btn' . $disabled_class;
 
     echo '</form>';
 
