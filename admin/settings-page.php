@@ -2182,9 +2182,10 @@ https://example.com/OLD/"></textarea>
         <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
         <?php if ( ! function_exists( 'pcm_reporting_is_enabled' ) || ! pcm_reporting_is_enabled() ) : ?>
-        <p style="margin:0;padding:10px 12px;border-left:4px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:0 6px 6px 0;">
-            <?php echo esc_html__( 'Observability is currently disabled because Caching Suite features are turned off. Enable Caching Suite features above to load trends and exports.', 'pressable_cache_management' ); ?>
-        </p>
+        <div style="display:flex;align-items:flex-start;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:12px 14px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:8px;font-weight:600;">
+            <span aria-hidden="true" style="font-size:18px;line-height:1;">⚠️</span>
+            <span><?php echo esc_html__( 'Observability is currently disabled because Caching Suite features are turned off. Enable Caching Suite features above to load trends and exports.', 'pressable_cache_management' ); ?></span>
+        </div>
         <?php else : ?>
         <p>
             <select id="pcm-report-range">
@@ -2207,18 +2208,90 @@ https://example.com/OLD/"></textarea>
         var post = window.pcmPost;
 
         function metricName(key){
-            var map = {object_cache_hit_ratio:'Object Cache Hit Ratio',object_cache_evictions:'Object Cache Evictions',opcache_memory_pressure:'OPcache Memory Pressure',cacheability_score:'Cacheability Score'};
-            return map[key] || key.replace(/_/g,' ');
+            var map = {
+                cacheability_score: 'Cacheability Score',
+                cache_buster_incidence: 'Cache Buster Incidence',
+                purge_frequency_by_scope: 'Purge Frequency (By Scope)',
+                object_cache_hit_ratio: 'Object Cache Hit Ratio',
+                object_cache_evictions: 'Object Cache Evictions',
+                opcache_memory_pressure: 'OPcache Memory Pressure',
+                opcache_restarts: 'OPcache Restarts',
+                batcache_hits: 'Batcache Hits',
+                high_memcache_sensitivity_routes_24h: 'High Memcache Sensitivity Routes (24h)',
+                high_memcache_sensitivity_routes_7d: 'High Memcache Sensitivity Routes (7d)'
+            };
+            if (map[key]) {
+                return map[key];
+            }
+
+            return (key || '').replace(/_/g, ' ').replace(/\b\w/g, function(char){ return char.toUpperCase(); });
+        }
+
+        function formatValue(value){
+            var num = Number(value);
+            if (!Number.isFinite(num)) {
+                return '—';
+            }
+
+            return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        }
+
+        function buildSummaryRows(rows){
+            var byMetric = {};
+
+            rows.forEach(function(row){
+                var metric = row && row.metric_key ? row.metric_key : '';
+                if (!metric) {
+                    return;
+                }
+
+                if (!byMetric[metric]) {
+                    byMetric[metric] = [];
+                }
+
+                byMetric[metric].push({
+                    value: Number(row.value),
+                    bucketStart: row.bucket_start || ''
+                });
+            });
+
+            return Object.keys(byMetric).map(function(metric){
+                var entries = byMetric[metric].filter(function(entry){ return Number.isFinite(entry.value); });
+
+                entries.sort(function(a, b){
+                    return new Date(a.bucketStart).getTime() - new Date(b.bucketStart).getTime();
+                });
+
+                var first = entries.length ? entries[0].value : NaN;
+                var latest = entries.length ? entries[entries.length - 1].value : NaN;
+                var delta = Number.isFinite(first) && Number.isFinite(latest) ? latest - first : NaN;
+
+                return {
+                    metric: metric,
+                    currentValue: latest,
+                    delta: delta
+                };
+            }).sort(function(a, b){
+                return metricName(a.metric).localeCompare(metricName(b.metric));
+            });
         }
 
         function render(obj){
             var rows = (((obj||{}).data||{}).rows)||[];
             if (!rows.length) { out.innerHTML = '<em>No trend rows available.</em>'; return; }
+            var summaryRows = buildSummaryRows(rows);
+
+            if (!summaryRows.length) {
+                out.innerHTML = '<em>No trend rows available.</em>';
+                return;
+            }
+
             var html = '<table class="widefat striped"><thead><tr><th>Metric</th><th>Current Value</th><th>7-day Trend</th></tr></thead><tbody>';
-            rows.slice(0,12).forEach(function(row){
-                var delta = Number(row.delta || 0);
-                var arrow = delta >= 0 ? '↑' : '↓';
-                html += '<tr><td>' + metricName(row.metric_key || '') + '</td><td>' + (row.current_value ?? '—') + '</td><td>' + arrow + ' ' + delta + '</td></tr>';
+            summaryRows.forEach(function(row){
+                var hasDelta = Number.isFinite(row.delta);
+                var arrow = hasDelta ? (row.delta >= 0 ? '↑' : '↓') : '→';
+                var deltaText = hasDelta ? Math.abs(row.delta).toLocaleString(undefined, { maximumFractionDigits: 2 }) : 'n/a';
+                html += '<tr><td>' + metricName(row.metric) + '</td><td>' + formatValue(row.currentValue) + '</td><td>' + arrow + ' ' + deltaText + '</td></tr>';
             });
             html += '</tbody></table>';
             out.innerHTML = html;
@@ -2256,7 +2329,7 @@ https://example.com/OLD/"></textarea>
                     var mime = format === 'csv' ? 'text/csv' : 'application/json';
                     var fname = 'pcm-report-' + rangeEl.value + '.' + ext;
                     downloadText(fname, res.data.content, mime);
-                    out.innerHTML = '<div class="pcm-inline-success">Downloaded ' + fname + '</div>';
+                    out.innerHTML = '<div class="pcm-inline-success" style="font-size:13px;">✅ Downloaded ' + fname + '</div>';
                 }
             }).catch(function(error){ window.pcmHandleError('Export ' + format.toUpperCase(), error, out); });
         }
