@@ -110,9 +110,10 @@ body.admin-color-modern {
 .pcm-wrap input[type="submit"]:hover,
 .pcm-wrap input[type="button"]:hover,
 .pcm-wrap .button:hover {
-  background: linear-gradient(180deg, #ea430a 0%, #c93402 100%) !important;
-  border-color: #c93402 !important;
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
+  border-color: #15803d !important;
   color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(22,163,74,0.28) !important;
   transform: translateY(-1px) !important;
 }
 
@@ -125,9 +126,10 @@ body.admin-color-modern {
 
 .pcm-btn-primary:hover,
 .pcm-btn-primary:focus-visible {
-  background: #c93402 !important;
-  border-color: #c93402 !important;
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
+  border-color: #15803d !important;
   color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(22,163,74,0.28) !important;
   transform: translateY(-1px) !important;
 }
 
