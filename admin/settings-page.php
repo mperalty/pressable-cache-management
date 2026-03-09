@@ -500,7 +500,7 @@ function pressable_cache_management_display_settings_page() {
             <button type="button" class="button button-primary" id="pcm-advisor-run-btn"><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
             <span id="pcm-advisor-run-status" style="margin-left:10px;color:#374151;"></span>
         </p>
-        <div class="pcm-advisor-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="pcm-advisor-grid pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Template Scores', 'pressable_cache_management' ); ?></h4>
                 <div id="pcm-advisor-template-scores" style="font-size:13px;color:#111827;"></div>
@@ -525,7 +525,7 @@ function pressable_cache_management_display_settings_page() {
             <button type="button" class="button" id="pcm-oci-refresh-btn"><?php echo esc_html__( 'Refresh diagnostics', 'pressable_cache_management' ); ?></button>
             <span id="pcm-oci-summary" style="margin-left:10px;color:#374151;"></span>
         </p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Latest Snapshot', 'pressable_cache_management' ); ?></h4>
                 <div id="pcm-oci-latest" style="font-size:13px;color:#111827;"></div>
@@ -546,7 +546,7 @@ function pressable_cache_management_display_settings_page() {
             <button type="button" class="button" id="pcm-opcache-refresh-btn"><?php echo esc_html__( 'Refresh OPcache', 'pressable_cache_management' ); ?></button>
             <span id="pcm-opcache-summary" style="margin-left:10px;color:#374151;"></span>
         </p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Latest OPcache Snapshot', 'pressable_cache_management' ); ?></h4>
                 <div id="pcm-opcache-latest" style="font-size:13px;color:#111827;"></div>
@@ -571,7 +571,7 @@ function pressable_cache_management_display_settings_page() {
             <li><?php echo esc_html__( 'Build Export / Import: generate deployable payloads or import JSON metadata back into this site.', 'pressable_cache_management' ); ?></li>
         </ul>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Discover + Edit Rules', 'pressable_cache_management' ); ?></h4>
                 <textarea id="pcm-ra-urls" rows="4" style="width:100%;" placeholder="https://example.com/Page?utm_source=x
@@ -848,7 +848,7 @@ https://example.com/OLD/"></textarea>
     <div class="pcm-card" id="pcm-feature-security-privacy" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Privacy Settings', 'pressable_cache_management' ); ?></h4>
                 <p><label><?php echo esc_html__( 'Retention Days', 'pressable_cache_management' ); ?> <input type="number" id="pcm-privacy-retention" min="7" max="365" value="<?php echo esc_attr( isset( $privacy_settings['retention_days'] ) ? (int) $privacy_settings['retention_days'] : 90 ); ?>" /></label></p>
@@ -875,7 +875,7 @@ https://example.com/OLD/"></textarea>
     <?php if ( $is_object_tab ) : ?>
 
     <!-- ── 2-column grid ── -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <div class="pcm-object-cache-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
 
         <!-- LEFT -->
         <div style="display:flex;flex-direction:column;gap:20px;">
@@ -1089,7 +1089,7 @@ https://example.com/OLD/"></textarea>
     </div>
 
     <!-- Card -->
-    <div style="max-width:680px;">
+    <div class="pcm-edge-cache-card-wrap" style="max-width:680px;">
     <div class="pcm-card" style="padding:0;">
 
         <!-- Row 1: Turn On/Off -->
@@ -1224,6 +1224,8 @@ https://example.com/OLD/"></textarea>
     input.flushcache[type="submit"] {
         background:#dd3a03 !important;
         color:#fff !important;
+        display:block;
+        width:100%;
         transition:background .2s,box-shadow .2s,transform .1s !important;
     }
     #pcm-flush-btn:hover,
@@ -1261,6 +1263,8 @@ https://example.com/OLD/"></textarea>
 
     .nav-tab-hidden { display:none !important; }
 
+    #pcm-main-tab-nav{display:flex;flex-wrap:wrap;gap:4px}
+    #pcm-main-tab-nav .nav-tab{float:none;margin-left:0}
     .pcm-anchor-nav{position:sticky;top:32px;z-index:4;display:flex;gap:8px;overflow:auto;padding:8px 0 12px;margin-bottom:14px}
     .pcm-anchor-nav a{display:inline-flex;white-space:nowrap;padding:6px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none;color:#374151;background:#fff;font-size:12px}
     .pcm-anchor-nav a.is-active{background:#03fcc2;color:#040024;border-color:#03fcc2}
@@ -1345,7 +1349,7 @@ https://example.com/OLD/"></textarea>
     @keyframes pcm-pulse{0%{opacity:.35}50%{opacity:1}100%{opacity:.35}}
     .pcm-wrap .nav-tab:focus-visible,.pcm-wrap button:focus-visible,.pcm-wrap a:focus-visible,.pcm-wrap input:focus-visible,.pcm-wrap select:focus-visible,.pcm-wrap textarea:focus-visible{outline:2px solid #03fcc2;outline-offset:2px}
     @media (max-width:1024px){.pcm-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-    @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-card div[style*='grid-template-columns:1fr 1fr']{display:block !important}.pcm-advisor-grid{grid-template-columns:1fr !important}.pcm-diagnosis-grid{grid-template-columns:1fr}.pcm-sp-two-col-grid,.pcm-sp-insights-grid{grid-template-columns:1fr}.pcm-sp-number-wrap{max-width:100%}}
+    @media (max-width:782px){.pcm-summary-grid{grid-template-columns:1fr}.pcm-anchor-nav{top:0}.pcm-responsive-two-col,.pcm-object-cache-grid,.pcm-advisor-grid{grid-template-columns:1fr !important}.pcm-diagnosis-grid{grid-template-columns:1fr}.pcm-sp-two-col-grid,.pcm-sp-insights-grid{grid-template-columns:1fr}.pcm-sp-number-wrap{max-width:100%}.pcm-edge-cache-card-wrap{max-width:100%}}
 
     code { background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:11.5px;color:#dd3a03; }
     </style>
