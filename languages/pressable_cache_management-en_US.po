@@ -1,0 +1,192 @@
+# English (United States) translation for Pressable Cache Management
+# Copyright (C) 2025 Pressable
+msgid ""
+msgstr ""
+"Project-Id-Version: Pressable Cache Management 5.2.2\n"
+"POT-Creation-Date: 2025-10-15 00:00+0000\n"
+"PO-Revision-Date: 2025-10-15 00:00+0000\n"
+"Last-Translator: Pressable CS Team\n"
+"Language-Team: English\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Domain: pressable_cache_management\n"
+
+msgid "Object Cache"
+msgstr "Object Cache"
+
+msgid "Edge Cache"
+msgstr "Edge Cache"
+
+msgid "Settings to manage the object cache."
+msgstr "Settings to manage the object cache."
+
+msgid "These settings enable you to manage the object cache."
+msgstr "These settings enable you to manage the object cache."
+
+msgid "Flush Cache for all Pages"
+msgstr "Flush Cache for all Pages"
+
+msgid "Object Cache Flushed Successfully."
+msgstr "Object Cache Flushed Successfully."
+
+msgid "Automated Rules"
+msgstr "Automated Rules"
+
+msgid "Flush Cache on Plugin/Theme Update"
+msgstr "Flush Cache on Plugin/Theme Update"
+
+msgid "Flush cache automatically on plugin & theme update."
+msgstr "Flush cache automatically on plugin & theme update."
+
+msgid "Flush Cache on Post/Page Edit"
+msgstr "Flush Cache on Post/Page Edit"
+
+msgid "Flush cache automatically when published pages are edited."
+msgstr "Flush cache automatically when published pages are edited."
+
+msgid "Flush Cache on Comment Delete"
+msgstr "Flush Cache on Comment Delete"
+
+msgid "Flush cache automatically when comments are deleted."
+msgstr "Flush cache automatically when comments are deleted."
+
+msgid "Batcache & Page Rules"
+msgstr "Batcache & Page Rules"
+
+msgid "Extend Batcache (by 24 hrs)"
+msgstr "Extend Batcache (by 24 hrs)"
+
+msgid "Flush Batcache to Individual Pages"
+msgstr "Flush Batcache to Individual Pages"
+
+msgid "Flush cache automatically when published pages/posts are deleted."
+msgstr "Flush cache automatically when published pages/posts are deleted."
+
+msgid "Flush Batcache for WooCommerce product pages"
+msgstr "Flush Batcache for WooCommerce product pages"
+
+msgid "Exclude Pages"
+msgstr "Exclude Pages"
+
+msgid "Cache Exclusions"
+msgstr "Cache Exclusions"
+
+msgid "Save Settings"
+msgstr "Save Settings"
+
+msgid "Batcache Active"
+msgstr "Batcache Active"
+
+msgid "Batcache Broken"
+msgstr "Batcache Broken"
+
+msgid "Enable Edge Cache"
+msgstr "Enable Edge Cache"
+
+msgid "Disable Edge Cache"
+msgstr "Disable Edge Cache"
+
+msgid "Purge Edge Cache"
+msgstr "Purge Edge Cache"
+
+msgid "Edge Cache Enabled!"
+msgstr "Edge Cache Enabled!"
+
+msgid "Edge Cache provides performance improvements, particularly for Time to First Byte (TTFB), by serving page cache from the nearest server to your website visitors."
+msgstr "Edge Cache provides performance improvements, particularly for Time to First Byte (TTFB), by serving page cache from the nearest server to your website visitors."
+
+msgid "Learn more about Edge Cache."
+msgstr "Learn more about Edge Cache."
+
+msgid "Edge Cache Deactivated."
+msgstr "Edge Cache Deactivated."
+
+msgid "Edge Cache purged successfully."
+msgstr "Edge Cache purged successfully."
+
+msgid "Edge Cache purge failed. Please try again."
+msgstr "Edge Cache purge failed. Please try again."
+
+msgid "Show Pressable Branding"
+msgstr "Show Pressable Branding"
+
+msgid "Hide Pressable Branding"
+msgstr "Hide Pressable Branding"
+
+msgid "This plugin is not supported on this platform."
+msgstr "This plugin is not supported on this platform."
+
+
+msgid "Manage Edge Cache Settings"
+msgstr "Manage Edge Cache Settings"
+
+msgid "These settings enable you to manage Edge Cache settings."
+msgstr "These settings enable you to manage Edge Cache settings."
+
+msgid "Enable or disable the edge cache for this site."
+msgstr "Enable or disable the edge cache for this site."
+
+msgid "LAST FLUSHED"
+msgstr "LAST FLUSHED"
+
+msgid "SINGLE PAGE LAST FLUSHED"
+msgstr "SINGLE PAGE LAST FLUSHED"
+
+msgid "SINGLE PAGE URL"
+msgstr "SINGLE PAGE URL"
+
+msgid "Failed to retrieve status."
+msgstr "Failed to retrieve status."
+
+msgid "Could not connect to server."
+msgstr "Could not connect to server."
+
+msgid "Use the refresh button to manually check your cache status. If the cache status remains broken for more than 4 minutes after two visits are recorded on your site, it is likely that caching is failing due to cookie interference from your plugin, theme or custom code."
+msgstr "Use the refresh button to manually check your cache status. If the cache status remains broken for more than 4 minutes after two visits are recorded on your site, it is likely that caching is failing due to cookie interference from your plugin, theme or custom code."
+
+msgid "Flush Batcache for WooCommerce Product Pages — Enabled"
+msgstr "Flush Batcache for WooCommerce Product Pages — Enabled"
+
+msgid "Automatically flush individual pages, including product pages updated via the WooCommerce API."
+msgstr "Automatically flush individual pages, including product pages updated via the WooCommerce API."
+
+msgid "You can Flush Cache for Individual page or post from page preview."
+msgstr "You can Flush Cache for Individual page or post from page preview."
+
+msgid "Flush Object Cache"
+msgstr "Flush Object Cache"
+
+msgid "Flush Object & Edge Cache"
+msgstr "Flush Object & Edge Cache"
+
+msgid "Cache Settings"
+msgstr "Cache Settings"
+
+msgid "Cache Management"
+msgstr "Cache Management"
+
+msgid "Cache Control"
+msgstr "Cache Control"
+
+msgid "CURRENT CACHE MAX-AGE"
+msgstr "CURRENT CACHE MAX-AGE"
+
+msgid "Checking…"
+msgstr "Checking…"
+
+msgid "Object Cache Flushed successfully."
+msgstr "Object Cache Flushed successfully."
+
+msgid "Edge Cache Purged successfully."
+msgstr "Edge Cache Purged successfully."
+
+msgid "Error: Edge Cache Plugin is not active. Purge aborted."
+msgstr "Error: Edge Cache Plugin is not active. Purge aborted."
+
+msgid "Edge Cache purge failed (possibly disabled or rate-limited)."
+msgstr "Edge Cache purge failed (possibly disabled or rate-limited)."
+
+msgid "Edge Cache Plugin not found; skipping Edge Cache purge."
+msgstr "Edge Cache Plugin not found; skipping Edge Cache purge."

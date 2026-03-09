@@ -1,0 +1,175 @@
+# Pressable Cache Management
+# Copyright (C) 2025 Pressable
+# This file is distributed under the same license as the Pressable Cache Management plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: Pressable Cache Management 5.2.2\n"
+"Report-Msgid-Bugs-To: https://github.com/pressable/pressable-cache-management\n"
+"POT-Creation-Date: 2025-10-15 00:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Domain: pressable_cache_management\n"
+
+msgid "Object Cache"
+msgstr ""
+
+msgid "Edge Cache"
+msgstr ""
+
+msgid "Settings to manage the object cache."
+msgstr ""
+
+msgid "These settings enable you to manage the object cache."
+msgstr ""
+
+msgid "These settings enable you to manage Edge Cache."
+msgstr ""
+
+msgid "Flush All Cache"
+msgstr ""
+
+msgid "Flush Object Cache"
+msgstr ""
+
+msgid "Flush Cache"
+msgstr ""
+
+msgid "Object Cache Flushed Successfully."
+msgstr ""
+
+msgid "Last Flushed:"
+msgstr ""
+
+msgid "Automated Rules"
+msgstr ""
+
+msgid "Flush Cache on Plugin/Theme Update"
+msgstr ""
+
+msgid "Flush cache automatically on plugin & theme update."
+msgstr ""
+
+msgid "Flush Cache on Post/Page Edit"
+msgstr ""
+
+msgid "Flush cache automatically when published pages are edited."
+msgstr ""
+
+msgid "Flush Cache on Comment Delete"
+msgstr ""
+
+msgid "Flush cache automatically when comments are deleted."
+msgstr ""
+
+msgid "Batcache & Page Rules"
+msgstr ""
+
+msgid "Extend Batcache (by 24 hrs)"
+msgstr ""
+
+msgid "Extends Batcache storage time by 24 hours."
+msgstr ""
+
+msgid "Flush Batcache to Individual Pages"
+msgstr ""
+
+msgid "Flush cache automatically when published pages/posts are deleted."
+msgstr ""
+
+msgid "Flush Batcache for WooCommerce product pages"
+msgstr ""
+
+msgid "Exclude Pages"
+msgstr ""
+
+msgid "Cache Exclusions"
+msgstr ""
+
+msgid "Save Settings"
+msgstr ""
+
+msgid "Batcache Active"
+msgstr ""
+
+msgid "Batcache Broken"
+msgstr ""
+
+msgid "Cloudflare Detected"
+msgstr ""
+
+msgid "Manage Edge Cache Settings"
+msgstr ""
+
+msgid "Turn On/Off Edge Cache"
+msgstr ""
+
+msgid "Enable Edge Cache"
+msgstr ""
+
+msgid "Disable Edge Cache"
+msgstr ""
+
+msgid "Purge Edge Cache"
+msgstr ""
+
+msgid "Edge Cache Enabled!"
+msgstr ""
+
+msgid "Edge Cache provides performance improvements, particularly for Time to First Byte (TTFB), by serving page cache from the nearest server to your website visitors."
+msgstr ""
+
+msgid "Learn more about Edge Cache."
+msgstr ""
+
+msgid "Edge Cache Deactivated."
+msgstr ""
+
+msgid "Edge Cache purged successfully."
+msgstr ""
+
+msgid "Edge Cache purge failed. Please try again."
+msgstr ""
+
+msgid "Edge Cache is disabled on the server. Please enable Edge Cache first."
+msgstr ""
+
+msgid "Edge Cache was disabled and could not be auto-enabled. Purge aborted."
+msgstr ""
+
+msgid "Edge Cache was disabled. It has been automatically enabled and purged successfully."
+msgstr ""
+
+msgid "Error: Edge Cache Plugin dependency is not active."
+msgstr ""
+
+msgid "Required Edge Cache dependency is not available."
+msgstr ""
+
+msgid "Something went wrong communicating with the Edge Cache system. Please try again."
+msgstr ""
+
+msgid "Checking Edge Cache status..."
+msgstr ""
+
+msgid "Show or Hide Plugin Branding"
+msgstr ""
+
+msgid "Show Pressable Branding"
+msgstr ""
+
+msgid "Hide Pressable Branding"
+msgstr ""
+
+msgid "Cache settings updated."
+msgstr ""
+
+msgid "Last purged at:"
+msgstr ""
+
+msgid "This plugin is not supported on this platform."
+msgstr ""

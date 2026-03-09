@@ -1,0 +1,219 @@
+<?php
+/**
+ * Pressable Cache Management - Turn On/Off Edge Cache
+ * Based directly on the official repo's turn-on-off-edge-cache.php
+ * with branded admin notices applied.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+// ─── Shared branded notice helper (defined once here) ──────────────────────
+if ( ! function_exists( 'pcm_branded_notice' ) ) {
+    function pcm_branded_notice( $message, $border_color = '#03fcc2', $is_html = false ) {
+        $id   = 'pcm-notice-' . substr( md5( $message . $border_color . microtime() ), 0, 8 );
+        echo '<div id="' . esc_attr( $id ) . '" class="pcm-branded-notice pcm-branded-notice-wide" style="border-left-color:' . esc_attr( $border_color ) . ';">';
+        echo '<div class="pcm-branded-notice-body">';
+        if ( $is_html ) {
+            echo $message; // caller already escaped
+        } else {
+            echo '<p class="pcm-branded-notice-text">' . esc_html( $message ) . '</p>';
+        }
+        echo '</div>';
+        echo '<button type="button" onclick="document.getElementById(\'' . esc_js( $id ) . '\').remove();" class="pcm-branded-notice-close">&#x2297;</button>';
+        echo '</div>';
+    }
+}
+
+// ─── Notice: Edge Cache Enabled ─────────────────────────────────────────────
+if ( ! function_exists( 'pressable_edge_cache_notice_success_enable' ) ) {
+    function pressable_edge_cache_notice_success_enable() {
+        $screen = get_current_screen();
+        if ( isset( $screen ) && 'toplevel_page_pressable_cache_management' !== $screen->id ) return;
+
+        $html  = '<h3 class="pcm-ec-notice-title">'
+               . '&#x1F389; ' . esc_html__( 'Edge Cache Enabled!', 'pressable_cache_management' ) . '</h3>';
+        $html .= '<p class="pcm-ec-notice-desc">'
+               . esc_html__( 'Edge Cache provides performance improvements, particularly for Time to First Byte (TTFB), by serving page cache from the nearest server to your website visitors.', 'pressable_cache_management' )
+               . '</p>';
+        $html .= '<a href="https://pressable.com/knowledgebase/edge-cache/" target="_blank" '
+               . 'rel="noopener noreferrer" class="pcm-ec-notice-link">'
+               . esc_html__( 'Learn more about Edge Cache.', 'pressable_cache_management' ) . '</a>';
+
+        $nid  = 'pcm-ec-enabled-' . substr( md5( microtime() ), 0, 8 );
+        echo '<div class="pcm-ec-notice-outer">';
+        echo '<div id="' . esc_attr( $nid ) . '" class="pcm-branded-notice pcm-branded-notice-edge">';
+        echo '<div class="pcm-branded-notice-body">' . $html . '</div>';
+        echo '<button type="button" onclick="document.getElementById(\'' . esc_js( $nid ) . '\').remove();" class="pcm-branded-notice-close">&#x2297;</button>';
+        echo '</div>';
+        echo '</div>';
+    }
+}
+
+// ─── Notice: Edge Cache Disabled ────────────────────────────────────────────
+if ( ! function_exists( 'pressable_edge_cache_notice_success_disable' ) ) {
+    function pressable_edge_cache_notice_success_disable() {
+        $screen = get_current_screen();
+        if ( isset( $screen ) && 'toplevel_page_pressable_cache_management' !== $screen->id ) return;
+        pcm_branded_notice( esc_html__( 'Edge Cache Deactivated.', 'pressable_cache_management' ), '#03fcc2' );
+    }
+}
+
+// ─── Notice: Error ───────────────────────────────────────────────────────────
+if ( ! function_exists( 'pcm_pressable_edge_cache_error_msg' ) ) {
+    function pcm_pressable_edge_cache_error_msg( $error_message = '' ) {
+        $screen = get_current_screen();
+        if ( isset( $screen ) && 'toplevel_page_pressable_cache_management' !== $screen->id ) return;
+        $msg = empty( $error_message )
+            ? esc_html__( 'Something went wrong trying to communicate with the Edge Cache system. Try again.', 'pressable_cache_management' )
+            : esc_html( $error_message );
+        pcm_branded_notice( $msg, '#dd3a03' );
+    }
+}
+
+// ─── Enable Edge Cache (mirrors repo exactly, adds branded notices) ─────────
+function pcm_pressable_enable_edge_cache() {
+    if ( pcm_verify_request( 'enable_edge_cache_nonce', 'enable_edge_cache_nonce' ) ) {
+
+        if ( class_exists( 'Edge_Cache_Plugin' ) ) {
+            $edge_cache = Edge_Cache_Plugin::get_instance();
+            $result = $edge_cache->query_ec_backend( 'on', array( 'wp_action' => 'manual_dashboard_set' ) );
+
+            if ( is_wp_error( $result ) ) {
+                update_option( PCM_Options::EDGE_CACHE_STATUS,  'Error' );
+                update_option( PCM_Options::EDGE_CACHE_ENABLED, 'disabled' );
+                add_action( 'admin_notices', function() use ( $result ) {
+                    pcm_pressable_edge_cache_error_msg( $result->get_error_message() );
+                });
+            } else {
+                update_option( PCM_Options::EDGE_CACHE_STATUS,  'Success' );
+                update_option( PCM_Options::EDGE_CACHE_ENABLED, 'enabled' );
+                delete_transient( 'pcm_ec_status_cache' ); // force fresh status on next page load
+                add_action( 'admin_notices', 'pressable_edge_cache_notice_success_enable' );
+            }
+        } else {
+            add_action( 'admin_notices', function() {
+                pcm_pressable_edge_cache_error_msg( 'Required Edge Cache dependency is not available.' );
+            });
+        }
+    }
+}
+add_action( 'init', 'pcm_pressable_enable_edge_cache' );
+
+// ─── Disable Edge Cache (mirrors repo exactly, adds branded notices) ────────
+function pcm_pressable_disable_edge_cache() {
+    if ( pcm_verify_request( 'disable_edge_cache_nonce', 'disable_edge_cache_nonce' ) ) {
+
+        if ( class_exists( 'Edge_Cache_Plugin' ) ) {
+            $edge_cache = Edge_Cache_Plugin::get_instance();
+            $result = $edge_cache->query_ec_backend( 'off', array( 'wp_action' => 'manual_dashboard_set' ) );
+
+            if ( is_wp_error( $result ) ) {
+                update_option( PCM_Options::EDGE_CACHE_STATUS,  'Error' );
+                update_option( PCM_Options::EDGE_CACHE_ENABLED, 'enabled' ); // stays enabled on failure
+                add_action( 'admin_notices', function() use ( $result ) {
+                    pcm_pressable_edge_cache_error_msg( $result->get_error_message() );
+                });
+            } else {
+                update_option( PCM_Options::EDGE_CACHE_STATUS,  'Success' );
+                update_option( PCM_Options::EDGE_CACHE_ENABLED, 'disabled' );
+                delete_transient( 'pcm_ec_status_cache' ); // force fresh status on next page load
+                add_action( 'admin_notices', 'pressable_edge_cache_notice_success_disable' );
+            }
+        } else {
+            add_action( 'admin_notices', function() {
+                pcm_pressable_edge_cache_error_msg( 'Required Edge Cache dependency is not available.' );
+            });
+        }
+    }
+}
+add_action( 'init', 'pcm_pressable_disable_edge_cache' );
+
+// ─── AJAX: Toggle Edge Cache (replaces form POST for race-condition-free UX) ─
+function pcm_ajax_toggle_edge_cache() {
+    check_ajax_referer( 'pcm_edge_cache_toggle', 'nonce' );
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized.' ), 403 );
+    }
+
+    $desired = isset( $_POST['desired_state'] ) ? sanitize_text_field( wp_unslash( $_POST['desired_state'] ) ) : '';
+    if ( ! in_array( $desired, array( 'enable', 'disable' ), true ) ) {
+        wp_send_json_error( array( 'message' => 'Invalid desired state.' ) );
+    }
+
+    if ( ! class_exists( 'Edge_Cache_Plugin' ) ) {
+        wp_send_json_error( array( 'message' => 'Required Edge Cache dependency is not available.' ) );
+    }
+
+    $edge_cache = Edge_Cache_Plugin::get_instance();
+    $command    = ( 'enable' === $desired ) ? 'on' : 'off';
+    $result     = $edge_cache->query_ec_backend( $command, array( 'wp_action' => 'manual_dashboard_set' ) );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+    }
+
+    // Command accepted by the platform — clear the transient so polling gets live data.
+    delete_transient( 'pcm_ec_status_cache' );
+
+    // Do NOT update the options yet — the caller will poll until the live status
+    // matches the expected state, then we confirm via pcm_ajax_poll_edge_cache_status.
+    wp_send_json_success( array(
+        'submitted'      => true,
+        'desired_state'  => $desired,
+        'message'        => ( 'enable' === $desired )
+            ? __( 'Edge Cache enable request submitted. Waiting for propagation...', 'pressable_cache_management' )
+            : __( 'Edge Cache disable request submitted. Waiting for propagation...', 'pressable_cache_management' ),
+    ) );
+}
+add_action( 'wp_ajax_pcm_toggle_edge_cache', 'pcm_ajax_toggle_edge_cache' );
+
+// ─── AJAX: Poll live Edge Cache status (bypasses transient cache) ────────────
+function pcm_ajax_poll_edge_cache_status() {
+    check_ajax_referer( 'pcm_edge_cache_toggle', 'nonce' );
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized.' ), 403 );
+    }
+
+    if ( ! class_exists( 'Edge_Cache_Plugin' ) ) {
+        wp_send_json_error( array( 'message' => 'Edge Cache dependency is not available.' ) );
+    }
+
+    $edge_cache    = Edge_Cache_Plugin::get_instance();
+    $server_status = $edge_cache->get_ec_status(); // live API call — no transient
+
+    $is_enabled  = false;
+    $status_text = 'Unknown';
+
+    if ( $server_status === Edge_Cache_Plugin::EC_ENABLED ) {
+        $is_enabled  = true;
+        $status_text = 'Enabled';
+    } elseif ( $server_status === Edge_Cache_Plugin::EC_DISABLED ) {
+        $is_enabled  = false;
+        $status_text = 'Disabled';
+    } elseif ( $server_status === Edge_Cache_Plugin::EC_DDOS ) {
+        $status_text = 'Defensive Mode (DDoS)';
+    }
+
+    $desired = isset( $_POST['desired_state'] ) ? sanitize_text_field( wp_unslash( $_POST['desired_state'] ) ) : '';
+    $expected_enabled = ( 'enable' === $desired );
+    $propagated       = ( $is_enabled === $expected_enabled );
+
+    // If propagated, update options and refresh the transient so the page is consistent.
+    if ( $propagated ) {
+        update_option( PCM_Options::EDGE_CACHE_STATUS,  'Success' );
+        update_option( PCM_Options::EDGE_CACHE_ENABLED, $is_enabled ? 'enabled' : 'disabled' );
+        delete_transient( 'pcm_ec_status_cache' );
+    }
+
+    wp_send_json_success( array(
+        'propagated'                   => $propagated,
+        'enabled'                      => $is_enabled,
+        'status_text'                  => $status_text,
+        'html_controls_enable_disable' => pressable_cache_management_generate_enable_disable_content( $is_enabled ),
+    ) );
+}
+add_action( 'wp_ajax_pcm_poll_edge_cache_status', 'pcm_ajax_poll_edge_cache_status' );
