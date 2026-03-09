@@ -206,3 +206,121 @@ jQuery(document).ready(function($){
             });
         }
     });
+
+(function(){
+    var pcmConfirmResolver = null;
+
+    function pcmResolveConfirm(result) {
+        var overlay = document.getElementById('pcm-settings-confirm-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+
+        if (typeof pcmConfirmResolver === 'function') {
+            pcmConfirmResolver(result);
+            pcmConfirmResolver = null;
+        }
+    }
+
+    function pcmEnsureConfirmModal() {
+        if (document.getElementById('pcm-settings-confirm-overlay')) return;
+
+        var overlay = document.createElement('div');
+        overlay.id = 'pcm-settings-confirm-overlay';
+        overlay.style.cssText =
+            'display:none;position:fixed;inset:0;background:rgba(4,0,36,.45);'
+            + 'z-index:999999;align-items:center;justify-content:center;';
+
+        overlay.innerHTML =
+            '<div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:500px;width:90%;'
+            + 'box-shadow:0 8px 40px rgba(4,0,36,.18);font-family:sans-serif;position:relative;">'
+            + '<div style="width:48px;height:4px;background:#03fcc2;border-radius:4px;margin-bottom:16px;"></div>'
+            + '<p id="pcm-settings-confirm-msg" style="margin:0 0 22px;font-size:14px;color:#040024;line-height:1.6;"></p>'
+            + '<div style="display:flex;justify-content:flex-end;gap:10px;">'
+            + '<button id="pcm-settings-confirm-cancel" type="button" style="background:#fff;color:#040024;border:1px solid #cbd5e1;border-radius:8px;'
+            + 'padding:10px 20px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:sans-serif;">Cancel</button>'
+            + '<button id="pcm-settings-confirm-ok" type="button" style="background:#dd3a03;color:#fff;border:none;border-radius:8px;'
+            + 'padding:10px 24px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:sans-serif;">Confirm</button>'
+            + '</div>'
+            + '</div>';
+
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                pcmResolveConfirm(false);
+            }
+        });
+
+        document.getElementById('pcm-settings-confirm-cancel').addEventListener('click', function() {
+            pcmResolveConfirm(false);
+        });
+
+        document.getElementById('pcm-settings-confirm-ok').addEventListener('click', function() {
+            pcmResolveConfirm(true);
+        });
+    }
+
+    function pcmShowConfirmModal(message, confirmLabel) {
+        pcmEnsureConfirmModal();
+
+        var overlay = document.getElementById('pcm-settings-confirm-overlay');
+        var msg = document.getElementById('pcm-settings-confirm-msg');
+        var okBtn = document.getElementById('pcm-settings-confirm-ok');
+
+        msg.textContent = message;
+        okBtn.textContent = confirmLabel || 'Confirm';
+
+        return new Promise(function(resolve) {
+            pcmConfirmResolver = resolve;
+            overlay.style.display = 'flex';
+        });
+    }
+
+    function pcmInterceptWithConfirmation(selector, message, confirmLabel) {
+        document.addEventListener('click', function(e) {
+            var target = e.target.closest(selector);
+            if (!target || target.dataset.pcmConfirmBypass === '1') return;
+
+            if (target.disabled) {
+                return;
+            }
+
+            e.preventDefault();
+            pcmShowConfirmModal(message, confirmLabel).then(function(confirmed) {
+                if (!confirmed) return;
+
+                target.dataset.pcmConfirmBypass = '1';
+                if (target.form) {
+                    target.form.requestSubmit(target);
+                } else {
+                    target.click();
+                }
+                window.setTimeout(function(){
+                    delete target.dataset.pcmConfirmBypass;
+                }, 0);
+            });
+        });
+    }
+
+    pcmInterceptWithConfirmation(
+        '#pcm-flush-btn',
+        'Are you sure you want to flush the entire site cache? This will temporarily slow your site while the cache rebuilds.',
+        'Flush'
+    );
+    pcmInterceptWithConfirmation(
+        '#purge-edge-cache-button-input',
+        'Are you sure you want to purge the edge cache for the entire site? This will temporarily slow your site while the cache rebuilds.',
+        'Purge'
+    );
+    pcmInterceptWithConfirmation(
+        '#edge_cache_settings_tab_options_enable',
+        'Are you sure you want to enable Edge Cache? Visitors may briefly receive uncached responses while cache is warmed.',
+        'Enable Edge Cache'
+    );
+    pcmInterceptWithConfirmation(
+        '#edge_cache_settings_tab_options_disable',
+        'Are you sure you want to disable Edge Cache? This can increase origin load and reduce performance for visitors.',
+        'Disable Edge Cache'
+    );
+})();
