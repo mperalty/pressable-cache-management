@@ -849,8 +849,8 @@ https://example.com/OLD/"></textarea>
             <button type="button" class="pcm-btn-secondary" id="pcm-report-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
         </p>
         <div id="pcm-report-output" style="max-height:260px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;border-radius:6px;font-size:12px;"></div>
-    </div>
         <?php endif; ?>
+    </div>
     <?php endif; ?>
 
     <?php if ( $is_settings_tab ) : ?>
