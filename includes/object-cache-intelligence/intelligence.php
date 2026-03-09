@@ -159,24 +159,19 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
         }
 
         $memcached = new Memcached();
+        $servers   = pcm_object_cache_memcached_servers_from_constant();
         $server_ok = false;
 
-        if ( defined( 'WP_MEMCACHED_SERVERS' ) && is_array( WP_MEMCACHED_SERVERS ) ) {
-            foreach ( WP_MEMCACHED_SERVERS as $server_group ) {
-                if ( ! is_array( $server_group ) ) {
-                    continue;
-                }
-                foreach ( $server_group as $server_def ) {
-                    $parts = explode( ':', (string) $server_def );
-                    $host  = isset( $parts[0] ) ? sanitize_text_field( $parts[0] ) : '';
-                    $port  = isset( $parts[1] ) ? absint( $parts[1] ) : 11211;
-                    if ( '' === $host ) {
-                        continue;
-                    }
-                    $memcached->addServer( $host, $port );
-                    $server_ok = true;
-                }
+        foreach ( $servers as $server ) {
+            $host = isset( $server['host'] ) ? $server['host'] : '';
+            $port = isset( $server['port'] ) ? $server['port'] : 11211;
+
+            if ( '' === $host ) {
+                continue;
             }
+
+            $memcached->addServer( $host, $port );
+            $server_ok = true;
         }
 
         if ( ! $server_ok ) {
@@ -193,6 +188,10 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
         $evictions  = 0;
         $bytes_used = 0;
         $max_bytes  = 0;
+        $curr_items = 0;
+        $total_items = 0;
+        $curr_connections = 0;
+        $uptime = 0;
 
         foreach ( $all_stats as $server_stats ) {
             if ( ! is_array( $server_stats ) ) {
@@ -204,6 +203,10 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
             $evictions  += isset( $server_stats['evictions'] ) ? absint( $server_stats['evictions'] ) : 0;
             $bytes_used += isset( $server_stats['bytes'] ) ? absint( $server_stats['bytes'] ) : 0;
             $max_bytes  += isset( $server_stats['limit_maxbytes'] ) ? absint( $server_stats['limit_maxbytes'] ) : 0;
+            $curr_items += isset( $server_stats['curr_items'] ) ? absint( $server_stats['curr_items'] ) : 0;
+            $total_items += isset( $server_stats['total_items'] ) ? absint( $server_stats['total_items'] ) : 0;
+            $curr_connections += isset( $server_stats['curr_connections'] ) ? absint( $server_stats['curr_connections'] ) : 0;
+            $uptime = max( $uptime, isset( $server_stats['uptime'] ) ? absint( $server_stats['uptime'] ) : 0 );
         }
 
         return array(
@@ -215,7 +218,117 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
             'evictions'     => $evictions,
             'bytes_used'    => $bytes_used,
             'bytes_limit'   => $max_bytes,
-            'meta'          => array(),
+            'meta'          => array(
+                'used_gb'              => pcm_object_cache_bytes_to_gb( $bytes_used ),
+                'limit_gb'             => pcm_object_cache_bytes_to_gb( $max_bytes ),
+                'curr_items'           => $curr_items,
+                'total_items'          => $total_items,
+                'curr_connections'     => $curr_connections,
+                'uptime_seconds'       => $uptime,
+                'uptime_human'         => pcm_object_cache_format_uptime( $uptime ),
+                'nodes_reported'       => count( $all_stats ),
+            ),
+        );
+    }
+}
+
+/**
+ * Provider that uses legacy PHP Memcache extension stats when available.
+ */
+class PCM_Object_Cache_Memcache_Extension_Stats_Provider implements PCM_Object_Cache_Stats_Provider_Interface {
+    /**
+     * @return string
+     */
+    public function get_provider_key() {
+        return 'memcache_extension';
+    }
+
+    /**
+     * @return array
+     */
+    public function get_metrics() {
+        if ( ! class_exists( 'Memcache' ) ) {
+            return array();
+        }
+
+        $servers = pcm_object_cache_memcached_servers_from_constant();
+        if ( empty( $servers ) ) {
+            return array();
+        }
+
+        $all_stats = array();
+
+        foreach ( $servers as $server ) {
+            $host = isset( $server['host'] ) ? $server['host'] : '';
+            $port = isset( $server['port'] ) ? absint( $server['port'] ) : 11211;
+
+            if ( '' === $host ) {
+                continue;
+            }
+
+            $client = new Memcache();
+            $connected = @$client->connect( $host, $port ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            if ( ! $connected ) {
+                continue;
+            }
+
+            $node_stats = $client->getExtendedStats();
+            if ( is_array( $node_stats ) ) {
+                $all_stats = array_merge( $all_stats, $node_stats );
+            }
+
+            $client->close();
+        }
+
+        if ( empty( $all_stats ) ) {
+            return array();
+        }
+
+        $hits       = 0;
+        $misses     = 0;
+        $evictions  = 0;
+        $bytes_used = 0;
+        $max_bytes  = 0;
+        $curr_items = 0;
+        $total_items = 0;
+        $curr_connections = 0;
+        $uptime = 0;
+
+        foreach ( $all_stats as $server_stats ) {
+            if ( ! is_array( $server_stats ) ) {
+                continue;
+            }
+
+            $hits       += isset( $server_stats['get_hits'] ) ? absint( $server_stats['get_hits'] ) : 0;
+            $misses     += isset( $server_stats['get_misses'] ) ? absint( $server_stats['get_misses'] ) : 0;
+            $evictions  += isset( $server_stats['evictions'] ) ? absint( $server_stats['evictions'] ) : 0;
+            $bytes_used += isset( $server_stats['bytes'] ) ? absint( $server_stats['bytes'] ) : 0;
+            $max_bytes  += isset( $server_stats['limit_maxbytes'] ) ? absint( $server_stats['limit_maxbytes'] ) : 0;
+            $curr_items += isset( $server_stats['curr_items'] ) ? absint( $server_stats['curr_items'] ) : 0;
+            $total_items += isset( $server_stats['total_items'] ) ? absint( $server_stats['total_items'] ) : 0;
+            $curr_connections += isset( $server_stats['curr_connections'] ) ? absint( $server_stats['curr_connections'] ) : 0;
+            $uptime = max( $uptime, isset( $server_stats['uptime'] ) ? absint( $server_stats['uptime'] ) : 0 );
+        }
+
+        return array(
+            'provider'      => $this->get_provider_key(),
+            'status'        => 'connected',
+            'hits'          => $hits,
+            'misses'        => $misses,
+            'hit_ratio'     => pcm_calculate_hit_ratio( $hits, $misses ),
+            'evictions'     => $evictions,
+            'bytes_used'    => $bytes_used,
+            'bytes_limit'   => $max_bytes,
+            'meta'          => array(
+                'used_gb'              => pcm_object_cache_bytes_to_gb( $bytes_used ),
+                'limit_gb'             => pcm_object_cache_bytes_to_gb( $max_bytes ),
+                'curr_items'           => $curr_items,
+                'total_items'          => $total_items,
+                'curr_connections'     => $curr_connections,
+                'uptime_seconds'       => $uptime,
+                'uptime_human'         => pcm_object_cache_format_uptime( $uptime ),
+                'nodes_reported'       => count( $all_stats ),
+            ),
         );
     }
 }
@@ -262,6 +375,7 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
         $providers = array(
             new PCM_Object_Cache_Dropin_Stats_Provider(),
             new PCM_Object_Cache_Memcached_Extension_Stats_Provider(),
+            new PCM_Object_Cache_Memcache_Extension_Stats_Provider(),
         );
 
         foreach ( $providers as $provider ) {
@@ -432,6 +546,84 @@ function pcm_calculate_memory_pressure( $metrics ) {
     }
 
     return round( ( $used / $limit ) * 100, 2 );
+}
+
+/**
+ * @return array<int,array{host:string,port:int}>
+ */
+function pcm_object_cache_memcached_servers_from_constant() {
+    $servers = array();
+
+    if ( ! defined( 'WP_MEMCACHED_SERVERS' ) || ! is_array( WP_MEMCACHED_SERVERS ) ) {
+        return $servers;
+    }
+
+    foreach ( WP_MEMCACHED_SERVERS as $server_group ) {
+        if ( is_array( $server_group ) ) {
+            foreach ( $server_group as $server_def ) {
+                $parsed = pcm_object_cache_parse_memcache_server( $server_def );
+                if ( ! empty( $parsed ) ) {
+                    $servers[] = $parsed;
+                }
+            }
+            continue;
+        }
+
+        $parsed = pcm_object_cache_parse_memcache_server( $server_group );
+        if ( ! empty( $parsed ) ) {
+            $servers[] = $parsed;
+        }
+    }
+
+    return $servers;
+}
+
+/**
+ * @param mixed $server_def Memcached server definition.
+ *
+ * @return array<string,int|string>
+ */
+function pcm_object_cache_parse_memcache_server( $server_def ) {
+    $parts = explode( ':', (string) $server_def );
+    $host  = isset( $parts[0] ) ? sanitize_text_field( $parts[0] ) : '';
+    $port  = isset( $parts[1] ) ? absint( $parts[1] ) : 11211;
+
+    if ( '' === $host ) {
+        return array();
+    }
+
+    return array(
+        'host' => $host,
+        'port' => $port > 0 ? $port : 11211,
+    );
+}
+
+/**
+ * @param int $bytes Bytes.
+ *
+ * @return float
+ */
+function pcm_object_cache_bytes_to_gb( $bytes ) {
+    return round( absint( $bytes ) / 1024 / 1024 / 1024, 2 );
+}
+
+/**
+ * @param int $uptime_seconds Uptime in seconds.
+ *
+ * @return string
+ */
+function pcm_object_cache_format_uptime( $uptime_seconds ) {
+    $uptime = absint( $uptime_seconds );
+    if ( $uptime <= 0 ) {
+        return 'n/a';
+    }
+
+    $days = floor( $uptime / DAY_IN_SECONDS );
+    $remaining = $uptime % DAY_IN_SECONDS;
+    $hours = floor( $remaining / HOUR_IN_SECONDS );
+    $minutes = floor( ( $remaining % HOUR_IN_SECONDS ) / MINUTE_IN_SECONDS );
+
+    return sprintf( '%dd %dh %dm', $days, $hours, $minutes );
 }
 
 /**
