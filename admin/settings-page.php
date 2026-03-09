@@ -1120,7 +1120,7 @@ https://example.com/OLD/"></textarea>
                            type="submit"
                            value="<?php echo esc_attr__( 'Purge Edge Cache', 'pressable_cache_management' ); ?>"
                            disabled
-                           class="ec-disabled-btn"
+                           class="pcm-purge-btn disabled-button-style"
                            style="padding:10px 28px;border:none;border-radius:8px;font-size:14px;font-weight:700;
                                   color:#fff;background:#dd3a03;font-family:'Inter',sans-serif;
                                   transition:background .2s,opacity .2s;">
