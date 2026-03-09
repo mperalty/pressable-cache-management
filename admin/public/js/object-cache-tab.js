@@ -25,6 +25,13 @@ var pcmBatcacheNonce = window.pcmObjectCacheData && window.pcmObjectCacheData.no
 
         var pcmProbeInProgress = false;
 
+        function pcmSetProbeBusyState(isBusy) {
+            var btn = document.getElementById('pcm-bc-refresh');
+            if (!btn) return;
+            btn.disabled = !!isBusy;
+            btn.style.opacity = isBusy ? '0.3' : '0.6';
+        }
+
         // Core: browser fetches homepage, reads header, reports to PHP.
         // cache:'reload' bypasses browser cache for a fresh CDN response.
         // Pragma: no-cache forces Pressable's Atomic Edge Cache to BYPASS (x-ac: BYPASS).
@@ -34,6 +41,7 @@ var pcmBatcacheNonce = window.pcmObjectCacheData && window.pcmObjectCacheData.no
                 return;
             }
             pcmProbeInProgress = true;
+            pcmSetProbeBusyState(true);
             fetch(pcmSiteUrl, {
                 method: 'GET',
                 cache: 'reload',
@@ -78,6 +86,7 @@ var pcmBatcacheNonce = window.pcmObjectCacheData && window.pcmObjectCacheData.no
             })
             .finally(function(){
                 pcmProbeInProgress = false;
+                pcmSetProbeBusyState(false);
             });
         }
 
@@ -99,19 +108,13 @@ var pcmBatcacheNonce = window.pcmObjectCacheData && window.pcmObjectCacheData.no
 
         // Manual refresh button
         function pcmRefreshBatcacheStatus() {
-            var btn   = document.getElementById('pcm-bc-refresh');
             var label = document.getElementById('pcm-bc-label');
             if (pcmProbeInProgress) {
                 label.textContent = (window.pcmObjectCacheData && window.pcmObjectCacheData.strings ? window.pcmObjectCacheData.strings.alreadyChecking : 'Already checking…');
                 return;
             }
-            btn.style.opacity = '0.3';
-            btn.disabled = true;
             label.textContent = (window.pcmObjectCacheData && window.pcmObjectCacheData.strings ? window.pcmObjectCacheData.strings.checking : 'Checking…');
-            pcmProbeAndReport(function() {
-                btn.style.opacity = '0.6';
-                btn.disabled = false;
-            });
+            pcmProbeAndReport();
         }
 
         // Auto-poll: re-probe every 60s while status is broken (up to 5 attempts max)
