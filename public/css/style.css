@@ -60,34 +60,98 @@
   margin-bottom: 6px !important;
 }
 
-/* ---- Flush Cache Button ---- */
-.flushcache,
-input.flushcache[type="submit"] {
-  display: block !important;
-  width: 100% !important;
-  background: #dd3a03 !important;
-  color: #ffffff !important;
-  border: none !important;
+/* ---- Unified Button System ---- */
+.pcm-btn-primary,
+.pcm-btn-secondary,
+.pcm-btn-text,
+.pcm-btn-danger {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
   border-radius: 8px !important;
-  padding: 12px 20px !important;
+  border: 1px solid transparent !important;
+  padding: 10px 18px !important;
   font-family: 'Inter', sans-serif !important;
-  font-size: 14px !important;
+  font-size: 13.5px !important;
   font-weight: 600 !important;
+  line-height: 1.4 !important;
   cursor: pointer !important;
-  transition: background 0.2s, color 0.2s, transform 0.1s, box-shadow 0.2s !important;
-  text-align: center !important;
-  box-shadow: 0 2px 8px rgba(221,58,3,0.25) !important;
-  height: auto !important;
-  line-height: 1.5 !important;
+  text-decoration: none !important;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s !important;
 }
 
-/* Hover: switches to teal/green brand colour */
-.flushcache:hover,
-input.flushcache[type="submit"]:hover {
-  background: #03fcc2 !important;
-  color: #040024 !important;
-  box-shadow: 0 4px 14px rgba(3,252,194,0.45) !important;
+.pcm-btn-primary {
+  background: #dd3a03 !important;
+  color: #ffffff !important;
+  border-color: #dd3a03 !important;
+  box-shadow: 0 2px 8px rgba(221,58,3,0.25) !important;
+}
+
+.pcm-btn-primary:hover,
+.pcm-btn-primary:focus {
+  background: #c93402 !important;
+  border-color: #c93402 !important;
+  color: #ffffff !important;
   transform: translateY(-1px) !important;
+}
+
+.pcm-btn-secondary {
+  background: #ffffff !important;
+  color: #dd3a03 !important;
+  border-color: #dd3a03 !important;
+}
+
+.pcm-btn-secondary:hover,
+.pcm-btn-secondary:focus {
+  background: #fff5f1 !important;
+  color: #c93402 !important;
+  border-color: #c93402 !important;
+}
+
+.pcm-btn-text {
+  background: #fff7f3 !important;
+  color: #040024 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  padding: 8px 12px !important;
+}
+
+.pcm-btn-text:hover,
+.pcm-btn-text:focus {
+  background: #ffede6 !important;
+  color: #040024 !important;
+}
+
+.pcm-btn-danger {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 2px 8px rgba(220,38,38,0.28) !important;
+}
+
+.pcm-btn-danger:hover,
+.pcm-btn-danger:focus {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+.pcm-btn-primary:disabled,
+.pcm-btn-secondary:disabled,
+.pcm-btn-text:disabled,
+.pcm-btn-danger:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.pcm-btn-block {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
 }
 
 /* ---- Toggle Switch ---- */
@@ -195,59 +259,6 @@ input[type="text"]:focus {
 ::placeholder {
   color: #94a3b8 !important;
   font-size: 12.5px !important;
-}
-
-/* ---- Save Settings Button ---- */
-.button.custom-class,
-input.button.custom-class[type="submit"] {
-  background: #dd3a03 !important;
-  color: #ffffff !important;
-  border: none !important;
-  border-radius: 30px !important;
-  padding: 10px 28px !important;
-  font-family: 'Inter', sans-serif !important;
-  font-size: 13.5px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.8px !important;
-  text-transform: uppercase !important;
-  cursor: pointer !important;
-  transition: background 0.2s, box-shadow 0.2s, transform 0.1s !important;
-  box-shadow: 0 2px 10px rgba(221,58,3,0.35) !important;
-  height: auto !important;
-  line-height: 1.5 !important;
-  display: inline-block !important;
-}
-
-.button.custom-class:hover,
-input.button.custom-class[type="submit"]:hover {
-  background: #03fcc2 !important;
-  color: #040024 !important;
-  box-shadow: 0 4px 16px rgba(3,252,194,0.45) !important;
-  transform: translateY(-1px) !important;
-}
-
-/* ---- Edge Cache / Purge buttons ---- */
-.purge-cache-btn,
-input.purge-cache-btn[type="submit"] {
-  background: #dd3a03 !important;
-  color: #ffffff !important;
-  border: none !important;
-  border-radius: 8px !important;
-  padding: 10px 22px !important;
-  font-family: 'Inter', sans-serif !important;
-  font-size: 13.5px !important;
-  font-weight: 600 !important;
-  cursor: pointer !important;
-  transition: background 0.2s, box-shadow 0.2s !important;
-  box-shadow: 0 2px 8px rgba(221,58,3,0.25) !important;
-  height: auto !important;
-}
-
-.purge-cache-btn:hover,
-input.purge-cache-btn[type="submit"]:hover {
-  background: #03fcc2 !important;
-  color: #040024 !important;
-  box-shadow: 0 4px 14px rgba(3,252,194,0.45) !important;
 }
 
 /* ---- Radio button styling ---- */
