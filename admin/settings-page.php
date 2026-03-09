@@ -2356,53 +2356,87 @@ https://example.com/OLD/"></textarea>
                 </label></p>
                 <p><label><input type="checkbox" id="pcm-privacy-advanced-scan" <?php checked( ! empty( $privacy_settings['advanced_scan_opt_in'] ) ); ?> /> <?php echo esc_html__( 'Allow advanced scanning workflows', 'pressable_cache_management' ); ?></label></p>
                 <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
-                <p><button type="button" class="button button-primary" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
+                <p><button type="button" class="button pcm-primary-btn" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
                 <span id="pcm-privacy-status" style="margin-left:8px;color:#374151;"></span></p>
             </div>
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Audit Log', 'pressable_cache_management' ); ?></h4>
                 <p><button type="button" class="button" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button></p>
-                <div id="pcm-audit-log" style="max-height:220px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;border-radius:6px;font-size:12px;"></div>
+                <div id="pcm-audit-log" class="pcm-audit-panel pcm-skeleton" aria-live="polite"></div>
+                <p style="margin-top:8px;"><button type="button" class="button" id="pcm-audit-load-more" style="display:none;"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
             </div>
         </div>
     </div>
     <script>
     (function(){
         var nonce = <?php echo wp_json_encode( wp_create_nonce( 'pcm_cacheability_scan' ) ); ?>;
+        var initialSettings = <?php echo wp_json_encode( $privacy_settings ); ?> || {};
         var retentionEl = document.getElementById('pcm-privacy-retention');
         var redactionEl = document.getElementById('pcm-privacy-redaction');
         var advancedEl = document.getElementById('pcm-privacy-advanced-scan');
         var auditEnabledEl = document.getElementById('pcm-privacy-audit-enabled');
         var statusEl = document.getElementById('pcm-privacy-status');
         var auditLogEl = document.getElementById('pcm-audit-log');
+        var loadMoreEl = document.getElementById('pcm-audit-load-more');
 
         var post = window.pcmPost;
+        var pageSize = 20;
+        var currentOffset = 0;
+        var allRows = [];
 
-        function loadSettings(){
-            return post({ action: 'pcm_privacy_settings_get', nonce: nonce }).then(function(res){
-                if (!res || !res.success || !res.data || !res.data.settings) throw new Error('load_failed');
-                var s = res.data.settings;
-                retentionEl.value = s.retention_days || 90;
-                redactionEl.value = s.redaction_level || 'standard';
-                advancedEl.checked = !!s.advanced_scan_opt_in;
-                auditEnabledEl.checked = !!s.audit_log_enabled;
-            });
+        function renderSettings(s) {
+            retentionEl.value = s.retention_days || 90;
+            redactionEl.value = s.redaction_level || 'standard';
+            advancedEl.checked = !!s.advanced_scan_opt_in;
+            auditEnabledEl.checked = !!s.audit_log_enabled;
         }
 
-        function loadAudit(){
-            return post({ action: 'pcm_audit_log_list', nonce: nonce, limit: 40 }).then(function(res){
+        function escHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderAuditRows(rows) {
+            if (!rows.length) {
+                auditLogEl.classList.remove('pcm-skeleton');
+                auditLogEl.innerHTML = '<em>No audit entries yet.</em>';
+                return;
+            }
+
+            var html = '<table class="widefat striped pcm-audit-table"><thead><tr><th>#</th><th>Action</th><th>User</th><th>Timestamp</th></tr></thead><tbody>';
+            rows.forEach(function(row){
+                html += '<tr>' +
+                    '<td>' + escHtml(row.sequence_id || '?') + '</td>' +
+                    '<td>' + escHtml(row.action || 'action') + '</td>' +
+                    '<td>' + escHtml(row.actor_display || 'System') + '</td>' +
+                    '<td>' + escHtml(row.created_at || 'n/a') + '</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table>';
+            auditLogEl.classList.remove('pcm-skeleton');
+            auditLogEl.innerHTML = html;
+        }
+
+        function loadAudit(reset){
+            if (reset) {
+                currentOffset = 0;
+                allRows = [];
+                auditLogEl.classList.add('pcm-skeleton');
+                loadMoreEl.style.display = 'none';
+            }
+
+            return post({ action: 'pcm_audit_log_list', nonce: nonce, limit: pageSize, offset: currentOffset }).then(function(res){
                 if (!res || !res.success || !res.data || !Array.isArray(res.data.rows)) throw new Error('audit_failed');
-                if (!res.data.rows.length) {
-                    auditLogEl.innerHTML = '<em>No audit entries yet.</em>';
-                    return;
-                }
-                var html = '<ul style="margin:0;padding-left:18px;">';
-                res.data.rows.forEach(function(row){
-                    html += '<li><strong>#' + (row.sequence_id || '?') + '</strong> ' + (row.action || 'action') + ' — ' + (row.created_at || 'n/a') + '</li>';
-                });
-                html += '</ul>';
-                auditLogEl.innerHTML = html;
+                allRows = allRows.concat(res.data.rows);
+                currentOffset += res.data.rows.length;
+                renderAuditRows(allRows);
+                loadMoreEl.style.display = res.data.has_more ? 'inline-block' : 'none';
             }).catch(function(){
+                auditLogEl.classList.remove('pcm-skeleton');
                 auditLogEl.innerHTML = '<em>Unable to load audit log.</em>';
             });
         }
@@ -2421,17 +2455,17 @@ https://example.com/OLD/"></textarea>
                 })
             }).then(function(res){
                 statusEl.textContent = (res && res.success) ? 'Saved.' : 'Save failed.';
-                loadAudit();
+                loadAudit(true);
             }).catch(function(){
                 statusEl.textContent = 'Save failed.';
             });
         });
 
-        document.getElementById('pcm-audit-refresh').addEventListener('click', loadAudit);
+        document.getElementById('pcm-audit-refresh').addEventListener('click', function(){ loadAudit(true); });
+        loadMoreEl.addEventListener('click', function(){ loadAudit(false); });
 
-        loadSettings().then(loadAudit).catch(function(){
-            statusEl.textContent = 'Unable to load privacy settings.';
-        });
+        renderSettings(initialSettings);
+        loadAudit(true);
     })();
     </script>
     <?php endif; ?>
@@ -2893,6 +2927,13 @@ https://example.com/OLD/"></textarea>
     .pcm-trend-details summary{cursor:pointer;color:#374151;font-weight:600;margin-bottom:8px}
     .pcm-inline-error{border-left:4px solid #dd3a03;background:#fff1f2;padding:8px 10px;border-radius:4px;color:#7f1d1d}
     .pcm-inline-success{border-left:4px solid #03fcc2;background:#ecfeff;padding:8px 10px;border-radius:4px;color:#0f766e}
+    .pcm-primary-btn{background:#040024 !important;border-color:#040024 !important;color:#fff !important}
+    .pcm-primary-btn:hover{background:#03fcc2 !important;border-color:#03fcc2 !important;color:#040024 !important}
+    .pcm-audit-panel{max-height:260px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;border-radius:6px;font-size:12px}
+    .pcm-audit-table{margin:0}
+    .pcm-skeleton{position:relative;min-height:180px}
+    .pcm-skeleton::before{content:'';display:block;height:12px;border-radius:4px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 37%,#e5e7eb 63%);background-size:400% 100%;animation:pcm-skeleton-pulse 1.2s ease infinite;box-shadow:0 28px 0 #e5e7eb,0 56px 0 #e5e7eb,0 84px 0 #e5e7eb,0 112px 0 #e5e7eb}
+    @keyframes pcm-skeleton-pulse{0%{background-position:100% 0}100%{background-position:0 0}}
     .pcm-toast{position:fixed;right:18px;bottom:24px;z-index:100000;display:inline-flex;align-items:center;gap:8px;background:#040024;color:#fff;padding:10px 14px;border-left:4px solid #03fcc2;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.18);font-size:12.5px;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}
     .pcm-toast.is-visible{opacity:1;transform:translateY(0)}
     .pcm-advisor-grid{align-items:start}
