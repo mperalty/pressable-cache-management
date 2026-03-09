@@ -9,29 +9,6 @@ if (!defined('ABSPATH'))
 
 }
 
-// add sub-level administrative menu
-function pressable_cache_management_add_sublevel_menu()
-{
-
-    /*
-    
-    add_submenu_page(
-     'options-general.php',
-    string   $parent_slug,
-    string   $page_title,
-    string   $menu_title,
-    string   $capability,
-    string   $menu_slug,
-    callable $function = ''
-    );
-    
-    */
-
-	add_submenu_page('admin.php', '', 'Pressable Cache Management', 'manage_options', 'pressable_cache_management', 'pressable_cache_management_display_settings_page');
-
-}
-add_action('admin_menu', 'pressable_cache_management_add_sublevel_menu');
-
 // add top-level administrative menu
 function pressable_cache_management_add_toplevel_menu()
 {
