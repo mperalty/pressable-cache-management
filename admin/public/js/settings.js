@@ -277,7 +277,63 @@ jQuery(document).ready(function($){
         });
     }
 
-    function pcmInterceptWithConfirmation(selector, message, confirmLabel) {
+    function pcmRenderFlushNotice(message, isError) {
+        var wrap = document.getElementById('pcm-flush-feedback');
+        if (!wrap) return;
+        var klass = isError ? 'pcm-inline-error' : 'pcm-inline-success';
+        wrap.innerHTML = '<div class="' + klass + '">' + message + '</div>';
+    }
+
+    function pcmToggleFlushLoading(btn, isLoading) {
+        if (!btn) return;
+        btn.disabled = !!isLoading;
+        btn.classList.toggle('pcm-btn-loading', !!isLoading);
+        btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+    }
+
+    function pcmAjaxFlushObjectCache(btn) {
+        if (!btn || !btn.form || typeof fetch !== 'function' || typeof ajaxurl === 'undefined') {
+            if (btn && btn.form) btn.form.submit();
+            return;
+        }
+
+        var nonceField = btn.form.querySelector('input[name="flush_object_cache_nonce"]');
+        if (!nonceField || !nonceField.value) {
+            btn.form.submit();
+            return;
+        }
+
+        pcmToggleFlushLoading(btn, true);
+        fetch(ajaxurl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: 'action=pcm_flush_object_cache&flush_object_cache_nonce=' + encodeURIComponent(nonceField.value)
+        })
+            .then(function(response){ return response.json(); })
+            .then(function(res){
+                if (!res || !res.success) {
+                    var fallback = (window.pcmSettingsData && window.pcmSettingsData.strings && window.pcmSettingsData.strings.flushFailed) || 'Object cache flush failed. Please try again.';
+                    var msg = (res && res.data && res.data.message) ? res.data.message : fallback;
+                    throw new Error(msg);
+                }
+
+                var ts = document.getElementById('pcm-last-flushed-value');
+                if (ts && res.data && res.data.timestamp) {
+                    ts.textContent = res.data.timestamp;
+                }
+
+                pcmRenderFlushNotice((res.data && res.data.message) ? res.data.message : 'Object Cache Flushed Successfully.', false);
+            })
+            .catch(function(error){
+                pcmRenderFlushNotice(error && error.message ? error.message : 'Object cache flush failed. Please try again.', true);
+            })
+            .finally(function(){
+                pcmToggleFlushLoading(btn, false);
+            });
+    }
+
+    function pcmInterceptWithConfirmation(selector, message, confirmLabel, onConfirm) {
         document.addEventListener('click', function(e) {
             var target = e.target.closest(selector);
             if (!target || target.dataset.pcmConfirmBypass === '1') return;
@@ -289,6 +345,11 @@ jQuery(document).ready(function($){
             e.preventDefault();
             pcmShowConfirmModal(message, confirmLabel).then(function(confirmed) {
                 if (!confirmed) return;
+
+                if (typeof onConfirm === 'function') {
+                    onConfirm(target);
+                    return;
+                }
 
                 target.dataset.pcmConfirmBypass = '1';
                 if (target.form) {
@@ -306,7 +367,8 @@ jQuery(document).ready(function($){
     pcmInterceptWithConfirmation(
         '#pcm-flush-btn',
         'Are you sure you want to flush the entire site cache? This will temporarily slow your site while the cache rebuilds.',
-        'Flush'
+        'Flush',
+        pcmAjaxFlushObjectCache
     );
     pcmInterceptWithConfirmation(
         '#purge-edge-cache-button-input',

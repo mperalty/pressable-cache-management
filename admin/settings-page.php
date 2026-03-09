@@ -286,6 +286,8 @@ function pressable_cache_management_display_settings_page() {
             'strings'         => array(
                 'failedRetrieveStatus' => __( 'Failed to retrieve status.', 'pressable_cache_management' ),
                 'couldNotConnect'      => __( 'Could not connect to server.', 'pressable_cache_management' ),
+                'flushFailed'         => __( 'Object cache flush failed. Please try again.', 'pressable_cache_management' ),
+                'flushUnauthorized'   => __( 'Unauthorized request.', 'pressable_cache_management' ),
             ),
         )
     );
@@ -882,15 +884,16 @@ https://example.com/OLD/"></textarea>
             <div class="pcm-card">
                 <h3 class="pcm-card-title">&#8635; <?php echo esc_html__( 'Global Controls', 'pressable_cache_management' ); ?></h3>
                 <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;"><?php echo esc_html__( 'Flush Object Cache', 'pressable_cache_management' ); ?></p>
-                <form method="post">
+                <form method="post" id="pcm-flush-form">
                     <input type="hidden" name="flush_object_cache_nonce" value="<?php echo wp_create_nonce('flush_object_cache_nonce'); ?>">
                     <input type="submit" value="<?php esc_attr_e('Flush Cache for all Pages','pressable_cache_management'); ?>"
                            class="flushcache" id="pcm-flush-btn">
                 </form>
+                <div id="pcm-flush-feedback" style="margin-top:12px;" aria-live="polite"></div>
                 <?php $ts = get_option('flush-obj-cache-time-stamp'); ?>
                 <div style="margin-top:12px;">
                     <span class="pcm-ts-label"><?php echo esc_html__( 'LAST FLUSHED', 'pressable_cache_management' ); ?></span><br>
-                    <span class="pcm-ts-value"><?php echo $ts ? esc_html($ts) : '—'; ?></span>
+                    <span class="pcm-ts-value" id="pcm-last-flushed-value"><?php echo $ts ? esc_html($ts) : '—'; ?></span>
                 </div>
 
                 <!-- Current Cache TTL -->
@@ -1230,6 +1233,32 @@ https://example.com/OLD/"></textarea>
         box-shadow:0 4px 14px rgba(3,252,194,.45) !important;
         transform:translateY(-1px) !important;
     }
+
+    #pcm-flush-btn.pcm-btn-loading,
+    input.flushcache[type="submit"].pcm-btn-loading {
+        position:relative;
+        color:transparent !important;
+        cursor:not-allowed !important;
+        opacity:.9;
+        transform:none !important;
+        box-shadow:none !important;
+    }
+    #pcm-flush-btn.pcm-btn-loading::after,
+    input.flushcache[type="submit"].pcm-btn-loading::after {
+        content:'';
+        position:absolute;
+        top:50%;
+        left:50%;
+        width:16px;
+        height:16px;
+        margin:-8px 0 0 -8px;
+        border:2px solid rgba(255,255,255,.45);
+        border-top-color:#ffffff;
+        border-radius:50%;
+        animation:pcm-spin .8s linear infinite;
+    }
+    @keyframes pcm-spin{to{transform:rotate(360deg)}}
+
     .nav-tab-hidden { display:none !important; }
 
     .pcm-anchor-nav{position:sticky;top:32px;z-index:4;display:flex;gap:8px;overflow:auto;padding:8px 0 12px;margin-bottom:14px}
