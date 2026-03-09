@@ -5,7 +5,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-:root {
+.pcm-wrap {
   --pcm-bg: #f0f2f5;
   --pcm-card-bg: #ffffff;
   --pcm-text: #040024;
@@ -13,7 +13,7 @@
   --pcm-muted: #64748b;
 }
 
-body.admin-color-modern {
+body.admin-color-modern .pcm-wrap {
   --pcm-bg: #1d2327;
   --pcm-card-bg: #2c3338;
   --pcm-text: #f0f6fc;
@@ -22,20 +22,20 @@ body.admin-color-modern {
 }
 
 /* ---- Base ---- */
-#wpwrap .wrap,
-#wpwrap .wrap * {
+.pcm-wrap,
+.pcm-wrap * {
   box-sizing: border-box;
 }
 
 /* ---- Tab Navigation ---- */
-.nav-tab-wrapper {
+.pcm-wrap .nav-tab-wrapper {
   border-bottom: 2px solid #e0e3e8 !important;
   margin-bottom: 28px !important;
   padding-bottom: 0 !important;
   background: transparent !important;
 }
 
-.nav-tab {
+.pcm-wrap .nav-tab {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
   font-size: 14px !important;
   font-weight: 500 !important;
@@ -50,26 +50,26 @@ body.admin-color-modern {
   text-decoration: none !important;
 }
 
-.nav-tab:hover {
+.pcm-wrap .nav-tab:hover {
   color: #040024 !important;
   border-bottom-color: #94a3b8 !important;
   background: transparent !important;
 }
 
-.nav-tab-active,
-.nav-tab-active:hover {
+.pcm-wrap .nav-tab-active,
+.pcm-wrap .nav-tab-active:hover {
   color: #040024 !important;
   border-bottom: 2px solid #040024 !important;
   font-weight: 700 !important;
   background: transparent !important;
 }
 
-.nav-tab-hidden {
+.pcm-wrap .nav-tab-hidden {
   display: none !important;
 }
 
 /* ---- Logo ---- */
-.pressablecmlogo {
+.pcm-wrap .pressablecmlogo {
   width: 180px !important;
   height: auto !important;
   display: block !important;
@@ -81,10 +81,10 @@ body.admin-color-modern {
 .pcm-wrap input[type="submit"],
 .pcm-wrap input[type="button"],
 .pcm-wrap .button,
-.pcm-btn-primary,
-.pcm-btn-secondary,
-.pcm-btn-text,
-.pcm-btn-danger {
+.pcm-wrap .pcm-btn-primary,
+.pcm-wrap .pcm-btn-secondary,
+.pcm-wrap .pcm-btn-text,
+.pcm-wrap .pcm-btn-danger {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -117,15 +117,15 @@ body.admin-color-modern {
   transform: translateY(-1px) !important;
 }
 
-.pcm-btn-primary {
+.pcm-wrap .pcm-btn-primary {
   background: linear-gradient(180deg, #f24a12 0%, #dd3a03 100%) !important;
   color: #ffffff !important;
   border-color: #dd3a03 !important;
   box-shadow: 0 8px 18px rgba(221,58,3,0.26) !important;
 }
 
-.pcm-btn-primary:hover,
-.pcm-btn-primary:focus-visible {
+.pcm-wrap .pcm-btn-primary:hover,
+.pcm-wrap .pcm-btn-primary:focus-visible {
   background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
   border-color: #15803d !important;
   color: #ffffff !important;
@@ -133,20 +133,20 @@ body.admin-color-modern {
   transform: translateY(-1px) !important;
 }
 
-.pcm-btn-secondary {
+.pcm-wrap .pcm-btn-secondary {
   background: #ffffff !important;
   color: #dd3a03 !important;
   border-color: #dd3a03 !important;
 }
 
-.pcm-btn-secondary:hover,
-.pcm-btn-secondary:focus-visible {
+.pcm-wrap .pcm-btn-secondary:hover,
+.pcm-wrap .pcm-btn-secondary:focus-visible {
   background: #fff5f1 !important;
   color: #c93402 !important;
   border-color: #c93402 !important;
 }
 
-.pcm-btn-text {
+.pcm-wrap .pcm-btn-text {
   background: #fff7f3 !important;
   color: #040024 !important;
   border-color: transparent !important;
@@ -154,38 +154,38 @@ body.admin-color-modern {
   padding: 8px 12px !important;
 }
 
-.pcm-btn-text:hover,
-.pcm-btn-text:focus-visible {
+.pcm-wrap .pcm-btn-text:hover,
+.pcm-wrap .pcm-btn-text:focus-visible {
   background: #ffede6 !important;
   color: #040024 !important;
 }
 
-.pcm-btn-danger {
+.pcm-wrap .pcm-btn-danger {
   background: #dc2626 !important;
   color: #ffffff !important;
   border-color: #dc2626 !important;
   box-shadow: 0 2px 8px rgba(220,38,38,0.28) !important;
 }
 
-.pcm-btn-danger:hover,
-.pcm-btn-danger:focus-visible {
+.pcm-wrap .pcm-btn-danger:hover,
+.pcm-wrap .pcm-btn-danger:focus-visible {
   background: #b91c1c !important;
   border-color: #b91c1c !important;
   color: #ffffff !important;
   transform: translateY(-1px) !important;
 }
 
-.pcm-btn-primary:disabled,
-.pcm-btn-secondary:disabled,
-.pcm-btn-text:disabled,
-.pcm-btn-danger:disabled {
+.pcm-wrap .pcm-btn-primary:disabled,
+.pcm-wrap .pcm-btn-secondary:disabled,
+.pcm-wrap .pcm-btn-text:disabled,
+.pcm-wrap .pcm-btn-danger:disabled {
   opacity: 0.55 !important;
   cursor: not-allowed !important;
   transform: none !important;
   box-shadow: none !important;
 }
 
-.pcm-btn-block {
+.pcm-wrap .pcm-btn-block {
   display: block !important;
   width: 100% !important;
   height: auto !important;
