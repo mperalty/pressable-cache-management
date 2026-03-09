@@ -164,6 +164,30 @@ add_action( 'wp_ajax_pcm_get_batcache_status', 'pcm_ajax_get_batcache_status' );
 // Keep the old action name as an alias so any cached JS still works
 add_action( 'wp_ajax_pcm_refresh_batcache_status', 'pcm_ajax_get_batcache_status' );
 
+// ── AJAX: toggle Caching Suite feature flag without page reload ───────────────
+function pcm_ajax_toggle_caching_suite_features() {
+    check_ajax_referer( 'pcm_toggle_caching_suite_features', 'nonce' );
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => __( 'Unauthorized', 'pressable_cache_management' ) ), 403 );
+    }
+
+    $enabled = isset( $_POST['enabled'] ) && '1' === (string) wp_unslash( $_POST['enabled'] );
+    update_option( 'pcm_enable_caching_suite_features', $enabled, false );
+
+    if ( function_exists( 'pcm_audit_log' ) ) {
+        pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $enabled, 'source' => 'ajax' ) );
+    }
+
+    wp_send_json_success( array(
+        'enabled' => $enabled,
+        'label'   => $enabled
+            ? __( 'Caching Suite enabled', 'pressable_cache_management' )
+            : __( 'Caching Suite disabled', 'pressable_cache_management' ),
+    ) );
+}
+add_action( 'wp_ajax_pcm_toggle_caching_suite_features', 'pcm_ajax_toggle_caching_suite_features' );
+
 /**
  * Clear the cached status immediately after any cache flush
  * so the badge re-checks on next page load.
@@ -256,14 +280,14 @@ function pressable_cache_management_display_settings_page() {
     </script>
 
     <!-- ── Tabs ── -->
-    <nav class="nav-tab-wrapper" style="margin-bottom:28px;">
+    <nav class="nav-tab-wrapper" id="pcm-main-tab-nav" style="margin-bottom:28px;">
         <a href="admin.php?page=pressable_cache_management"
            class="nav-tab <?php echo $is_object_tab ? 'nav-tab-active' : ''; ?>">Object Cache</a>
         <a href="admin.php?page=pressable_cache_management&tab=edge_cache_settings_tab"
            class="nav-tab <?php echo $tab === 'edge_cache_settings_tab' ? 'nav-tab-active' : ''; ?>">Edge Cache</a>
         <?php if ( $caching_suite_enabled ) : ?>
         <a href="admin.php?page=pressable_cache_management&tab=deep_dive_tab"
-           class="nav-tab <?php echo $is_deep_dive_tab ? 'nav-tab-active' : ''; ?>">Deep Dive</a>
+           class="nav-tab <?php echo $is_deep_dive_tab ? 'nav-tab-active' : ''; ?>" id="pcm-deep-dive-tab">Deep Dive</a>
         <?php endif; ?>
         <a href="admin.php?page=pressable_cache_management&tab=settings_tab"
            class="nav-tab <?php echo $is_settings_tab ? 'nav-tab-active' : ''; ?>">Settings</a>
@@ -294,14 +318,17 @@ function pressable_cache_management_display_settings_page() {
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Control which major Caching Suite modules are active for diagnostics, automation, and deep-dive insights.', 'pressable_cache_management' ); ?></p>
         <form method="post">
             <input type="hidden" name="pcm_feature_flags_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_save_feature_flags' ) ); ?>" />
+            <input type="hidden" id="pcm-caching-suite-toggle-nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_toggle_caching_suite_features' ) ); ?>" />
 
             <div class="pcm-toggle-row">
                 <label class="switch" style="flex-shrink:0;margin-top:2px;">
-                    <input type="checkbox" name="pcm_enable_caching_suite_features" value="1" <?php checked( $caching_suite_enabled ); ?> />
+                    <input type="checkbox" name="pcm_enable_caching_suite_features" id="pcm-caching-suite-toggle" value="1" <?php checked( $caching_suite_enabled ); ?> />
                     <span class="slider round"></span>
                 </label>
                 <div>
-                    <div class="pcm-toggle-title"><?php echo esc_html__( 'Caching Suite', 'pressable_cache_management' ); ?></div>
+                    <div class="pcm-toggle-title"><?php echo esc_html__( 'Caching Suite', 'pressable_cache_management' ); ?>
+                        <span class="pcm-status-badge <?php echo $caching_suite_enabled ? 'is-active' : 'is-inactive'; ?>" id="pcm-caching-suite-status-badge"><?php echo $caching_suite_enabled ? esc_html__( 'Active', 'pressable_cache_management' ) : esc_html__( 'Inactive', 'pressable_cache_management' ); ?></span>
+                    </div>
                     <div class="pcm-toggle-desc"><?php echo esc_html__( 'Turns on the full diagnostics and remediation toolset used across Deep Dive analysis.', 'pressable_cache_management' ); ?></div>
                     <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;font-size:11.5px;color:#475569;">
                         <span title="Analyzes headers and cache directives to highlight uncached opportunities."><?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?> ⓘ</span>
@@ -309,7 +336,7 @@ function pressable_cache_management_display_settings_page() {
                         <span title="Tracks trend telemetry, reports, and exports for cache health visibility."><?php echo esc_html__( 'Observability Reporting', 'pressable_cache_management' ); ?> ⓘ</span>
                         <span title="Generates recommended next actions when anti-patterns are detected."><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> ⓘ</span>
                     </div>
-                    <span class="pcm-ts-inline" style="margin-top:6px;"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $caching_suite_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
+                    <span class="pcm-ts-inline" id="pcm-caching-suite-inline-status" style="margin-top:6px;"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $caching_suite_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
                 </div>
             </div>
 
@@ -331,6 +358,89 @@ function pressable_cache_management_display_settings_page() {
             </div>
         </form>
     </div>
+    <script>
+    (function(){
+        var toggle = document.getElementById('pcm-caching-suite-toggle');
+        var nonceField = document.getElementById('pcm-caching-suite-toggle-nonce');
+        if (!toggle || !nonceField || typeof window.pcmPost !== 'function') return;
+
+        function pcmShowToast(message) {
+            var existing = document.getElementById('pcm-caching-suite-toast');
+            if (existing) {
+                existing.remove();
+            }
+            var toast = document.createElement('div');
+            toast.id = 'pcm-caching-suite-toast';
+            toast.className = 'pcm-toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            requestAnimationFrame(function(){
+                toast.classList.add('is-visible');
+            });
+            window.setTimeout(function(){
+                toast.classList.remove('is-visible');
+                window.setTimeout(function(){
+                    if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+                }, 250);
+            }, 1900);
+        }
+
+        function pcmSyncCachingSuiteUi(enabled) {
+            var badge = document.getElementById('pcm-caching-suite-status-badge');
+            var inlineStatus = document.getElementById('pcm-caching-suite-inline-status');
+            if (badge) {
+                badge.textContent = enabled ? 'Active' : 'Inactive';
+                badge.classList.toggle('is-active', !!enabled);
+                badge.classList.toggle('is-inactive', !enabled);
+            }
+            if (inlineStatus) {
+                inlineStatus.innerHTML = '<strong>Status:</strong> ' + (enabled ? 'Enabled' : 'Disabled');
+            }
+
+            var tabsNav = document.getElementById('pcm-main-tab-nav');
+            var deepDiveTab = document.getElementById('pcm-deep-dive-tab');
+            if (enabled) {
+                if (!deepDiveTab && tabsNav) {
+                    deepDiveTab = document.createElement('a');
+                    deepDiveTab.id = 'pcm-deep-dive-tab';
+                    deepDiveTab.className = 'nav-tab';
+                    deepDiveTab.href = 'admin.php?page=pressable_cache_management&tab=deep_dive_tab';
+                    deepDiveTab.textContent = 'Deep Dive';
+                    var settingsTab = tabsNav.querySelector('a[href*="tab=settings_tab"]');
+                    if (settingsTab) {
+                        tabsNav.insertBefore(deepDiveTab, settingsTab);
+                    } else {
+                        tabsNav.appendChild(deepDiveTab);
+                    }
+                }
+            } else if (deepDiveTab && deepDiveTab.parentNode) {
+                deepDiveTab.parentNode.removeChild(deepDiveTab);
+            }
+        }
+
+        toggle.addEventListener('change', function(){
+            var enabled = toggle.checked;
+            toggle.disabled = true;
+
+            window.pcmPost({
+                action: 'pcm_toggle_caching_suite_features',
+                nonce: nonceField.value,
+                enabled: enabled ? '1' : '0'
+            }).then(function(res){
+                if (!res || !res.success) {
+                    throw new Error((res && res.data && res.data.message) ? res.data.message : 'toggle_failed');
+                }
+                pcmSyncCachingSuiteUi(!!res.data.enabled);
+                pcmShowToast(res.data.label || (enabled ? 'Caching Suite enabled' : 'Caching Suite disabled'));
+            }).catch(function(){
+                toggle.checked = !enabled;
+                pcmShowToast('Unable to save Caching Suite setting');
+            }).finally(function(){
+                toggle.disabled = false;
+            });
+        });
+    })();
+    </script>
     <?php endif; ?>
 
     <?php if ( $is_object_tab ) : ?>
@@ -2656,6 +2766,9 @@ https://example.com/OLD/"></textarea>
         font-size:13.5px;font-weight:600;color:#040024;
         font-family:'Inter',sans-serif;line-height:1.3;
     }
+    .pcm-status-badge{display:inline-flex;align-items:center;margin-left:8px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;line-height:1.4;vertical-align:middle}
+    .pcm-status-badge.is-active{background:#dcfce7;color:#166534;border:1px solid #86efac}
+    .pcm-status-badge.is-inactive{background:#e5e7eb;color:#4b5563;border:1px solid #d1d5db}
     .pcm-toggle-desc {
         font-size:12px;color:#64748b;margin-top:2px;font-family:'Inter',sans-serif;
     }
@@ -2707,6 +2820,8 @@ https://example.com/OLD/"></textarea>
     .pcm-trend-details summary{cursor:pointer;color:#374151;font-weight:600;margin-bottom:8px}
     .pcm-inline-error{border-left:4px solid #dd3a03;background:#fff1f2;padding:8px 10px;border-radius:4px;color:#7f1d1d}
     .pcm-inline-success{border-left:4px solid #03fcc2;background:#ecfeff;padding:8px 10px;border-radius:4px;color:#0f766e}
+    .pcm-toast{position:fixed;right:18px;bottom:24px;z-index:100000;display:inline-flex;align-items:center;gap:8px;background:#040024;color:#fff;padding:10px 14px;border-left:4px solid #03fcc2;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.18);font-size:12.5px;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}
+    .pcm-toast.is-visible{opacity:1;transform:translateY(0)}
     .pcm-advisor-grid{align-items:start}
     .pcm-score-list{display:flex;flex-direction:column;gap:10px}
     .pcm-score-item{border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff}
