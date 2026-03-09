@@ -19,6 +19,9 @@
         window.pcmRenderDeepDiveDependencyError = function(targetEl, dependencyLabel, retryAction, error, fallbackMessage) {
             if (!targetEl) return;
             var detail = error && error.message ? error.message : (fallbackMessage || 'Unexpected AJAX response.');
+            if (targetEl.style && targetEl.style.display === 'none') {
+                targetEl.style.display = 'block';
+            }
             targetEl.innerHTML = '<div class="pcm-inline-error" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
                 + '<span>This feature requires ' + escapeHtml(dependencyLabel) + ' to be enabled. ' + escapeHtml(detail) + '</span>'
                 + (retryAction ? '<button type="button" class="pcm-btn-text" data-action="pcm-retry" data-retry-action="' + escapeHtml(retryAction) + '">Retry</button>' : '')
