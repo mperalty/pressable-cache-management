@@ -17,9 +17,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_object_cache_intelligence_is_enabled(): bool {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+    static $cached = null;
+    if ( $cached === null ) {
+        $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+        $cached  = (bool) apply_filters( 'pcm_enable_object_cache_intelligence', $enabled );
+    }
 
-    return (bool) apply_filters( 'pcm_enable_object_cache_intelligence', $enabled );
+    return $cached;
 }
 
 /**
@@ -360,6 +364,9 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
         }
 
         $memcached = new Memcached();
+        $memcached->setOption( Memcached::OPT_CONNECT_TIMEOUT, 2000 );
+        $memcached->setOption( Memcached::OPT_SEND_TIMEOUT, 2000000 );
+        $memcached->setOption( Memcached::OPT_RECV_TIMEOUT, 2000000 );
         $servers   = pcm_object_cache_memcached_servers_from_constant();
         $server_ok = false;
 
@@ -468,7 +475,7 @@ class PCM_Object_Cache_Memcache_Extension_Stats_Provider implements PCM_Object_C
             }
 
             $client = new Memcache();
-            $connected = @$client->connect( $host, $port ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            $connected = @$client->connect( $host, $port, 2 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- 2s timeout
             if ( ! $connected ) {
                 continue;
             }
@@ -570,9 +577,34 @@ class PCM_Object_Cache_Null_Stats_Provider implements PCM_Object_Cache_Stats_Pro
  */
 class PCM_Object_Cache_Stats_Provider_Resolver {
     /**
+     * Cached resolve result: [ provider, metrics ].
+     *
+     * @var array{0: PCM_Object_Cache_Stats_Provider_Interface, 1: array<string, mixed>}|null
+     */
+    protected ?array $cached = null;
+
+    /**
      * @return PCM_Object_Cache_Stats_Provider_Interface
      */
     public function resolve(): PCM_Object_Cache_Stats_Provider_Interface {
+        $result = $this->resolve_with_metrics();
+
+        return $result[0];
+    }
+
+    /**
+     * Resolve the best provider and return both provider and its metrics.
+     *
+     * Avoids the cost of calling get_metrics() twice (once during resolution,
+     * once from the caller).
+     *
+     * @return array{0: PCM_Object_Cache_Stats_Provider_Interface, 1: array<string, mixed>}
+     */
+    public function resolve_with_metrics(): array {
+        if ( null !== $this->cached ) {
+            return $this->cached;
+        }
+
         $providers = array(
             new PCM_Object_Cache_Dropin_Stats_Provider(),
             new PCM_Object_Cache_Memcached_Extension_Stats_Provider(),
@@ -582,11 +614,16 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
         foreach ( $providers as $provider ) {
             $metrics = $provider->get_metrics();
             if ( ! empty( $metrics ) ) {
-                return $provider;
+                $this->cached = array( $provider, $metrics );
+
+                return $this->cached;
             }
         }
 
-        return new PCM_Object_Cache_Null_Stats_Provider();
+        $fallback       = new PCM_Object_Cache_Null_Stats_Provider();
+        $this->cached   = array( $fallback, $fallback->get_metrics() );
+
+        return $this->cached;
     }
 }
 
@@ -693,9 +730,8 @@ class PCM_Object_Cache_Intelligence_Service {
             return array();
         }
 
-        $provider = $this->resolver->resolve();
-        $metrics  = $provider->get_metrics();
-        $derived  = $this->evaluator->evaluate( $metrics );
+        list( $provider, $metrics ) = $this->resolver->resolve_with_metrics();
+        $derived = $this->evaluator->evaluate( $metrics );
 
         return array(
             'taken_at'         => current_time( 'mysql', true ),
@@ -836,13 +872,20 @@ class PCM_Object_Cache_Snapshot_Storage {
 
     protected int $max_rows = 2000;
 
+    private ?array $rows_cache = null;
+
     /**
      * @return array<int, array<string, mixed>>
      */
     public function all(): array {
-        $rows = get_option( $this->key, array() );
+        if ( null !== $this->rows_cache ) {
+            return $this->rows_cache;
+        }
 
-        return is_array( $rows ) ? $rows : array();
+        $rows              = get_option( $this->key, array() );
+        $this->rows_cache  = is_array( $rows ) ? $rows : array();
+
+        return $this->rows_cache;
     }
 
     /**
@@ -853,7 +896,9 @@ class PCM_Object_Cache_Snapshot_Storage {
     public function append( array $snapshot ): void {
         $rows   = $this->all();
         $rows[] = $snapshot;
-        update_option( $this->key, array_slice( $rows, -1 * $this->max_rows ), false );
+        $rows   = array_slice( $rows, -1 * $this->max_rows );
+        update_option( $this->key, $rows, false );
+        $this->rows_cache = $rows;
     }
 
     /**
@@ -904,6 +949,7 @@ class PCM_Object_Cache_Snapshot_Storage {
         );
 
         update_option( $this->key, $rows, false );
+        $this->rows_cache = $rows;
     }
 }
 
@@ -985,13 +1031,20 @@ class PCM_Object_Cache_Route_Sensitivity_Storage {
 
     protected int $max_rows = 5000;
 
+    private ?array $rows_cache = null;
+
     /**
      * @return array<int, array<string, mixed>>
      */
     public function all(): array {
-        $rows = get_option( $this->key, array() );
+        if ( null !== $this->rows_cache ) {
+            return $this->rows_cache;
+        }
 
-        return is_array( $rows ) ? $rows : array();
+        $rows              = get_option( $this->key, array() );
+        $this->rows_cache  = is_array( $rows ) ? $rows : array();
+
+        return $this->rows_cache;
     }
 
     /**
@@ -1000,7 +1053,9 @@ class PCM_Object_Cache_Route_Sensitivity_Storage {
      * @return void
      */
     public function replace( array $rows ): void {
-        update_option( $this->key, array_slice( array_values( $rows ), -1 * $this->max_rows ), false );
+        $rows = array_slice( array_values( $rows ), -1 * $this->max_rows );
+        update_option( $this->key, $rows, false );
+        $this->rows_cache = $rows;
     }
 
     /**
@@ -1436,8 +1491,26 @@ function pcm_ajax_route_memcache_sensitivity(): void {
         }
     );
 
-    $summary_24h = pcm_object_cache_memcache_sensitivity_summary( '24h' );
-    $summary_7d  = pcm_object_cache_memcache_sensitivity_summary( '7d' );
+    // Load sensitivity rows once, derive both 24h and 7d summaries from it.
+    $sens_storage = new PCM_Object_Cache_Route_Sensitivity_Storage();
+    $all_sens     = $sens_storage->all();
+    $cutoff_24h   = time() - DAY_IN_SECONDS;
+    $cutoff_7d    = time() - ( 7 * DAY_IN_SECONDS );
+    $high_24h     = array();
+    $high_7d      = array();
+
+    foreach ( $all_sens as $row ) {
+        if ( 'high' !== ( $row['memcache_sensitivity'] ?? '' ) ) {
+            continue;
+        }
+        $ts = isset( $row['assessed_at'] ) ? strtotime( $row['assessed_at'] ) : 0;
+        if ( $ts >= $cutoff_7d ) {
+            $high_7d[ (string) $row['route'] ] = true;
+        }
+        if ( $ts >= $cutoff_24h ) {
+            $high_24h[ (string) $row['route'] ] = true;
+        }
+    }
 
     wp_send_json_success(
         array(
@@ -1445,8 +1518,8 @@ function pcm_ajax_route_memcache_sensitivity(): void {
             'assessed_at'  => $result['assessed_at'] ?? '',
             'top_routes'   => array_slice( $routes, 0, 10 ),
             'summary'      => array(
-                'high_24h' => isset( $summary_24h['high_route_count'] ) ? (int) $summary_24h['high_route_count'] : 0,
-                'high_7d'  => isset( $summary_7d['high_route_count'] ) ? (int) $summary_7d['high_route_count'] : 0,
+                'high_24h' => count( $high_24h ),
+                'high_7d'  => count( $high_7d ),
             ),
         )
     );

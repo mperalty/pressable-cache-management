@@ -1,5 +1,23 @@
 === Pressable Cache Management Change log ===
 
+= Version 5.8.9 (Mar 09, 2026) =
+* Fix Object Cache Intelligence timeout: add 2s connection timeouts to Memcached/Memcache providers
+* Cache resolved provider metrics to eliminate duplicate network round-trips
+* Add static caching to all feature flag functions (7 modules) to reduce redundant get_option() calls
+* Add instance-level row caching to all storage classes (snapshots, sensitivity, purge events, rollups)
+* Batch rollup writes in daily cron (10 DB writes reduced to 1)
+* Add microcache index instance cache to avoid repeated get_option() reads
+* Settings page now uses cached accessor functions for Smart Purge settings
+* Fix OPcache feature flag: remove current_user_can() gate that blocked cron scheduling
+* Optimize route sensitivity endpoint: single-pass 24h/7d summary instead of double storage load
+* Remove summary grid from Deep Dive tab
+* Replace text emoji with dashicon on Durable Origin Microcache card
+* Style collapsible section buttons consistently with pcm-btn-text class
+* Add smooth scroll-into-view when opening playbooks
+* Add background color to sticky Deep Dive nav for readability when scrolling
+* Extend JS timeout for Object Cache and Route Sensitivity AJAX calls to 30s
+* Support custom timeout in pcmPost() AJAX helper
+
 = Version 5.8.8 (Mar 08, 2026) =
 * Updated language string to support admin menu
 * Add features to track max age

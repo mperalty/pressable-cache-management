@@ -70,19 +70,6 @@
         });
     }
 
-    // Handle summary-card clicks that jump to a section
-    var summaryGrid = document.querySelector('.pcm-summary-grid');
-    if (summaryGrid) {
-        summaryGrid.addEventListener('click', function(e) {
-            var link = e.target.closest('a[href^="#"]');
-            if (!link) return;
-            var target = document.querySelector(link.getAttribute('href'));
-            if (target && target.classList.contains('pcm-lazy-section')) {
-                hydrateSection(target);
-            }
-        });
-    }
-
     // Expose globally so other code can force-hydrate a section if needed
     window.pcmHydrateLazySection = hydrateSection;
 })();
@@ -226,7 +213,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
 
         function renderCollapsibleSection(id, label, contentHtml) {
             return '<div class="pcm-collapsible-panel">'
-                + '<button type="button" class="pcm-btn-text" style="padding:0;height:auto;line-height:1.4;font-size:12px;color:#4b5563;" data-action="toggle-panel" data-target="' + escapeHtml(id) + '" aria-expanded="false">Show ' + escapeHtml(label) + '</button>'
+                + '<button type="button" class="pcm-btn-text" data-action="toggle-panel" data-target="' + escapeHtml(id) + '" aria-expanded="false">Show ' + escapeHtml(label) + '</button>'
                 + '<div id="' + escapeHtml(id) + '" style="display:none;margin-top:6px;">' + contentHtml + '</div>'
                 + '</div>';
         }
@@ -371,6 +358,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     '<span data-role="verify-status" style="color:#374151;">Last verification: ' + escapeHtml(verificationSummary) + '</span>',
                 '</p>'
             ].join('');
+            playbookWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function renderFindings(findings) {
@@ -469,7 +457,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
             window.pcmRenderSkeletonRows(sensitivityWrap, 4, ['100%', '86%', '92%', '74%']);
             var resultsRequest = window.pcmPost({ action: 'pcm_cacheability_scan_results', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
             var findingsRequest = window.pcmPost({ action: 'pcm_cacheability_scan_findings', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
-            var sensitivityRequest = window.pcmPost({ action: 'pcm_route_memcache_sensitivity', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
+            var sensitivityRequest = window.pcmPost({ action: 'pcm_route_memcache_sensitivity', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }, { timeout: 30000 });
 
             return Promise.allSettled([resultsRequest, findingsRequest, sensitivityRequest]).then(function(settled){
                 var resultsPayload = settled[0] && settled[0].status === 'fulfilled' ? settled[0].value : null;
@@ -803,7 +791,7 @@ window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
 
         function loadSnapshot(refresh) {
             window.pcmRenderSkeletonRows(latestEl, 5, ['84%', '91%', '78%', '72%', '86%']);
-            return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' })
+            return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' }, { timeout: 30000 })
                 .then(function(payload){
                     if (!payload || !payload.success) {
                         throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load object cache snapshot endpoint.'));

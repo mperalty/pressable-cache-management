@@ -10,9 +10,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 function pcm_durable_origin_microcache_is_enabled(): bool {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false );
+    static $cached = null;
+    if ( $cached === null ) {
+        $enabled = (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false );
+        $cached  = (bool) apply_filters( 'pcm_enable_durable_origin_microcache', $enabled );
+    }
 
-    return (bool) apply_filters( 'pcm_enable_durable_origin_microcache', $enabled );
+    return $cached;
 }
 
 function pcm_microcache_artifact_dir(): string {
@@ -50,6 +54,8 @@ interface PCM_Microcache_Backend {
 class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
     protected readonly string $index_key;
 
+    private ?array $index_cache = null;
+
     public function __construct() {
         $this->index_key = pcm_microcache_index_option_key();
     }
@@ -63,7 +69,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         $row = $index[ $key ];
         if ( empty( $row['artifact_path'] ) || ! file_exists( $row['artifact_path'] ) ) {
             unset( $index[ $key ] );
-            update_option( $this->index_key, $index, false );
+            $this->save_index( $index );
             return null;
         }
 
@@ -113,7 +119,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
             'updated_at'    => current_time( 'mysql', true ),
         );
 
-        update_option( $this->index_key, $index, false );
+        $this->save_index( $index );
 
         if ( $old && $old !== $artifact && file_exists( $old ) ) {
             @unlink( $old );
@@ -144,7 +150,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
             $removed++;
         }
 
-        update_option( $this->index_key, $index, false );
+        $this->save_index( $index );
 
         return $removed;
     }
@@ -160,7 +166,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         }
 
         unset( $index[ $key ] );
-        update_option( $this->index_key, $index, false );
+        $this->save_index( $index );
 
         return true;
     }
@@ -173,7 +179,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
             }
         }
 
-        update_option( $this->index_key, array(), false );
+        $this->save_index( array() );
 
         return count( $index );
     }
@@ -188,9 +194,19 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
     }
 
     protected function get_index(): array {
-        $index = get_option( $this->index_key, array() );
+        if ( null !== $this->index_cache ) {
+            return $this->index_cache;
+        }
 
-        return is_array( $index ) ? $index : array();
+        $index              = get_option( $this->index_key, array() );
+        $this->index_cache  = is_array( $index ) ? $index : array();
+
+        return $this->index_cache;
+    }
+
+    protected function save_index( array $index ): void {
+        $this->save_index( $index );
+        $this->index_cache = $index;
     }
 
     protected function decode_payload( string $raw, string $content_type ): string|array {
@@ -759,7 +775,7 @@ function pcm_microcache_render_deep_dive_card(): void {
     $stats   = $summary['stats'];
     ?>
     <div class="pcm-card pcm-card-hover" id="pcm-feature-durable-origin-microcache" style="margin-bottom:20px;scroll-margin-top:20px;">
-        <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Durable Origin Microcache', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-superhero pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Durable Origin Microcache', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Anonymous-safe microcache hit/miss telemetry, stale-while-revalidate activity, and recent invalidation events.', 'pressable_cache_management' ); ?></p>
         <div style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-bottom:12px;">
             <div><strong><?php echo esc_html__( 'Hits', 'pressable_cache_management' ); ?>:</strong> <?php echo esc_html( (string) $stats['hits'] ); ?></div>

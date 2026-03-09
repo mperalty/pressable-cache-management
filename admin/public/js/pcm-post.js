@@ -11,8 +11,9 @@
 (function(window, document) {
     'use strict';
 
-    window.pcmPost = window.pcmPost || function(bodyObj) {
-        var timeoutMs = 15000;
+    window.pcmPost = window.pcmPost || function(bodyObj, opts) {
+        opts = opts || {};
+        var timeoutMs = opts.timeout || 15000;
         var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         var timeoutId = null;
         var params = new URLSearchParams();

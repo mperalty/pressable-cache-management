@@ -17,10 +17,14 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_cache_busters_is_enabled(): bool {
-    $suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
-    $enabled       = $suite_enabled || ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() );
+    static $cached = null;
+    if ( $cached === null ) {
+        $suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+        $enabled       = $suite_enabled || ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() );
+        $cached        = (bool) apply_filters( 'pcm_enable_cache_busters', $enabled );
+    }
 
-    return (bool) apply_filters( 'pcm_enable_cache_busters', $enabled );
+    return $cached;
 }
 
 /**

@@ -17,9 +17,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_opcache_awareness_is_enabled(): bool {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false ) && current_user_can( 'manage_options' );
+    static $cached = null;
+    if ( $cached === null ) {
+        $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+        $cached  = (bool) apply_filters( 'pcm_enable_opcache_awareness', $enabled );
+    }
 
-    return (bool) apply_filters( 'pcm_enable_opcache_awareness', $enabled );
+    return $cached;
 }
 
 /**
@@ -343,13 +347,20 @@ class PCM_OPcache_Snapshot_Storage {
 
     protected int $max_rows = 2000;
 
+    private ?array $rows_cache = null;
+
     /**
      * @return array
      */
     public function all(): array {
-        $rows = get_option( $this->key, array() );
+        if ( null !== $this->rows_cache ) {
+            return $this->rows_cache;
+        }
 
-        return is_array( $rows ) ? $rows : array();
+        $rows              = get_option( $this->key, array() );
+        $this->rows_cache  = is_array( $rows ) ? $rows : array();
+
+        return $this->rows_cache;
     }
 
     /**
@@ -360,7 +371,9 @@ class PCM_OPcache_Snapshot_Storage {
     public function append( array $snapshot ): void {
         $rows   = $this->all();
         $rows[] = pcm_opcache_sanitize_snapshot( $snapshot );
-        update_option( $this->key, array_slice( $rows, -1 * $this->max_rows ), false );
+        $rows   = array_slice( $rows, -1 * $this->max_rows );
+        update_option( $this->key, $rows, false );
+        $this->rows_cache = $rows;
     }
 
     /**
@@ -411,6 +424,7 @@ class PCM_OPcache_Snapshot_Storage {
         );
 
         update_option( $this->key, $rows, false );
+        $this->rows_cache = $rows;
     }
 }
 

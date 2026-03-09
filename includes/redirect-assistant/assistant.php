@@ -17,9 +17,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_redirect_assistant_is_enabled(): bool {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+    static $cached = null;
+    if ( $cached === null ) {
+        $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+        $cached  = (bool) apply_filters( 'pcm_enable_redirect_assistant', $enabled );
+    }
 
-    return (bool) apply_filters( 'pcm_enable_redirect_assistant', $enabled );
+    return $cached;
 }
 
 /**

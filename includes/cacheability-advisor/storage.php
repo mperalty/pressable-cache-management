@@ -23,9 +23,13 @@ if ( ! defined( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION' ) ) {
  * @return bool
  */
 function pcm_cacheability_advisor_is_enabled(): bool {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+    static $cached = null;
+    if ( $cached === null ) {
+        $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+        $cached  = (bool) apply_filters( 'pcm_enable_cacheability_advisor', $enabled );
+    }
 
-    return (bool) apply_filters( 'pcm_enable_cacheability_advisor', $enabled );
+    return $cached;
 }
 
 /**

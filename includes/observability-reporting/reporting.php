@@ -62,28 +62,53 @@ class PCM_Metric_Rollup_Storage {
 
     protected int $max_rows = 2000;
 
+    private ?array $rows_cache = null;
+
+    private bool $dirty = false;
+
     /**
      * @param array $row Rollup row.
      */
     public function append_rollup( array $row ): void {
         $rows   = $this->get_rollups();
         $rows[] = $row;
-        update_option( $this->key, array_slice( $rows, -1 * $this->max_rows ), false );
+        $this->rows_cache = $rows;
+        $this->dirty      = true;
+    }
+
+    /**
+     * Flush any pending writes to the database.
+     */
+    public function flush(): void {
+        if ( ! $this->dirty || null === $this->rows_cache ) {
+            return;
+        }
+
+        update_option( $this->key, array_slice( $this->rows_cache, -1 * $this->max_rows ), false );
+        $this->rows_cache = array_slice( $this->rows_cache, -1 * $this->max_rows );
+        $this->dirty      = false;
     }
 
     /**
      * @return array
      */
     public function get_rollups(): array {
-        $rows = get_option( $this->key, array() );
+        if ( null !== $this->rows_cache ) {
+            return $this->rows_cache;
+        }
 
-        return is_array( $rows ) ? $rows : array();
+        $rows              = get_option( $this->key, array() );
+        $this->rows_cache  = is_array( $rows ) ? $rows : array();
+
+        return $this->rows_cache;
     }
 
     /**
      * @param int $retention_days Retention period.
      */
     public function cleanup( int $retention_days = 90 ): void {
+        $this->flush();
+
         $rows       = $this->get_rollups();
         $retention  = max( 7, min( 365, absint( $retention_days ) ) );
         $cutoff_ts  = time() - ( DAY_IN_SECONDS * $retention );
@@ -100,6 +125,8 @@ class PCM_Metric_Rollup_Storage {
         );
 
         update_option( $this->key, $rows, false );
+        $this->rows_cache = $rows;
+        $this->dirty      = false;
     }
 }
 
@@ -143,6 +170,22 @@ class PCM_Metric_Rollup_Service {
         $this->storage->append_rollup( $row );
 
         return true;
+    }
+
+    /**
+     * Flush pending rollup writes to the database.
+     */
+    public function flush_storage(): void {
+        $this->storage->flush();
+    }
+
+    /**
+     * Run cleanup on the rollup storage.
+     *
+     * @param int $retention_days Retention period.
+     */
+    public function cleanup_storage( int $retention_days = 90 ): void {
+        $this->storage->cleanup( $retention_days );
     }
 
     /**
@@ -460,8 +503,8 @@ function pcm_reporting_daily_rollup(): void {
     $rollups->write_rollup( 'high_memcache_sensitivity_routes_24h', (float) pcm_reporting_high_memcache_sensitivity_routes( '24h' ) );
     $rollups->write_rollup( 'high_memcache_sensitivity_routes_7d', (float) pcm_reporting_high_memcache_sensitivity_routes( '7d' ) );
 
-    $storage = new PCM_Metric_Rollup_Storage();
-    $storage->cleanup( (int) get_option( PCM_Options::REPORTING_RETENTION_DAYS->value, 90 ) );
+    $rollups->flush_storage();
+    $rollups->cleanup_storage( (int) get_option( PCM_Options::REPORTING_RETENTION_DAYS->value, 90 ) );
 }
 add_action( 'pcm_reporting_daily_rollup', 'pcm_reporting_daily_rollup' );
 

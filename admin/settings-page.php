@@ -482,70 +482,7 @@ function pressable_cache_management_display_settings_page() {
         'redirects'      => function_exists( 'pcm_redirect_assistant_is_enabled' ),
     );
 
-    // Fetch summary card metric values once to avoid repeated get_option() calls.
-    $pcm_hit_ratio        = $pcm_module_available['object_cache'] ? get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, null ) : null;
-    $pcm_opcache_pressure = $pcm_module_available['opcache'] ? get_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE->value, null ) : null;
-    $pcm_cacheability     = $pcm_module_available['cacheability'] ? get_option( PCM_Options::LATEST_CACHEABILITY_SCORE->value, null ) : null;
-    $pcm_purge_activity   = $pcm_module_available['smart_purge'] ? get_option( PCM_Options::LATEST_PURGE_ACTIVITY->value, null ) : null;
-
-    $summary_cards = array(
-        array(
-            'icon' => 'dashicons-database',
-            'label' => __( 'Object Cache Health', 'pressable_cache_management' ),
-            'value' => $pcm_module_available['object_cache']
-                ? ( ( $pcm_hit_ratio !== null ? (string) $pcm_hit_ratio : '—' ) . '%' )
-                : __( 'Unavailable', 'pressable_cache_management' ),
-            'target' => '#pcm-feature-object-cache-intelligence',
-            'status' => $pcm_module_available['object_cache']
-                ? ( (float) ( $pcm_hit_ratio !== null ? $pcm_hit_ratio : 0 ) >= 70 ? 'good' : 'warn' )
-                : 'warn',
-        ),
-        array(
-            'icon' => 'dashicons-archive',
-            'label' => __( 'OPcache Health', 'pressable_cache_management' ),
-            'value' => $pcm_module_available['opcache']
-                ? ( ( $pcm_opcache_pressure !== null ? (string) $pcm_opcache_pressure : '—' ) . '%' )
-                : __( 'Unavailable', 'pressable_cache_management' ),
-            'target' => '#pcm-feature-opcache-awareness',
-            'status' => $pcm_module_available['opcache']
-                ? ( (float) ( $pcm_opcache_pressure !== null ? $pcm_opcache_pressure : 0 ) < 90 ? 'good' : 'bad' )
-                : 'warn',
-        ),
-        array(
-            'icon' => 'dashicons-performance',
-            'label' => __( 'Cacheability Score', 'pressable_cache_management' ),
-            'value' => $pcm_module_available['cacheability']
-                ? (string) ( $pcm_cacheability !== null ? $pcm_cacheability : '0' )
-                : __( 'Unavailable', 'pressable_cache_management' ),
-            'target' => '#pcm-feature-cacheability-advisor',
-            'status' => $pcm_module_available['cacheability']
-                ? ( (float) ( $pcm_cacheability !== null ? $pcm_cacheability : 0 ) >= 80 ? 'good' : 'warn' )
-                : 'warn',
-        ),
-        array(
-            'icon' => 'dashicons-update',
-            'label' => __( 'Purge Activity', 'pressable_cache_management' ),
-            'value' => $pcm_module_available['smart_purge']
-                ? (string) ( $pcm_purge_activity !== null ? $pcm_purge_activity : 'N/A' )
-                : __( 'Unavailable', 'pressable_cache_management' ),
-            'target' => '#pcm-feature-smart-purge-strategy',
-            'status' => $pcm_module_available['smart_purge']
-                ? ( is_numeric( $pcm_purge_activity )
-                    ? ( (float) $pcm_purge_activity > 50 ? 'bad' : ( (float) $pcm_purge_activity > 20 ? 'warn' : 'good' ) )
-                    : 'warn' )
-                : 'warn',
-        ),
-    );
     ?>
-    <div class="pcm-summary-grid pcm-summary-grid-mb">
-        <?php foreach ( $summary_cards as $card ) : ?>
-        <a class="pcm-card pcm-card-hover pcm-summary-card" href="<?php echo esc_attr( $card['target'] ); ?>">
-            <span class="pcm-summary-heading"><span class="pcm-summary-icon"><span class="dashicons <?php echo esc_attr( $card['icon'] ); ?>" aria-hidden="true"></span></span><span class="pcm-summary-label"><?php echo esc_html( $card['label'] ); ?></span></span>
-            <span class="pcm-status-dot <?php echo esc_attr( 'is-' . $card['status'] ); ?>" aria-hidden="true"></span>
-            <strong class="pcm-summary-value"><?php echo esc_html( $card['value'] ); ?></strong>
-        </a>
-        <?php endforeach; ?>
-    </div>
     <nav class="pcm-anchor-nav" id="pcm-deep-dive-nav" aria-label="Deep Dive sections">
         <a href="#pcm-feature-cacheability-advisor">Cacheability</a>
         <a href="#pcm-feature-object-cache-intelligence">Object Cache</a>
@@ -751,7 +688,7 @@ https://example.com/OLD/"></textarea>
             <div class="pcm-sp-settings-section">
                 <h4><?php echo esc_html__( 'Mode', 'pressable_cache_management' ); ?></h4>
                 <label class="pcm-sp-checkbox-row">
-                    <input type="checkbox" name="pcm_smart_purge_active_mode" value="1" <?php checked( (bool) get_option( PCM_Options::SMART_PURGE_ACTIVE_MODE->value, false ), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Active Purge Execution Mode', 'pressable_cache_management' ); ?>" />
+                    <input type="checkbox" name="pcm_smart_purge_active_mode" value="1" <?php checked( pcm_smart_purge_is_active_mode(), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Active Purge Execution Mode', 'pressable_cache_management' ); ?>" />
                     <span>
                         <strong><?php echo esc_html__( 'Enable active purge execution mode', 'pressable_cache_management' ); ?></strong>
                         <small><?php echo esc_html__( 'When disabled, Smart Purge runs in shadow mode: jobs are queued and logged for review, but no cache purges are executed.', 'pressable_cache_management' ); ?></small>
@@ -765,14 +702,14 @@ https://example.com/OLD/"></textarea>
                     <label class="pcm-sp-field-label">
                         <span><?php echo esc_html__( 'Cooldown', 'pressable_cache_management' ); ?></span>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="15" max="3600" name="pcm_smart_purge_cooldown_seconds" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_COOLDOWN_SECONDS->value, 120 ) ); ?>" />
+                            <input type="number" min="15" max="3600" name="pcm_smart_purge_cooldown_seconds" value="<?php echo esc_attr( pcm_smart_purge_cooldown_window() ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'seconds', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
                     <label class="pcm-sp-field-label">
                         <span><?php echo esc_html__( 'Deferred execution', 'pressable_cache_management' ); ?></span>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="0" max="3600" name="pcm_smart_purge_defer_seconds" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_DEFER_SECONDS->value, 60 ) ); ?>" />
+                            <input type="number" min="0" max="3600" name="pcm_smart_purge_defer_seconds" value="<?php echo esc_attr( pcm_smart_purge_defer_window() ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'seconds', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -782,7 +719,7 @@ https://example.com/OLD/"></textarea>
             <div class="pcm-sp-settings-section">
                 <h4><?php echo esc_html__( 'Prewarm', 'pressable_cache_management' ); ?></h4>
                 <label class="pcm-sp-checkbox-row">
-                    <input type="checkbox" name="pcm_smart_purge_enable_prewarm" value="1" <?php checked( (bool) get_option( PCM_Options::SMART_PURGE_ENABLE_PREWARM->value, false ), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Post-Purge URL Prewarm', 'pressable_cache_management' ); ?>" />
+                    <input type="checkbox" name="pcm_smart_purge_enable_prewarm" value="1" <?php checked( pcm_smart_purge_is_prewarm_enabled(), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Post-Purge URL Prewarm', 'pressable_cache_management' ); ?>" />
                     <span>
                         <strong><?php echo esc_html__( 'Enable post-purge URL prewarm', 'pressable_cache_management' ); ?></strong>
                         <small><?php echo esc_html__( 'Automatically request selected URLs after each purge to rebuild cache quickly.', 'pressable_cache_management' ); ?></small>
@@ -793,7 +730,7 @@ https://example.com/OLD/"></textarea>
                         <span><?php echo esc_html__( 'URL cap per job', 'pressable_cache_management' ); ?></span>
                         <small><?php echo esc_html__( 'Maximum number of URLs warmed after a single purge event.', 'pressable_cache_management' ); ?></small>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="1" max="100" name="pcm_smart_purge_prewarm_url_cap" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_URL_CAP->value, 10 ) ); ?>" />
+                            <input type="number" min="1" max="100" name="pcm_smart_purge_prewarm_url_cap" value="<?php echo esc_attr( pcm_smart_purge_prewarm_url_cap() ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'URLs', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -801,7 +738,7 @@ https://example.com/OLD/"></textarea>
                         <span><?php echo esc_html__( 'Batch size', 'pressable_cache_management' ); ?></span>
                         <small><?php echo esc_html__( 'How many prewarm requests are sent concurrently.', 'pressable_cache_management' ); ?></small>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="1" max="20" name="pcm_smart_purge_prewarm_batch_size" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_BATCH_SIZE->value, 3 ) ); ?>" />
+                            <input type="number" min="1" max="20" name="pcm_smart_purge_prewarm_batch_size" value="<?php echo esc_attr( pcm_smart_purge_prewarm_batch_size() ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'requests', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -809,7 +746,7 @@ https://example.com/OLD/"></textarea>
                         <span><?php echo esc_html__( 'Repeat hits', 'pressable_cache_management' ); ?></span>
                         <small><?php echo esc_html__( 'Extra warm passes for important URLs to stabilize hot paths.', 'pressable_cache_management' ); ?></small>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="1" max="5" name="pcm_smart_purge_prewarm_repeat_hits" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_REPEAT_HITS->value, 2 ) ); ?>" />
+                            <input type="number" min="1" max="5" name="pcm_smart_purge_prewarm_repeat_hits" value="<?php echo esc_attr( pcm_smart_purge_prewarm_repeat_hits() ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'hits', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -817,7 +754,7 @@ https://example.com/OLD/"></textarea>
                 <label class="pcm-sp-field-label">
                     <span><?php echo esc_html__( 'Important URLs (one per line or comma-separated)', 'pressable_cache_management' ); ?></span>
                     <small><?php echo esc_html__( 'Paste one URL per line. These URLs get priority warming after cache purges.', 'pressable_cache_management' ); ?></small>
-                    <textarea name="pcm_smart_purge_important_urls" rows="4"><?php echo esc_textarea( (string) get_option( PCM_Options::SMART_PURGE_IMPORTANT_URLS->value, '' ) ); ?></textarea>
+                    <textarea name="pcm_smart_purge_important_urls" rows="4"><?php echo esc_textarea( implode( "\n", pcm_smart_purge_important_urls() ) ); ?></textarea>
                 </label>
             </div>
             <button type="submit" class="pcm-btn-primary"><?php echo esc_html__( 'Save Smart Purge Settings', 'pressable_cache_management' ); ?></button>

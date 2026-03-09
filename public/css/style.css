@@ -836,6 +836,7 @@ div.notice.pcm-branded.pcm-warning {
   overflow: auto;
   padding: 8px 0 12px;
   margin-bottom: 14px;
+  background: var(--pcm-bg, #f0f0f1);
 }
 
 .pcm-wrap .pcm-anchor-nav a {
@@ -856,65 +857,12 @@ div.notice.pcm-branded.pcm-warning {
   border-color: #03fcc2;
 }
 
-/* ---- Summary Grid ---- */
-.pcm-wrap .pcm-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
 .pcm-wrap .pcm-card-hover {
   transition: box-shadow 0.2s;
 }
 
 .pcm-wrap .pcm-card-hover:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.pcm-wrap .pcm-summary-card {
-  text-decoration: none;
-  color: var(--pcm-text, #111827);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-}
-
-.pcm-wrap .pcm-summary-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 16px;
-}
-
-.pcm-wrap .pcm-summary-icon {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.pcm-wrap .pcm-status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  position: absolute;
-  right: 12px;
-  top: 12px;
-}
-
-.pcm-wrap .pcm-status-dot.is-good { background: #03fcc2; }
-.pcm-wrap .pcm-status-dot.is-warn { background: #f59e0b; }
-.pcm-wrap .pcm-status-dot.is-bad  { background: #dd3a03; }
-
-.pcm-wrap .pcm-summary-label {
-  font-size: 12px;
-  color: var(--pcm-muted, #6b7280);
-}
-
-.pcm-wrap .pcm-summary-value {
-  font-size: 18px;
-  color: var(--pcm-text, #040024);
 }
 
 /* ---- Trend Panel ---- */
@@ -1485,17 +1433,7 @@ div.notice.pcm-branded.pcm-warning {
 }
 
 /* ---- Responsive Breakpoints ---- */
-@media (max-width: 1024px) {
-  .pcm-wrap .pcm-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 782px) {
-  .pcm-wrap .pcm-summary-grid {
-    grid-template-columns: 1fr;
-  }
-
   .pcm-wrap .pcm-anchor-nav {
     top: 0;
   }
@@ -1824,11 +1762,6 @@ div.notice.pcm-branded.pcm-warning {
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-bottom: 5px solid #1e293b;
-}
-
-/* ---- Summary grid spacing ---- */
-.pcm-summary-grid-mb {
-  margin-bottom: 16px;
 }
 
 /* ---- Advisor grid layout ---- */

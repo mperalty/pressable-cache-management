@@ -174,38 +174,65 @@ class PCM_Smart_Purge_Storage {
 
     protected int $max_rows = 500;
 
+    private ?array $events_cache = null;
+
+    private ?array $jobs_cache = null;
+
+    private ?array $outcomes_cache = null;
+
     public function add_event( array $event ): void {
         $rows   = $this->get_events();
         $rows[] = $event;
-        update_option( $this->events_key, array_slice( $rows, -1 * $this->max_rows ), false );
+        $rows   = array_slice( $rows, -1 * $this->max_rows );
+        update_option( $this->events_key, $rows, false );
+        $this->events_cache = $rows;
     }
 
     public function get_events(): array {
-        $rows = get_option( $this->events_key, array() );
+        if ( null !== $this->events_cache ) {
+            return $this->events_cache;
+        }
 
-        return is_array( $rows ) ? $rows : array();
+        $rows                = get_option( $this->events_key, array() );
+        $this->events_cache  = is_array( $rows ) ? $rows : array();
+
+        return $this->events_cache;
     }
 
     public function save_jobs( array $jobs ): void {
-        update_option( $this->jobs_key, array_values( $jobs ), false );
+        $jobs = array_values( $jobs );
+        update_option( $this->jobs_key, $jobs, false );
+        $this->jobs_cache = $jobs;
     }
 
     public function get_jobs(): array {
-        $rows = get_option( $this->jobs_key, array() );
+        if ( null !== $this->jobs_cache ) {
+            return $this->jobs_cache;
+        }
 
-        return is_array( $rows ) ? $rows : array();
+        $rows              = get_option( $this->jobs_key, array() );
+        $this->jobs_cache  = is_array( $rows ) ? $rows : array();
+
+        return $this->jobs_cache;
     }
 
     public function add_outcome( array $outcome ): void {
-        $rows   = get_option( $this->outcomes_key, array() );
+        $rows   = $this->get_outcomes();
         $rows[] = $outcome;
-        update_option( $this->outcomes_key, array_slice( $rows, -1 * $this->max_rows ), false );
+        $rows   = array_slice( $rows, -1 * $this->max_rows );
+        update_option( $this->outcomes_key, $rows, false );
+        $this->outcomes_cache = $rows;
     }
 
     public function get_outcomes(): array {
-        $rows = get_option( $this->outcomes_key, array() );
+        if ( null !== $this->outcomes_cache ) {
+            return $this->outcomes_cache;
+        }
 
-        return is_array( $rows ) ? $rows : array();
+        $rows                  = get_option( $this->outcomes_key, array() );
+        $this->outcomes_cache  = is_array( $rows ) ? $rows : array();
+
+        return $this->outcomes_cache;
     }
 }
 
