@@ -95,6 +95,14 @@
         var currentOffset = 0;
         var allRows = [];
 
+        // Privacy controls are only present on the Security & Privacy tab.
+        // Without this guard, attempting to bind events from other tabs throws
+        // and prevents the rest of settings.js (including Edge Cache controls)
+        // from running.
+        if (!retentionEl || !redactionEl || !advancedEl || !auditEnabledEl || !statusEl || !auditLogEl || !loadMoreEl) {
+            return;
+        }
+
         function renderSettings(s) {
             retentionEl.value = s.retention_days || 90;
             redactionEl.value = s.redaction_level || 'standard';
