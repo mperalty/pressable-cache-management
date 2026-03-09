@@ -25,6 +25,19 @@
                 + '</div>';
         };
 
+        window.pcmRenderSkeletonRows = function(targetEl, rowCount, widths) {
+            if (!targetEl) return;
+            var totalRows = Math.max(1, Number(rowCount) || 1);
+            var rowWidths = Array.isArray(widths) ? widths : [];
+            var html = '<div class="pcm-skeleton-block" aria-hidden="true">';
+            for (var i = 0; i < totalRows; i++) {
+                var width = rowWidths[i] || '100%';
+                html += '<div class="pcm-skeleton" style="width:' + width + ';"></div>';
+            }
+            html += '</div>';
+            targetEl.innerHTML = html;
+        };
+
         window.pcmPayloadErrorMessage = payloadError;
     })();
 
@@ -148,7 +161,7 @@
 
         function loadRouteDiagnosis(runId, url) {
             if (!runId || !url) return Promise.resolve();
-            diagnosisWrap.innerHTML = '<em>Loading route diagnosis…</em>';
+            window.pcmRenderSkeletonRows(diagnosisWrap, 8, ['40%', '90%', '82%', '88%', '76%', '92%', '85%', '67%']);
             return window.pcmPost({ action: 'pcm_cacheability_route_diagnosis', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId), url: url })
                 .then(function(payload){
                     if (!payload || !payload.success || !payload.data) {
@@ -294,6 +307,9 @@
         }
 
         function loadRunDetails(runId) {
+            window.pcmRenderSkeletonRows(scoreWrap, 4, ['100%', '100%', '100%', '85%']);
+            window.pcmRenderSkeletonRows(findingsWrap, 4, ['100%', '94%', '100%', '88%']);
+            window.pcmRenderSkeletonRows(sensitivityWrap, 4, ['100%', '86%', '92%', '74%']);
             return Promise.all([
                 window.pcmPost({ action: 'pcm_cacheability_scan_results', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }),
                 window.pcmPost({ action: 'pcm_cacheability_scan_findings', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }),
@@ -596,6 +612,7 @@
         }
 
         function loadSnapshot(refresh) {
+            window.pcmRenderSkeletonRows(latestEl, 5, ['84%', '91%', '78%', '72%', '86%']);
             return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' })
                 .then(function(payload){
                     if (!payload || !payload.success) {
@@ -606,6 +623,7 @@
         }
 
         function loadTrends() {
+            window.pcmRenderSkeletonRows(trendEl, 4, ['100%', '96%', '98%', '92%']);
             return window.pcmPost({ action: 'pcm_object_cache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' })
                 .then(function(payload){
                     if (!payload || !payload.success) {
@@ -776,6 +794,7 @@
         }
 
         function loadSnapshot(refresh) {
+            window.pcmRenderSkeletonRows(latestEl, 5, ['90%', '84%', '92%', '88%', '79%']);
             return window.pcmPost({ action: 'pcm_opcache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' })
                 .then(function(payload){
                     if (!payload || !payload.success) {
@@ -786,6 +805,7 @@
         }
 
         function loadTrends() {
+            window.pcmRenderSkeletonRows(trendEl, 4, ['100%', '94%', '99%', '90%']);
             return window.pcmPost({ action: 'pcm_opcache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' })
                 .then(function(payload){
                     if (!payload || !payload.success) {
@@ -1385,6 +1405,7 @@
         }
 
         document.getElementById('pcm-report-load').addEventListener('click', function(){
+            window.pcmRenderSkeletonRows(out, 4, ['100%', '95%', '100%', '88%']);
             window.pcmPost({
                 action: 'pcm_reporting_trends',
                 nonce: window.pcmGetCacheabilityNonce(),
