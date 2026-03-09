@@ -9,9 +9,9 @@ if (!defined('ABSPATH'))
 
 }
 
-add_action( 'admin_bar_menu', 'cache_add_item', 100 );
+add_action( 'admin_bar_menu', 'pcm_cache_add_item', 100 );
 
-function cache_add_item( $admin_bar ) {
+function pcm_cache_add_item( \WP_Admin_Bar $admin_bar ): void {
 
 	if ( is_admin() ) {
 		global $pagenow;
@@ -30,13 +30,14 @@ function cache_add_item( $admin_bar ) {
 
 
 
-add_action( 'admin_footer', 'cache_purge_action_js' );
+add_action( 'admin_footer', 'pcm_cache_purge_action_js' );
 
-function cache_purge_action_js() { ?>
+function pcm_cache_purge_action_js(): void { ?>
   <script type="text/javascript" >
 	 jQuery("li#wp-admin-bar-cache-purge .ab-item").on( "click", function() {
 		var data = {
 					  'action': 'pressable_cache_purge',
+					  '_ajax_nonce': '<?php echo esc_js( wp_create_nonce( 'pressable_cache_purge' ) ); ?>',
 					};
 
 		jQuery.post(ajaxurl, data, function(response) {
@@ -59,16 +60,18 @@ function cache_purge_action_js() { ?>
 	<?php
 }
 
-add_action( 'wp_ajax_pressable_cache_purge', 'pressable_cache_purge_callback' );
+add_action( 'wp_ajax_pressable_cache_purge', 'pcm_pressable_cache_purge_callback' );
 
 
-function pressable_cache_purge_callback() {
+function pcm_pressable_cache_purge_callback(): void {
+	pcm_verify_ajax_request( '_ajax_nonce', 'pressable_cache_purge', 'POST', 'manage_options' );
+
 	wp_cache_flush();
 
 	//Save time stamp to database if cache is flushed.
 	$object_cache_flush_time = pcm_format_flush_timestamp();
 
-	update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP, $object_cache_flush_time );
+	update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, $object_cache_flush_time );
 	$response = 'Object Cache Purged';
 	echo $response;
 	wp_die();

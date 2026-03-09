@@ -5,15 +5,15 @@ if (!defined('IS_PRESSABLE')) {
     return;
 }
 
-add_action('init', 'cancel_the_cache');
+add_action('init', 'pcm_cancel_the_cache');
 
-function cancel_the_cache() {
+function pcm_cancel_the_cache(): void {
     if (!function_exists('batcache_cancel')) {
         return;
     }
 
     $options = get_option('pressable_cache_management_options');
-    $exempted_pages = isset($options['exempt_from_batcache']) ? $options['exempt_from_batcache'] : '';
+    $exempted_pages = $options['exempt_from_batcache'] ?? '';
 
     if (empty($exempted_pages)) {
         return;
@@ -23,12 +23,13 @@ function cancel_the_cache() {
     $exempted_pages = array_map('trim', explode(',', $exempted_pages));
 
     // Get current URI without query parameters
-    $uri = strtok($_SERVER["REQUEST_URI"], '?');
+    $raw_uri = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '/';
+    $uri = strtok( sanitize_text_field( $raw_uri ), '?' );
 
     // Always exclude homepage if listed or explicitly requested
     if ($uri === '/' && in_array('/', $exempted_pages)) {
         batcache_cancel();
-        disable_edge_cache();
+        pcm_disable_edge_cache();
         return;
     }
 
@@ -37,12 +38,12 @@ function cancel_the_cache() {
         // Match exact page or paginated versions (e.g., /about/, /about/page/2/)
         if ($uri === $page || preg_match("#^" . preg_quote($page, '#') . "(/page/\d+/?)?$#i", $uri)) {
             batcache_cancel();
-            disable_edge_cache();
+            pcm_disable_edge_cache();
             return;
         }
     }
 }
 
-function disable_edge_cache() {
+function pcm_disable_edge_cache(): void {
     header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 }

@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return string
  */
-function pcm_format_flush_timestamp() {
+function pcm_format_flush_timestamp(): string {
     return gmdate( 'j M Y, g:ia' ) . ' UTC';
 }
 
@@ -28,10 +28,10 @@ function pcm_format_flush_timestamp() {
  *
  * @return array|false
  */
-function pcm_get_options() {
+function pcm_get_options(): array|false {
     static $cached = null;
     if ( $cached === null ) {
-        $cached = get_option( PCM_Options::MAIN_OPTIONS );
+        $cached = get_option( PCM_Options::MAIN_OPTIONS->value );
     }
 
     return $cached;
@@ -52,7 +52,93 @@ function pcm_get_options() {
  * @return bool True when the nonce is present, valid, and the current user
  *              has the required capability; false otherwise.
  */
-function pcm_verify_request( $nonce_name, $action, $method = 'POST', $capability = 'manage_options' ) {
+/**
+ * Ensure the MU-plugin infrastructure exists, then sync a single MU-plugin file.
+ *
+ * If the destination file already exists it is left in place. When the source
+ * file is first copied, wp_cache_flush() is called so the change takes effect
+ * immediately.
+ *
+ * @param string $source_file  Absolute path to the source MU-plugin template.
+ * @param string $dest_filename Filename (not path) to place inside the PCM mu-plugins dir.
+ *
+ * @return bool True if the file was already present or was successfully copied.
+ */
+/**
+ * Simple option cache with reset capability for test isolation.
+ */
+class PCM_Option_Cache {
+    /** @var array<string, mixed> */
+    private static array $cache = array();
+
+    /**
+     * Get a cached option value.
+     *
+     * @param string        $key       Option name.
+     * @param mixed         $default   Default for get_option().
+     * @param callable|null $transform Optional transform on the raw value.
+     */
+    public static function get( string $key, mixed $default = false, ?callable $transform = null ): mixed {
+        if ( ! array_key_exists( $key, self::$cache ) ) {
+            $value = get_option( $key, $default );
+            self::$cache[ $key ] = $transform ? $transform( $value ) : $value;
+        }
+
+        return self::$cache[ $key ];
+    }
+
+    /**
+     * Reset all cached values (for test isolation).
+     */
+    public static function reset(): void {
+        self::$cache = array();
+    }
+}
+
+function pcm_sync_mu_plugin( string $source_file, string $dest_filename ): bool {
+    $index_file = WP_CONTENT_DIR . '/mu-plugins/pressable-cache-management.php';
+    if ( ! file_exists( $index_file ) ) {
+        $index_source = dirname( $source_file ) . '/pressable_cache_management_mu_plugin_index.php';
+        if ( ! copy( $index_source, $index_file ) ) {
+            error_log( 'PCM: Failed to copy MU-plugin index to ' . $index_file );
+            return false;
+        }
+    }
+
+    $mu_dir = WP_CONTENT_DIR . '/mu-plugins/pressable-cache-management/';
+    if ( ! file_exists( $mu_dir ) ) {
+        wp_mkdir_p( $mu_dir );
+    }
+
+    $dest_path = $mu_dir . $dest_filename;
+    if ( file_exists( $dest_path ) ) {
+        return true;
+    }
+
+    wp_cache_flush();
+
+    if ( ! copy( $source_file, $dest_path ) ) {
+        error_log( 'PCM: Failed to copy MU-plugin ' . $source_file . ' to ' . $dest_path );
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Remove an MU-plugin file and flush the cache so the change takes effect.
+ *
+ * @param string $dest_filename Filename inside the PCM mu-plugins dir.
+ */
+function pcm_remove_mu_plugin( string $dest_filename ): void {
+    $dest_path = WP_CONTENT_DIR . '/mu-plugins/pressable-cache-management/' . $dest_filename;
+    if ( file_exists( $dest_path ) ) {
+        unlink( $dest_path );
+        wp_cache_flush();
+    }
+}
+
+function pcm_verify_request( string $nonce_name, string $action, string $method = 'POST', string $capability = 'manage_options' ): bool {
     $input = ( 'GET' === strtoupper( $method ) ) ? $_GET : $_POST;
 
     if ( ! isset( $input[ $nonce_name ] ) ) {
@@ -86,7 +172,7 @@ function pcm_verify_request( $nonce_name, $action, $method = 'POST', $capability
  *
  * @return true Always returns true; on failure the function dies via wp_send_json_error().
  */
-function pcm_verify_ajax_request( $nonce_name, $action, $method = 'POST', $capability = 'manage_options' ) {
+function pcm_verify_ajax_request( string $nonce_name, string $action, string $method = 'POST', string $capability = 'manage_options' ): true {
     if ( ! pcm_verify_request( $nonce_name, $action, $method, $capability ) ) {
         wp_send_json_error( 'Unauthorized', 403 );
     }

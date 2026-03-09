@@ -13,15 +13,15 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
 
     add_action( 'init', 'pcm_show_flush_cache_column' );
 
-    function pcm_show_flush_cache_column() {
+    function pcm_show_flush_cache_column(): void {
         if ( current_user_can('administrator') || current_user_can('editor') || current_user_can('manage_woocommerce') ) {
             $column = new FlushObjectCachePageColumn();
             $column->add();
         }
     }
 
-    function flush_object_cache_for_single_page_notice() {
-        $state = get_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE, 'activating' );
+    function flush_object_cache_for_single_page_notice(): void {
+        $state = get_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value, 'activating' );
 
         if ( 'activating' === $state &&
             ( current_user_can('administrator') || current_user_can('editor') || current_user_can('manage_woocommerce') )
@@ -41,33 +41,32 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
                 echo '<p style="margin:0;font-size:13px;color:#040024;">'
                    . esc_html__( 'You can Flush Cache for Individual page or post from page preview.', 'pressable_cache_management' )
                    . '</p>';
-                echo '<button type="button" onclick="document.getElementById(\'' . $pcm_nid . '\').remove();" style="' . $btn . '">&#x2297;</button>';
+                echo '<button type="button" class="pcm-dismiss-notice" data-pcm-dismiss="' . esc_attr( $pcm_nid ) . '" style="' . $btn . '"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button>';
                 echo '</div>';
                 echo '</div>';
+                echo '<script>document.querySelector(\'[data-pcm-dismiss="' . esc_js( $pcm_nid ) . '"]\').addEventListener("click",function(){document.getElementById("' . esc_js( $pcm_nid ) . '").remove();});</script>';
             });
 
-            update_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE, 'activated' );
+            update_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value, 'activated' );
         }
     }
     add_action( 'init', 'flush_object_cache_for_single_page_notice' );
 
 } else {
-    update_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE, 'activating' );
+    update_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value, 'activating' );
 }
 
 // ─── FlushObjectCachePageColumn class ────────────────────────────────────────
 if ( ! class_exists( 'FlushObjectCachePageColumn' ) ) {
     class FlushObjectCachePageColumn {
-        public function __construct() {}
-
-        public function add() {
+        public function add(): void {
             add_filter( 'post_row_actions', array( $this, 'add_flush_object_cache_link' ), 10, 2 );
             add_filter( 'page_row_actions', array( $this, 'add_flush_object_cache_link' ), 10, 2 );
             add_action( 'admin_enqueue_scripts', array( $this, 'load_js' ) );
             add_action( 'wp_ajax_pcm_flush_object_cache_column', array( $this, 'flush_object_cache_column' ) );
         }
 
-        public function add_flush_object_cache_link( $actions, $post ) {
+        public function add_flush_object_cache_link( array $actions, \WP_Post $post ): array {
             if ( current_user_can('administrator') || current_user_can('editor') || current_user_can('manage_woocommerce') ) {
                 $actions['flush_object_cache_url'] =
                     '<a data-id="' . esc_attr( $post->ID ) . '"'
@@ -79,29 +78,29 @@ if ( ! class_exists( 'FlushObjectCachePageColumn' ) ) {
             return $actions;
         }
 
-        public function flush_object_cache_column() {
+        public function flush_object_cache_column(): void {
             if ( ! ( current_user_can('administrator') || current_user_can('editor') || current_user_can('manage_woocommerce') ) ) {
                 wp_send_json_error( 'Unauthorized', 403 );
             }
 
-            $post_id      = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
+            $post_id      = (int) ( $_GET['id'] ?? 0 );
             $nonce_action = 'flush-object-cache_' . $post_id;
-            pcm_verify_ajax_request( 'nonce', $nonce_action, 'GET', 'edit_posts' );
+            pcm_verify_ajax_request( 'nonce', $nonce_action, method: 'GET', capability: 'edit_posts' );
 
             $url_key    = get_permalink( intval( $_GET['id'] ) );
             $page_title = get_the_title( intval( $_GET['id'] ) );
-            update_option( PCM_Options::PAGE_TITLE, $page_title );
+            update_option( PCM_Options::PAGE_TITLE->value, $page_title );
 
             global $batcache, $wp_object_cache;
 
             if ( ! isset( $batcache ) || ! is_object( $batcache ) || ! method_exists( $wp_object_cache, 'incr' ) ) {
-                die( json_encode( array( 'success' => false ) ) );
+                wp_send_json_error( array( 'reason' => 'Batcache not available' ) );
             }
 
             $batcache->configure_groups();
             $url = apply_filters( 'batcache_manager_link', $url_key );
             if ( empty( $url ) ) {
-                die( json_encode( array( 'success' => false ) ) );
+                wp_send_json_error( array( 'reason' => 'Empty URL after filter' ) );
             }
 
             do_action( 'batcache_manager_before_flush', $url );
@@ -121,14 +120,14 @@ if ( ! class_exists( 'FlushObjectCachePageColumn' ) ) {
             }
 
             do_action( 'batcache_manager_after_flush', $url );
-            update_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP, pcm_format_flush_timestamp() );
+            update_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
             // Also store the flushed URL so it shows on the settings page
-            update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED, $url );
+            update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, $url );
 
-            die( json_encode( array( 'success' => true ) ) );
+            wp_send_json_success( array( 'flushed' => true ) );
         }
 
-        public function load_js() {
+        public function load_js(): void {
             $js_base_path = plugin_dir_path( dirname( __FILE__ ) ) . 'public/js/';
             $js_base_url  = plugin_dir_url( dirname( __FILE__ ) ) . 'public/js/';
 

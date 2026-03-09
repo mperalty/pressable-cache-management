@@ -26,8 +26,9 @@ function pcm_branded_settings_saved_notice() {
     echo '<div id="' . $id . '" class="pcm-settings-saved-notice">';
     echo '<p class="pcm-branded-notice-text">'
        . esc_html__( 'Cache settings updated.', 'pressable_cache_management' ) . '</p>';
-    echo '<button type="button" aria-label="Dismiss notification" onclick="document.getElementById(\'' . $id . '\').remove();" class="pcm-settings-saved-close">&#x2297;</button>';
+    echo '<button type="button" aria-label="Dismiss notification" data-pcm-dismiss="' . esc_attr( $id ) . '" class="pcm-settings-saved-close"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button>';
     echo '</div>';
+    echo '<script>document.querySelector(\'[data-pcm-dismiss="' . esc_js( $id ) . '"]\').addEventListener("click",function(){document.getElementById("' . esc_js( $id ) . '").remove();});</script>';
 }
 
 // ─── "Extending Batcache" notice — shows ONCE after first enable, then never again ─
@@ -40,10 +41,10 @@ function pcm_extend_batcache_branded_notice() {
     if ( ! current_user_can( 'manage_options' ) ) return;
 
     // Only show if freshly enabled
-    if ( '1' !== get_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING ) ) return;
+    if ( '1' !== get_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING->value ) ) return;
 
     // Delete flag IMMEDIATELY — refresh / navigation will never trigger this again
-    delete_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING );
+    delete_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING->value );
 
     echo '<div class="pcm-batcache-notice-outer">';
     echo '<div id="pcm-extend-batcache-notice" class="pcm-branded-notice pcm-branded-notice-edge">';
@@ -54,7 +55,7 @@ function pcm_extend_batcache_branded_notice() {
        . esc_html__( 'Modifying Batcache Times.', 'pressable_cache_management' ) . '</a>'
        . '</p>';
     echo '<button type="button" aria-label="Dismiss notification" onclick="document.getElementById(\'pcm-extend-batcache-notice\').remove();" '
-       . 'class="pcm-branded-notice-close">&#x2297;</button>';
+       . 'class="pcm-branded-notice-close"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button>';
     echo '</div>';
     echo '</div>';
 }
@@ -69,7 +70,7 @@ if ( ! function_exists( 'pcm_branded_notice' ) ) {
         } else {
             echo '<p class="pcm-branded-notice-text">' . esc_html( $message ) . '</p>';
         }
-        echo '</div><button type="button" aria-label="Dismiss notification" onclick="document.getElementById(\'' . esc_js( $id ) . '\').remove();" class="pcm-branded-notice-close">&#x2297;</button></div>';
+        echo '</div><button type="button" aria-label="Dismiss notification" onclick="document.getElementById(\'' . esc_js( $id ) . '\').remove();" class="pcm-branded-notice-close"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button></div>';
     }
 }
 
@@ -97,13 +98,11 @@ function pcm_ajax_report_batcache_header() {
     $raw = isset( $_POST['x_nananana'] ) ? sanitize_text_field( wp_unslash( $_POST['x_nananana'] ) ) : '';
     $val = strtolower( trim( $raw ) );
 
-    if ( strpos( $val, 'batcache' ) !== false ) {
-        $status = 'active';
-    } elseif ( isset( $_POST['is_cloudflare'] ) && $_POST['is_cloudflare'] === '1' ) {
-        $status = 'cloudflare';
-    } else {
-        $status = 'broken';
-    }
+    $status = match ( true ) {
+        str_contains( $val, 'batcache' )                                        => 'active',
+        isset( $_POST['is_cloudflare'] ) && $_POST['is_cloudflare'] === '1'     => 'cloudflare',
+        default                                                                 => 'broken',
+    };
 
     // Active: 24 hrs — prevents the badge falsely flipping to broken after 5 min.
     // Broken: 2 min — re-probe frequently until resolved.
@@ -140,7 +139,7 @@ function pcm_ajax_get_batcache_status() {
 
     wp_send_json_success( array(
         'status' => $status,
-        'label'  => isset( $labels[ $status ] ) ? $labels[ $status ] : $labels['broken'],
+        'label'  => $labels[ $status ] ?? $labels['broken'],
     ) );
 }
 add_action( 'wp_ajax_pcm_get_batcache_status', 'pcm_ajax_get_batcache_status' );
@@ -157,7 +156,7 @@ function pcm_ajax_toggle_caching_suite_features() {
     }
 
     $enabled = isset( $_POST['enabled'] ) && '1' === (string) wp_unslash( $_POST['enabled'] );
-    update_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, $enabled, false );
+    update_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, $enabled, false );
 
     if ( function_exists( 'pcm_audit_log' ) ) {
         pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $enabled, 'source' => 'ajax' ) );
@@ -193,8 +192,8 @@ function pressable_cache_management_display_settings_page() {
         $caching_suite_enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
         $microcache_enabled    = isset( $_POST['pcm_enable_durable_origin_microcache'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_durable_origin_microcache'] );
 
-        update_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, $caching_suite_enabled, false );
-        update_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE, $microcache_enabled, false );
+        update_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, $caching_suite_enabled, false );
+        update_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, $microcache_enabled, false );
 
         if ( function_exists( 'pcm_audit_log' ) ) {
             pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $caching_suite_enabled ) );
@@ -202,7 +201,7 @@ function pressable_cache_management_display_settings_page() {
         }
     }
 
-    $caching_suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, false );
+    $caching_suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
     $tab                   = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : null;
 
     $is_deep_dive_disabled = ( 'deep_dive_tab' === $tab && ! $caching_suite_enabled );
@@ -215,7 +214,7 @@ function pressable_cache_management_display_settings_page() {
     $is_deep_dive_tab = ( 'deep_dive_tab' === $tab );
     $is_settings_tab  = ( 'settings_tab' === $tab );
 
-    $branding_opts         = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
+    $branding_opts         = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
     $show_branding         = ! ( $branding_opts && 'disable' == $branding_opts['branding_on_off_radio_button'] );
     $privacy_settings      = function_exists( 'pcm_get_privacy_settings' ) ? pcm_get_privacy_settings() : array();
     $bc_status             = pcm_get_batcache_status();
@@ -292,16 +291,29 @@ function pressable_cache_management_display_settings_page() {
         )
     );
 
+    // Read Batcache max_age from the global if available (set by advanced-cache / mu-plugin).
+    $pcm_batcache_max_age = null;
+    global $batcache;
+    if ( is_object( $batcache ) && isset( $batcache->max_age ) ) {
+        $pcm_batcache_max_age = (int) $batcache->max_age;
+    } elseif ( is_array( $batcache ) && isset( $batcache['max_age'] ) ) {
+        $pcm_batcache_max_age = (int) $batcache['max_age'];
+    } elseif ( file_exists( WP_CONTENT_DIR . '/mu-plugins/pressable-cache-management/pcm_extend_batcache.php' ) ) {
+        // Extend-batcache mu-plugin is active — max_age is 86400.
+        $pcm_batcache_max_age = 86400;
+    }
+
     wp_localize_script(
         'pcm-settings-page-object-cache',
         'pcmObjectCacheData',
         array(
-            'nonces'    => array(
+            'nonces'          => array(
                 'batcache' => wp_create_nonce( 'pcm_batcache_nonce' ),
             ),
-            'siteUrl'   => trailingslashit( get_site_url() ),
-            'isUnknown' => $bc_is_unknown,
-            'strings'   => array(
+            'siteUrl'         => trailingslashit( get_site_url() ),
+            'isUnknown'       => $bc_is_unknown,
+            'batcacheMaxAge'  => $pcm_batcache_max_age,
+            'strings'         => array(
                 'alreadyChecking' => __( 'Already checking…', 'pressable_cache_management' ),
                 'checking'        => __( 'Checking…', 'pressable_cache_management' ),
                 'checkFailed'     => __( 'Check Failed', 'pressable_cache_management' ),
@@ -346,7 +358,7 @@ function pressable_cache_management_display_settings_page() {
 
     <?php if ( $is_deep_dive_disabled ) : ?>
     <div class="pcm-card pcm-deep-dive-disabled-notice">
-        <span class="pcm-deep-dive-disabled-icon">&#128274;</span>
+        <span class="pcm-deep-dive-disabled-icon"><span class="dashicons dashicons-lock" aria-hidden="true"></span></span>
         <h3 class="pcm-deep-dive-disabled-title">
             <?php esc_html_e( 'Deep Dive is locked', 'pressable_cache_management' ); ?>
         </h3>
@@ -377,9 +389,9 @@ function pressable_cache_management_display_settings_page() {
     ?>
 
     <?php if ( $is_settings_tab ) : ?>
-    <?php $microcache_enabled = (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE, false ); ?>
+    <?php $microcache_enabled = (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false ); ?>
     <div class="pcm-card pcm-card-mb">
-        <h3 class="pcm-card-title">🚩 <?php echo esc_html__( 'Feature Flags', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-flag pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Feature Flags', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Control which major Caching Suite modules are active for diagnostics, automation, and deep-dive insights.', 'pressable_cache_management' ); ?></p>
         <form method="post">
             <input type="hidden" name="pcm_feature_flags_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_save_feature_flags' ) ); ?>" />
@@ -396,10 +408,10 @@ function pressable_cache_management_display_settings_page() {
                     </div>
                     <div class="pcm-toggle-desc"><?php echo esc_html__( 'Turns on the full diagnostics and remediation toolset used across Deep Dive analysis.', 'pressable_cache_management' ); ?></div>
                     <div class="pcm-feature-chips">
-                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Analyzes headers and cache directives to highlight uncached opportunities." aria-describedby="pcm-chip-desc-1"><?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?> ⓘ<span class="pcm-chip-tooltip" id="pcm-chip-desc-1" role="tooltip"><?php echo esc_html__( 'Analyzes headers and cache directives to highlight uncached opportunities.', 'pressable_cache_management' ); ?></span></span>
-                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Surfaces noisy query strings and cookie patterns that break cache hit rates." aria-describedby="pcm-chip-desc-2"><?php echo esc_html__( 'Cache-Busting Detector', 'pressable_cache_management' ); ?> ⓘ<span class="pcm-chip-tooltip" id="pcm-chip-desc-2" role="tooltip"><?php echo esc_html__( 'Surfaces noisy query strings and cookie patterns that break cache hit rates.', 'pressable_cache_management' ); ?></span></span>
-                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Tracks trend telemetry, reports, and exports for cache health visibility." aria-describedby="pcm-chip-desc-3"><?php echo esc_html__( 'Observability Reporting', 'pressable_cache_management' ); ?> ⓘ<span class="pcm-chip-tooltip" id="pcm-chip-desc-3" role="tooltip"><?php echo esc_html__( 'Tracks trend telemetry, reports, and exports for cache health visibility.', 'pressable_cache_management' ); ?></span></span>
-                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Generates recommended next actions when anti-patterns are detected." aria-describedby="pcm-chip-desc-4"><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> ⓘ<span class="pcm-chip-tooltip" id="pcm-chip-desc-4" role="tooltip"><?php echo esc_html__( 'Generates recommended next actions when anti-patterns are detected.', 'pressable_cache_management' ); ?></span></span>
+                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Analyzes headers and cache directives to highlight uncached opportunities." aria-describedby="pcm-chip-desc-1"><?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-1" role="tooltip"><?php echo esc_html__( 'Analyzes headers and cache directives to highlight uncached opportunities.', 'pressable_cache_management' ); ?></span></span>
+                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Surfaces noisy query strings and cookie patterns that break cache hit rates." aria-describedby="pcm-chip-desc-2"><?php echo esc_html__( 'Cache-Busting Detector', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-2" role="tooltip"><?php echo esc_html__( 'Surfaces noisy query strings and cookie patterns that break cache hit rates.', 'pressable_cache_management' ); ?></span></span>
+                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Tracks trend telemetry, reports, and exports for cache health visibility." aria-describedby="pcm-chip-desc-3"><?php echo esc_html__( 'Observability Reporting', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-3" role="tooltip"><?php echo esc_html__( 'Tracks trend telemetry, reports, and exports for cache health visibility.', 'pressable_cache_management' ); ?></span></span>
+                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Generates recommended next actions when anti-patterns are detected." aria-describedby="pcm-chip-desc-4"><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-4" role="tooltip"><?php echo esc_html__( 'Generates recommended next actions when anti-patterns are detected.', 'pressable_cache_management' ); ?></span></span>
                     </div>
                     <span class="pcm-ts-inline" id="pcm-caching-suite-inline-status"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $caching_suite_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
                 </div>
@@ -442,11 +454,11 @@ function pressable_cache_management_display_settings_page() {
                 <span id="pcm-bc-label"><?php echo esc_html($bc_label); ?></span>
                 <button id="pcm-bc-refresh" title="<?php esc_attr_e('Re-check Batcache status', 'pressable_cache_management'); ?>"
                         class="pcm-bc-refresh-btn"
-                        onclick="pcmRefreshBatcacheStatus()">&#x21BB;</button>
+                        onclick="pcmRefreshBatcacheStatus()"><span class="dashicons dashicons-update" aria-hidden="true"></span></button>
             </span>
             <span class="screen-reader-text" aria-live="polite" id="pcm-bc-status-announce"></span>
             <span class="pcm-bc-tooltip-wrap">
-                <span class="pcm-bc-tooltip-trigger" tabindex="0" role="button" aria-label="Batcache info">&#x3F;</span>
+                <span class="pcm-bc-tooltip-trigger" tabindex="0" role="button" aria-label="Batcache info"><span class="dashicons dashicons-editor-help" aria-hidden="true"></span></span>
                 <span class="pcm-bc-tooltip">
                     <?php echo esc_html__( 'Use the refresh button to manually check your cache status. If the cache status remains broken for more than 4 minutes after two visits are recorded on your site, it is likely that caching is failing due to cookie interference from your plugin, theme or custom code.', 'pressable_cache_management' ); ?>
                     <span class="pcm-bc-tooltip-arrow"></span>
@@ -471,14 +483,14 @@ function pressable_cache_management_display_settings_page() {
     );
 
     // Fetch summary card metric values once to avoid repeated get_option() calls.
-    $pcm_hit_ratio        = $pcm_module_available['object_cache'] ? get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO, null ) : null;
-    $pcm_opcache_pressure = $pcm_module_available['opcache'] ? get_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE, null ) : null;
-    $pcm_cacheability     = $pcm_module_available['cacheability'] ? get_option( PCM_Options::LATEST_CACHEABILITY_SCORE, null ) : null;
-    $pcm_purge_activity   = $pcm_module_available['smart_purge'] ? get_option( PCM_Options::LATEST_PURGE_ACTIVITY, null ) : null;
+    $pcm_hit_ratio        = $pcm_module_available['object_cache'] ? get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, null ) : null;
+    $pcm_opcache_pressure = $pcm_module_available['opcache'] ? get_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE->value, null ) : null;
+    $pcm_cacheability     = $pcm_module_available['cacheability'] ? get_option( PCM_Options::LATEST_CACHEABILITY_SCORE->value, null ) : null;
+    $pcm_purge_activity   = $pcm_module_available['smart_purge'] ? get_option( PCM_Options::LATEST_PURGE_ACTIVITY->value, null ) : null;
 
     $summary_cards = array(
         array(
-            'icon' => '🧠',
+            'icon' => 'dashicons-database',
             'label' => __( 'Object Cache Health', 'pressable_cache_management' ),
             'value' => $pcm_module_available['object_cache']
                 ? ( ( $pcm_hit_ratio !== null ? (string) $pcm_hit_ratio : '—' ) . '%' )
@@ -489,7 +501,7 @@ function pressable_cache_management_display_settings_page() {
                 : 'warn',
         ),
         array(
-            'icon' => '📦',
+            'icon' => 'dashicons-archive',
             'label' => __( 'OPcache Health', 'pressable_cache_management' ),
             'value' => $pcm_module_available['opcache']
                 ? ( ( $pcm_opcache_pressure !== null ? (string) $pcm_opcache_pressure : '—' ) . '%' )
@@ -500,7 +512,7 @@ function pressable_cache_management_display_settings_page() {
                 : 'warn',
         ),
         array(
-            'icon' => '⚡',
+            'icon' => 'dashicons-performance',
             'label' => __( 'Cacheability Score', 'pressable_cache_management' ),
             'value' => $pcm_module_available['cacheability']
                 ? (string) ( $pcm_cacheability !== null ? $pcm_cacheability : '0' )
@@ -511,7 +523,7 @@ function pressable_cache_management_display_settings_page() {
                 : 'warn',
         ),
         array(
-            'icon' => '🧹',
+            'icon' => 'dashicons-update',
             'label' => __( 'Purge Activity', 'pressable_cache_management' ),
             'value' => $pcm_module_available['smart_purge']
                 ? (string) ( $pcm_purge_activity !== null ? $pcm_purge_activity : 'N/A' )
@@ -528,7 +540,7 @@ function pressable_cache_management_display_settings_page() {
     <div class="pcm-summary-grid pcm-summary-grid-mb">
         <?php foreach ( $summary_cards as $card ) : ?>
         <a class="pcm-card pcm-card-hover pcm-summary-card" href="<?php echo esc_attr( $card['target'] ); ?>">
-            <span class="pcm-summary-heading"><span class="pcm-summary-icon"><?php echo esc_html( $card['icon'] ); ?></span><span class="pcm-summary-label"><?php echo esc_html( $card['label'] ); ?></span></span>
+            <span class="pcm-summary-heading"><span class="pcm-summary-icon"><span class="dashicons <?php echo esc_attr( $card['icon'] ); ?>" aria-hidden="true"></span></span><span class="pcm-summary-label"><?php echo esc_html( $card['label'] ); ?></span></span>
             <span class="pcm-status-dot <?php echo esc_attr( 'is-' . $card['status'] ); ?>" aria-hidden="true"></span>
             <strong class="pcm-summary-value"><?php echo esc_html( $card['value'] ); ?></strong>
         </a>
@@ -545,7 +557,7 @@ function pressable_cache_management_display_settings_page() {
 
     <?php if ( $is_deep_dive_tab && $pcm_module_available['cacheability'] && pcm_cacheability_advisor_is_enabled() ) : ?>
     <div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-cacheability-advisor" data-section="cacheability">
-        <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-performance pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
         <div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
         <template class="pcm-lazy-template">
@@ -576,7 +588,7 @@ function pressable_cache_management_display_settings_page() {
     </div>
     <?php elseif ( $is_deep_dive_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-cacheability-advisor">
-        <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-performance pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
         <p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
     </div>
@@ -584,7 +596,7 @@ function pressable_cache_management_display_settings_page() {
 
     <?php if ( $is_deep_dive_tab && $pcm_module_available['object_cache'] && pcm_object_cache_intelligence_is_enabled() ) : ?>
     <div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-object-cache-intelligence" data-section="object-cache">
-        <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-database pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
         <div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
         <template class="pcm-lazy-template">
@@ -607,7 +619,7 @@ function pressable_cache_management_display_settings_page() {
     </div>
     <?php elseif ( $is_deep_dive_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-object-cache-intelligence">
-        <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-database pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
         <p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
     </div>
@@ -615,7 +627,7 @@ function pressable_cache_management_display_settings_page() {
 
     <?php if ( $is_deep_dive_tab && $pcm_module_available['opcache'] && pcm_opcache_awareness_is_enabled() ) : ?>
     <div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-opcache-awareness" data-section="opcache">
-        <h3 class="pcm-card-title">📦 <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-archive pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Review OPcache memory pressure, restart patterns, and recommendations.', 'pressable_cache_management' ); ?></p>
         <div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
         <template class="pcm-lazy-template">
@@ -637,7 +649,7 @@ function pressable_cache_management_display_settings_page() {
     </div>
     <?php elseif ( $is_deep_dive_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-opcache-awareness">
-        <h3 class="pcm-card-title">📦 <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-archive pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
         <p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
     </div>
@@ -645,7 +657,7 @@ function pressable_cache_management_display_settings_page() {
 
     <?php if ( $is_deep_dive_tab && $pcm_module_available['redirects'] && pcm_redirect_assistant_is_enabled() ) : ?>
     <div class="pcm-card pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-redirect-assistant" data-section="redirects">
-        <h3 class="pcm-card-title">↪ <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-redo pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Discover candidates, edit rules, run dry-run simulation, then export or import redirect payloads.', 'pressable_cache_management' ); ?></p>
         <div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
         <template class="pcm-lazy-template">
@@ -720,7 +732,7 @@ https://example.com/OLD/"></textarea>
     </div>
     <?php elseif ( $is_deep_dive_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-redirect-assistant">
-        <h3 class="pcm-card-title">↪ <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-redo pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
         <p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
     </div>
@@ -728,7 +740,7 @@ https://example.com/OLD/"></textarea>
 
     <?php if ( $is_deep_dive_tab && $pcm_module_available['smart_purge'] && pcm_smart_purge_is_enabled() ) : ?>
     <div class="pcm-card pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-smart-purge-strategy" data-section="smart-purge">
-        <h3 class="pcm-card-title">🧹 <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-update pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Tune active mode, cooldown, deferred execution, and inspect queued job outcomes.', 'pressable_cache_management' ); ?></p>
         <div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
         <template class="pcm-lazy-template">
@@ -739,7 +751,7 @@ https://example.com/OLD/"></textarea>
             <div class="pcm-sp-settings-section">
                 <h4><?php echo esc_html__( 'Mode', 'pressable_cache_management' ); ?></h4>
                 <label class="pcm-sp-checkbox-row">
-                    <input type="checkbox" name="pcm_smart_purge_active_mode" value="1" <?php checked( (bool) get_option( PCM_Options::SMART_PURGE_ACTIVE_MODE, false ), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Active Purge Execution Mode', 'pressable_cache_management' ); ?>" />
+                    <input type="checkbox" name="pcm_smart_purge_active_mode" value="1" <?php checked( (bool) get_option( PCM_Options::SMART_PURGE_ACTIVE_MODE->value, false ), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Active Purge Execution Mode', 'pressable_cache_management' ); ?>" />
                     <span>
                         <strong><?php echo esc_html__( 'Enable active purge execution mode', 'pressable_cache_management' ); ?></strong>
                         <small><?php echo esc_html__( 'When disabled, Smart Purge runs in shadow mode: jobs are queued and logged for review, but no cache purges are executed.', 'pressable_cache_management' ); ?></small>
@@ -753,14 +765,14 @@ https://example.com/OLD/"></textarea>
                     <label class="pcm-sp-field-label">
                         <span><?php echo esc_html__( 'Cooldown', 'pressable_cache_management' ); ?></span>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="15" max="3600" name="pcm_smart_purge_cooldown_seconds" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_COOLDOWN_SECONDS, 120 ) ); ?>" />
+                            <input type="number" min="15" max="3600" name="pcm_smart_purge_cooldown_seconds" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_COOLDOWN_SECONDS->value, 120 ) ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'seconds', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
                     <label class="pcm-sp-field-label">
                         <span><?php echo esc_html__( 'Deferred execution', 'pressable_cache_management' ); ?></span>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="0" max="3600" name="pcm_smart_purge_defer_seconds" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_DEFER_SECONDS, 60 ) ); ?>" />
+                            <input type="number" min="0" max="3600" name="pcm_smart_purge_defer_seconds" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_DEFER_SECONDS->value, 60 ) ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'seconds', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -770,7 +782,7 @@ https://example.com/OLD/"></textarea>
             <div class="pcm-sp-settings-section">
                 <h4><?php echo esc_html__( 'Prewarm', 'pressable_cache_management' ); ?></h4>
                 <label class="pcm-sp-checkbox-row">
-                    <input type="checkbox" name="pcm_smart_purge_enable_prewarm" value="1" <?php checked( (bool) get_option( PCM_Options::SMART_PURGE_ENABLE_PREWARM, false ), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Post-Purge URL Prewarm', 'pressable_cache_management' ); ?>" />
+                    <input type="checkbox" name="pcm_smart_purge_enable_prewarm" value="1" <?php checked( (bool) get_option( PCM_Options::SMART_PURGE_ENABLE_PREWARM->value, false ), true ); ?> aria-label="<?php echo esc_attr__( 'Enable Post-Purge URL Prewarm', 'pressable_cache_management' ); ?>" />
                     <span>
                         <strong><?php echo esc_html__( 'Enable post-purge URL prewarm', 'pressable_cache_management' ); ?></strong>
                         <small><?php echo esc_html__( 'Automatically request selected URLs after each purge to rebuild cache quickly.', 'pressable_cache_management' ); ?></small>
@@ -781,7 +793,7 @@ https://example.com/OLD/"></textarea>
                         <span><?php echo esc_html__( 'URL cap per job', 'pressable_cache_management' ); ?></span>
                         <small><?php echo esc_html__( 'Maximum number of URLs warmed after a single purge event.', 'pressable_cache_management' ); ?></small>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="1" max="100" name="pcm_smart_purge_prewarm_url_cap" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_URL_CAP, 10 ) ); ?>" />
+                            <input type="number" min="1" max="100" name="pcm_smart_purge_prewarm_url_cap" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_URL_CAP->value, 10 ) ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'URLs', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -789,7 +801,7 @@ https://example.com/OLD/"></textarea>
                         <span><?php echo esc_html__( 'Batch size', 'pressable_cache_management' ); ?></span>
                         <small><?php echo esc_html__( 'How many prewarm requests are sent concurrently.', 'pressable_cache_management' ); ?></small>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="1" max="20" name="pcm_smart_purge_prewarm_batch_size" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_BATCH_SIZE, 3 ) ); ?>" />
+                            <input type="number" min="1" max="20" name="pcm_smart_purge_prewarm_batch_size" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_BATCH_SIZE->value, 3 ) ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'requests', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -797,7 +809,7 @@ https://example.com/OLD/"></textarea>
                         <span><?php echo esc_html__( 'Repeat hits', 'pressable_cache_management' ); ?></span>
                         <small><?php echo esc_html__( 'Extra warm passes for important URLs to stabilize hot paths.', 'pressable_cache_management' ); ?></small>
                         <span class="pcm-sp-number-wrap">
-                            <input type="number" min="1" max="5" name="pcm_smart_purge_prewarm_repeat_hits" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_REPEAT_HITS, 2 ) ); ?>" />
+                            <input type="number" min="1" max="5" name="pcm_smart_purge_prewarm_repeat_hits" value="<?php echo esc_attr( (int) get_option( PCM_Options::SMART_PURGE_PREWARM_REPEAT_HITS->value, 2 ) ); ?>" />
                             <span class="pcm-sp-unit"><?php echo esc_html__( 'hits', 'pressable_cache_management' ); ?></span>
                         </span>
                     </label>
@@ -805,7 +817,7 @@ https://example.com/OLD/"></textarea>
                 <label class="pcm-sp-field-label">
                     <span><?php echo esc_html__( 'Important URLs (one per line or comma-separated)', 'pressable_cache_management' ); ?></span>
                     <small><?php echo esc_html__( 'Paste one URL per line. These URLs get priority warming after cache purges.', 'pressable_cache_management' ); ?></small>
-                    <textarea name="pcm_smart_purge_important_urls" rows="4"><?php echo esc_textarea( (string) get_option( PCM_Options::SMART_PURGE_IMPORTANT_URLS, '' ) ); ?></textarea>
+                    <textarea name="pcm_smart_purge_important_urls" rows="4"><?php echo esc_textarea( (string) get_option( PCM_Options::SMART_PURGE_IMPORTANT_URLS->value, '' ) ); ?></textarea>
                 </label>
             </div>
             <button type="submit" class="pcm-btn-primary"><?php echo esc_html__( 'Save Smart Purge Settings', 'pressable_cache_management' ); ?></button>
@@ -825,7 +837,7 @@ https://example.com/OLD/"></textarea>
                 $prewarm_latency_total = 0;
                 $prewarm_latency_samples = 0;
                 foreach ( (array) $pcm_sp_jobs as $job ) {
-                    $status = isset( $job['status'] ) ? $job['status'] : 'queued';
+                    $status = $job['status'] ?? 'queued';
                     if ( 'queued' === $status ) { $queued++; }
                     if ( 'executed' === $status ) { $executed++; }
                     if ( 'shadowed' === $status ) { $shadowed++; }
@@ -859,9 +871,9 @@ https://example.com/OLD/"></textarea>
                         <ul class="pcm-sp-summary-list">
                             <?php foreach ( array_slice( array_reverse( $pcm_sp_outcomes ), 0, 10 ) as $row ) : ?>
                                 <li>
-                                    <strong><?php echo esc_html( isset( $row['job_id'] ) ? $row['job_id'] : 'job' ); ?></strong>
-                                    — Δhit <?php echo esc_html( isset( $row['observed_impact']['hit_ratio_delta'] ) ? $row['observed_impact']['hit_ratio_delta'] : 'n/a' ); ?>,
-                                    Δevict <?php echo esc_html( isset( $row['observed_impact']['evictions_delta'] ) ? $row['observed_impact']['evictions_delta'] : 'n/a' ); ?>
+                                    <strong><?php echo esc_html( $row['job_id'] ?? 'job' ); ?></strong>
+                                    — Δhit <?php echo esc_html( $row['observed_impact']['hit_ratio_delta'] ?? 'n/a' ); ?>,
+                                    Δevict <?php echo esc_html( $row['observed_impact']['evictions_delta'] ?? 'n/a' ); ?>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -880,7 +892,7 @@ https://example.com/OLD/"></textarea>
                         }
 
                         foreach ( $job['prewarm_status']['logs'] as $log ) {
-                            $log['job_id'] = isset( $job['job_id'] ) ? $job['job_id'] : 'job';
+                            $log['job_id'] = $job['job_id'] ?? 'job';
                             $prewarm_logs[] = $log;
                         }
                     }
@@ -891,8 +903,8 @@ https://example.com/OLD/"></textarea>
                         <ul class="pcm-sp-summary-list">
                             <?php foreach ( array_slice( $prewarm_logs, 0, 20 ) as $log ) : ?>
                                 <li>
-                                    <strong><?php echo esc_html( isset( $log['job_id'] ) ? $log['job_id'] : 'job' ); ?></strong>
-                                    — <?php echo esc_html( isset( $log['url'] ) ? $log['url'] : '' ); ?>
+                                    <strong><?php echo esc_html( $log['job_id'] ?? 'job' ); ?></strong>
+                                    — <?php echo esc_html( $log['url'] ?? '' ); ?>
                                     (<?php echo esc_html( ! empty( $log['success'] ) ? 'ok' : 'fail' ); ?>,
                                     <?php echo esc_html( isset( $log['status_code'] ) ? (int) $log['status_code'] : 0 ); ?>,
                                     <?php echo esc_html( isset( $log['latency_ms'] ) ? (float) $log['latency_ms'] : 0 ); ?>ms)
@@ -907,7 +919,7 @@ https://example.com/OLD/"></textarea>
     </div>
     <?php elseif ( $is_deep_dive_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-smart-purge-strategy">
-        <h3 class="pcm-card-title">🧹 <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-update pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Smart Purge Strategy', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
         <p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
     </div>
@@ -923,11 +935,11 @@ https://example.com/OLD/"></textarea>
 
     <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card pcm-card-hover pcm-card-mb-scroll" id="pcm-feature-observability-reporting">
-        <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-chart-bar pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
         <?php if ( ! function_exists( 'pcm_reporting_is_enabled' ) || ! pcm_reporting_is_enabled() ) : ?>
         <div class="pcm-warning-banner">
-            <span aria-hidden="true" class="pcm-warning-banner-icon">⚠️</span>
+            <span aria-hidden="true" class="pcm-warning-banner-icon"><span class="dashicons dashicons-warning"></span></span>
             <span><?php echo esc_html__( 'Observability is currently disabled because Caching Suite features are turned off. Enable Caching Suite features above to load trends and exports.', 'pressable_cache_management' ); ?></span>
         </div>
         <?php else : ?>
@@ -948,11 +960,11 @@ https://example.com/OLD/"></textarea>
 
     <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-security-privacy">
-        <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-shield pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
         <?php if ( function_exists( 'pcm_security_privacy_is_enabled' ) && ! pcm_security_privacy_is_enabled() ) : ?>
         <div class="pcm-warning-banner">
-            <span aria-hidden="true" class="pcm-warning-banner-icon">⚠️</span>
+            <span aria-hidden="true" class="pcm-warning-banner-icon"><span class="dashicons dashicons-warning"></span></span>
             <span><?php echo esc_html__( 'Privacy & Security is currently disabled by feature filter. Enable pcm_enable_security_privacy to use retention controls and audit logs.', 'pressable_cache_management' ); ?></span>
         </div>
         <?php else : ?>
@@ -961,7 +973,7 @@ https://example.com/OLD/"></textarea>
                 <h4 class="pcm-section-subhead"><?php echo esc_html__( 'Privacy Settings', 'pressable_cache_management' ); ?></h4>
                 <p><label><?php echo esc_html__( 'Retention Days', 'pressable_cache_management' ); ?> <input type="number" id="pcm-privacy-retention" min="7" max="365" value="<?php echo esc_attr( isset( $privacy_settings['retention_days'] ) ? (int) $privacy_settings['retention_days'] : 90 ); ?>" /></label></p>
                 <p><label><?php echo esc_html__( 'Redaction Level', 'pressable_cache_management' ); ?>
-                    <select id="pcm-privacy-redaction"><option value="minimal" <?php selected( isset( $privacy_settings['redaction_level'] ) ? $privacy_settings['redaction_level'] : "standard", "minimal" ); ?>>minimal</option><option value="standard" <?php selected( isset( $privacy_settings['redaction_level'] ) ? $privacy_settings['redaction_level'] : "standard", "standard" ); ?>>standard</option><option value="strict" <?php selected( isset( $privacy_settings['redaction_level'] ) ? $privacy_settings['redaction_level'] : "standard", "strict" ); ?>>strict</option></select>
+                    <select id="pcm-privacy-redaction"><option value="minimal" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "minimal" ); ?>>minimal</option><option value="standard" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "standard" ); ?>>standard</option><option value="strict" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "strict" ); ?>>strict</option></select>
                 </label></p>
                 <p><label><input type="checkbox" id="pcm-privacy-advanced-scan" <?php checked( ! empty( $privacy_settings['advanced_scan_opt_in'] ) ); ?> /> <?php echo esc_html__( 'Allow advanced scanning workflows', 'pressable_cache_management' ); ?></label></p>
                 <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
@@ -990,7 +1002,7 @@ https://example.com/OLD/"></textarea>
 
             <!-- Global Controls -->
             <div class="pcm-card">
-                <h3 class="pcm-card-title">&#8635; <?php echo esc_html__( 'Global Controls', 'pressable_cache_management' ); ?></h3>
+                <h3 class="pcm-card-title"><span class="dashicons dashicons-update pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Global Controls', 'pressable_cache_management' ); ?></h3>
                 <p class="pcm-section-title"><?php echo esc_html__( 'Flush Object Cache', 'pressable_cache_management' ); ?></p>
                 <form method="post" id="pcm-flush-form">
                     <input type="hidden" name="flush_object_cache_nonce" value="<?php echo wp_create_nonce('flush_object_cache_nonce'); ?>">
@@ -998,14 +1010,14 @@ https://example.com/OLD/"></textarea>
                            class="pcm-btn-primary pcm-btn-block" id="pcm-flush-btn">
                 </form>
                 <div id="pcm-flush-feedback" class="pcm-flush-feedback" aria-live="polite"></div>
-                <?php $ts = get_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP ); ?>
+                <?php $ts = get_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value ); ?>
                 <div class="pcm-ts-block">
                     <span class="pcm-ts-label"><?php echo esc_html__( 'LAST FLUSHED', 'pressable_cache_management' ); ?></span><br>
                     <span class="pcm-ts-value" id="pcm-last-flushed-value"><?php echo $ts ? esc_html($ts) : '—'; ?></span>
                 </div>
 
                 <!-- Current Cache TTL -->
-                <?php $pcm_ttl = get_option( PCM_Options::LAST_TTL, array() ); ?>
+                <?php $pcm_ttl = get_option( PCM_Options::LAST_TTL->value, array() ); ?>
                 <div class="pcm-ts-divider">
                     <span class="pcm-ts-label"><?php esc_html_e( 'CURRENT CACHE MAX-AGE', 'pressable_cache_management' ); ?></span><br>
                     <span id="pcm-ttl-value" class="pcm-ts-value">—</span>
@@ -1015,25 +1027,25 @@ https://example.com/OLD/"></textarea>
             <!-- Automated Rules -->
             <div class="pcm-card">
                 <form action="options.php" method="post" id="pcm-main-settings-form">
-                <?php settings_fields( PCM_Options::MAIN_OPTIONS ); ?>
+                <?php settings_fields( PCM_Options::MAIN_OPTIONS->value ); ?>
                 <h3 class="pcm-card-title"><?php echo esc_html__( 'Automated Rules', 'pressable_cache_management' ); ?></h3>
 
                 <?php
                 $rules = array(
                     'flush_cache_theme_plugin_checkbox' => array(
-                        'title' => '&#x1F50C; ' . __( 'Flush Cache on Plugin/Theme Update', 'pressable_cache_management' ),
+                        'title' => '<span class="dashicons dashicons-admin-plugins pcm-rule-icon" aria-hidden="true"></span> ' . __( 'Flush Cache on Plugin/Theme Update', 'pressable_cache_management' ),
                         'desc'  => __( 'Flush cache automatically on plugin & theme update.', 'pressable_cache_management' ),
-                        'ts'    => get_option( PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP ),
+                        'ts'    => get_option( PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP->value ),
                     ),
                     'flush_cache_page_edit_checkbox' => array(
-                        'title' => '&#x1F4DD; ' . __( 'Flush Cache on Post/Page Edit', 'pressable_cache_management' ),
+                        'title' => '<span class="dashicons dashicons-edit pcm-rule-icon" aria-hidden="true"></span> ' . __( 'Flush Cache on Post/Page Edit', 'pressable_cache_management' ),
                         'desc'  => __( 'Flush cache automatically when page/post/post_types are updated.', 'pressable_cache_management' ),
-                        'ts'    => get_option( PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP ),
+                        'ts'    => get_option( PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP->value ),
                     ),
                     'flush_cache_on_comment_delete_checkbox' => array(
-                        'title' => '&#x1F4AC; ' . __( 'Flush Cache on Comment Delete', 'pressable_cache_management' ),
+                        'title' => '<span class="dashicons dashicons-admin-comments pcm-rule-icon" aria-hidden="true"></span> ' . __( 'Flush Cache on Comment Delete', 'pressable_cache_management' ),
                         'desc'  => __( 'Flush cache automatically when comments are deleted.', 'pressable_cache_management' ),
-                        'ts'    => get_option( PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP ),
+                        'ts'    => get_option( PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP->value ),
                     ),
                 );
                 foreach ( $rules as $id => $rule ) :
@@ -1087,8 +1099,8 @@ https://example.com/OLD/"></textarea>
                 <?php
                 // Flush Batcache for Individual Pages
                 $sp_checked = isset($options['flush_object_cache_for_single_page']) ? checked($options['flush_object_cache_for_single_page'],1,false) : '';
-                $sp_ts      = get_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP );
-                $sp_url     = get_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED );
+                $sp_ts      = get_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP->value );
+                $sp_url     = get_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value );
                 ?>
                 <div class="pcm-toggle-row">
                     <label class="switch pcm-switch-label">
@@ -1109,7 +1121,7 @@ https://example.com/OLD/"></textarea>
                 <?php
                 // Flush cache automatically when published pages/posts are deleted
                 $del_checked = isset($options['flush_cache_on_page_post_delete_checkbox']) ? checked($options['flush_cache_on_page_post_delete_checkbox'],1,false) : '';
-                $del_ts      = get_option( PCM_Options::FLUSH_CACHE_PAGE_POST_DELETE_TIMESTAMP );
+                $del_ts      = get_option( PCM_Options::FLUSH_CACHE_PAGE_POST_DELETE_TIMESTAMP->value );
                 ?>
                 <div class="pcm-toggle-row">
                     <label class="switch pcm-switch-label">
@@ -1160,7 +1172,7 @@ https://example.com/OLD/"></textarea>
                     <?php foreach ($pages as $page) : ?>
                     <span class="pcm-chip" data-value="<?php echo esc_attr($page); ?>">
                         <?php echo esc_html($page); ?>
-                        <button type="button" class="pcm-chip-remove" title="Remove">&#xD7;</button>
+                        <button type="button" class="pcm-chip-remove" title="Remove"><span class="dashicons dashicons-no" aria-hidden="true"></span></button>
                     </span>
                     <?php endforeach; ?>
                 </div>
@@ -1185,7 +1197,7 @@ https://example.com/OLD/"></textarea>
 
     <!-- Save button -->
     <div class="pcm-save-row">
-        <button type="submit" name="submit" form="pcm-main-settings-form" class="pcm-btn-primary"><?php echo wp_kses_post( __( '&#10003;&nbsp; Save Settings', 'pressable_cache_management' ) ); ?></button>
+        <button type="submit" name="submit" form="pcm-main-settings-form" class="pcm-btn-primary"><span class="dashicons dashicons-yes" aria-hidden="true"></span> <?php echo esc_html__( 'Save Settings', 'pressable_cache_management' ); ?></button>
     </div>
 
     <!-- Chip JS -->
@@ -1254,7 +1266,7 @@ https://example.com/OLD/"></textarea>
                 <div>
                     <span class="pcm-ts-label"><?php echo esc_html__( 'LAST FLUSHED', 'pressable_cache_management' ); ?></span>
                     <span class="pcm-ts-value pcm-ts-value-block"><?php
-                        $v = get_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP );
+                        $v = get_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP->value );
                         echo $v ? esc_html($v) : '&mdash;';
                     ?></span>
                 </div>
@@ -1262,7 +1274,7 @@ https://example.com/OLD/"></textarea>
                 <div>
                     <span class="pcm-ts-label"><?php echo esc_html__( 'SINGLE PAGE LAST FLUSHED', 'pressable_cache_management' ); ?></span>
                     <span class="pcm-ts-value pcm-ts-value-block"><?php
-                        $v = get_option( PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP );
+                        $v = get_option( PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP->value );
                         echo $v ? esc_html($v) : '&mdash;';
                     ?></span>
                 </div>
@@ -1270,7 +1282,7 @@ https://example.com/OLD/"></textarea>
                 <div>
                     <span class="pcm-ts-label"><?php echo esc_html__( 'SINGLE PAGE URL', 'pressable_cache_management' ); ?></span>
                     <span class="pcm-ts-value pcm-ts-value-block-break"><?php
-                        $v = get_option( PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED );
+                        $v = get_option( PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED->value );
                         echo $v ? esc_html($v) : '&mdash;';
                     ?></span>
                 </div>
@@ -1285,7 +1297,7 @@ https://example.com/OLD/"></textarea>
 
     <form action="options.php" method="post">
         <?php
-        settings_fields( PCM_Options::REMOVE_BRANDING_OPTIONS );
+        settings_fields( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
         do_settings_sections('remove_pressable_branding_tab');
         echo '<button type="submit" class="pcm-btn-primary">' . esc_html__( 'Save Settings', 'pressable_cache_management' ) . '</button>'; 
         ?>
@@ -1301,24 +1313,24 @@ https://example.com/OLD/"></textarea>
 
 // ─── Footer ──────────────────────────────────────────────────────────────────
 function pcm_footer_msg() {
-    if ( 'not-exists' === get_option( PCM_Options::REMOVE_BRANDING_OPTIONS, 'not-exists') ) {
-        add_option( PCM_Options::REMOVE_BRANDING_OPTIONS, '');
-        update_option( PCM_Options::REMOVE_BRANDING_OPTIONS, array('branding_on_off_radio_button'=>'enable'));
+    if ( 'not-exists' === get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value, 'not-exists') ) {
+        add_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value, '');
+        update_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value, array('branding_on_off_radio_button'=>'enable'));
     }
     add_filter('admin_footer_text','pcm_replace_default_footer');
 }
 
 function pcm_replace_default_footer($footer_text) {
     if ( is_admin() && isset($_GET['page']) && sanitize_key( $_GET['page'] ) === 'pressable_cache_management' ) {
-        $opts              = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
+        $opts              = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
         $branding_disabled = $opts && 'disable' === $opts['branding_on_off_radio_button'];
 
         if ( $branding_disabled ) {
             // Branding hidden: "Built with ♥" — heart links to branding settings page
-            return 'Built with <a href="admin.php?page=pressable_cache_management&tab=remove_pressable_branding_tab" title="Show or Hide Plugin Branding" class="pcm-footer-heart"><span class="pcm-footer-heart-icon-minimal" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'">&#x2665;</span></a>';
+            return 'Built with <a href="admin.php?page=pressable_cache_management&tab=remove_pressable_branding_tab" title="Show or Hide Plugin Branding" class="pcm-footer-heart"><span class="dashicons dashicons-heart pcm-footer-heart-icon-minimal" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'"></span></a>';
         } else {
             // Branding shown: full credit — heart links to branding settings page
-            return 'Built with <a href="admin.php?page=pressable_cache_management&tab=remove_pressable_branding_tab" title="Show or Hide Plugin Branding" class="pcm-footer-heart"><span class="pcm-footer-heart-icon-branded" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'">&#x2665;</span></a> by The Pressable CS Team.';
+            return 'Built with <a href="admin.php?page=pressable_cache_management&tab=remove_pressable_branding_tab" title="Show or Hide Plugin Branding" class="pcm-footer-heart"><span class="dashicons dashicons-heart pcm-footer-heart-icon-branded" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'"></span></a> by The Pressable CS Team.';
         }
     }
     return $footer_text;

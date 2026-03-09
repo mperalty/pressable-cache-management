@@ -9,13 +9,13 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-function pcm_durable_origin_microcache_is_enabled() {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE, false );
+function pcm_durable_origin_microcache_is_enabled(): bool {
+    $enabled = (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false );
 
     return (bool) apply_filters( 'pcm_enable_durable_origin_microcache', $enabled );
 }
 
-function pcm_microcache_artifact_dir() {
+function pcm_microcache_artifact_dir(): string {
     $uploads = wp_upload_dir();
     $base    = trailingslashit( $uploads['basedir'] ) . 'pcm-microcache';
 
@@ -26,35 +26,35 @@ function pcm_microcache_artifact_dir() {
     return $base;
 }
 
-function pcm_microcache_index_option_key() {
+function pcm_microcache_index_option_key(): string {
     return 'pcm_microcache_index_v1';
 }
 
-function pcm_microcache_stats_option_key() {
+function pcm_microcache_stats_option_key(): string {
     return 'pcm_microcache_stats_v1';
 }
 
-function pcm_microcache_events_option_key() {
+function pcm_microcache_events_option_key(): string {
     return 'pcm_microcache_invalidation_events_v1';
 }
 
 interface PCM_Microcache_Backend {
-    public function get( $key );
-    public function set( $key, $payload, $ttl, $tags, $builder_name );
-    public function invalidate_by_tags( $tags );
-    public function invalidate_key( $key );
-    public function flush_all();
-    public function list_recent_events( $limit );
+    public function get( string $key ): ?array;
+    public function set( string $key, mixed $payload, int $ttl, array $tags, string $builder_name ): bool;
+    public function invalidate_by_tags( array $tags ): int;
+    public function invalidate_key( string $key ): bool;
+    public function flush_all(): int;
+    public function list_recent_events( int $limit ): array;
 }
 
 class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
-    protected $index_key;
+    protected readonly string $index_key;
 
     public function __construct() {
         $this->index_key = pcm_microcache_index_option_key();
     }
 
-    public function get( $key ) {
+    public function get( string $key ): ?array {
         $index = $this->get_index();
         if ( empty( $index[ $key ] ) || ! is_array( $index[ $key ] ) ) {
             return null;
@@ -72,12 +72,12 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
             return null;
         }
 
-        $row['payload'] = $this->decode_payload( $raw, isset( $row['content_type'] ) ? $row['content_type'] : 'json' );
+        $row['payload'] = $this->decode_payload( $raw, $row['content_type'] ?? 'json' );
 
         return $row;
     }
 
-    public function set( $key, $payload, $ttl, $tags, $builder_name ) {
+    public function set( string $key, mixed $payload, int $ttl, array $tags, string $builder_name ): bool {
         $dir = pcm_microcache_artifact_dir();
         if ( '' === $dir ) {
             return false;
@@ -89,7 +89,13 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         $artifact    = trailingslashit( $dir ) . sanitize_file_name( $key . '-' . $version . '.' . $content );
         $serialized  = 'html' === $content ? (string) $payload : wp_json_encode( $payload );
 
-        if ( false === $serialized || false === file_put_contents( $artifact, $serialized ) ) {
+        if ( false === $serialized ) {
+            error_log( 'PCM Microcache: Failed to serialize payload for key ' . $key );
+            return false;
+        }
+
+        if ( false === file_put_contents( $artifact, $serialized ) ) {
+            error_log( 'PCM Microcache: Failed to write artifact file ' . $artifact );
             return false;
         }
 
@@ -116,7 +122,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         return true;
     }
 
-    public function invalidate_by_tags( $tags ) {
+    public function invalidate_by_tags( array $tags ): int {
         $tags = pcm_microcache_normalize_tags( $tags );
         if ( empty( $tags ) ) {
             return 0;
@@ -143,7 +149,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         return $removed;
     }
 
-    public function invalidate_key( $key ) {
+    public function invalidate_key( string $key ): bool {
         $index = $this->get_index();
         if ( empty( $index[ $key ] ) ) {
             return false;
@@ -159,7 +165,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         return true;
     }
 
-    public function flush_all() {
+    public function flush_all(): int {
         $index = $this->get_index();
         foreach ( $index as $row ) {
             if ( ! empty( $row['artifact_path'] ) && file_exists( $row['artifact_path'] ) ) {
@@ -172,7 +178,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         return count( $index );
     }
 
-    public function list_recent_events( $limit ) {
+    public function list_recent_events( int $limit ): array {
         $rows = get_option( pcm_microcache_events_option_key(), array() );
         if ( ! is_array( $rows ) ) {
             return array();
@@ -181,15 +187,15 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
         return array_slice( array_reverse( $rows ), 0, max( 1, absint( $limit ) ) );
     }
 
-    protected function get_index() {
+    protected function get_index(): array {
         $index = get_option( $this->index_key, array() );
 
         return is_array( $index ) ? $index : array();
     }
 
-    protected function decode_payload( $raw, $content_type ) {
+    protected function decode_payload( string $raw, string $content_type ): string|array {
         if ( 'html' === $content_type ) {
-            return (string) $raw;
+            return $raw;
         }
 
         $decoded = json_decode( $raw, true );
@@ -199,7 +205,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
 }
 
 class PCM_Microcache_TableIndex_Backend extends PCM_Microcache_Filesystem_Backend {
-    protected $table_name;
+    protected readonly string $table_name;
 
     public function __construct() {
         parent::__construct();
@@ -207,7 +213,7 @@ class PCM_Microcache_TableIndex_Backend extends PCM_Microcache_Filesystem_Backen
         $this->table_name = $wpdb->prefix . 'pcm_microcache_index';
     }
 
-    public function get( $key ) {
+    public function get( string $key ): ?array {
         $row = parent::get( $key );
 
         if ( ! is_array( $row ) ) {
@@ -217,7 +223,7 @@ class PCM_Microcache_TableIndex_Backend extends PCM_Microcache_Filesystem_Backen
         return $row;
     }
 
-    public function set( $key, $payload, $ttl, $tags, $builder_name ) {
+    public function set( string $key, mixed $payload, int $ttl, array $tags, string $builder_name ): bool {
         $saved = parent::set( $key, $payload, $ttl, $tags, $builder_name );
         if ( ! $saved ) {
             return false;
@@ -231,23 +237,27 @@ class PCM_Microcache_TableIndex_Backend extends PCM_Microcache_Filesystem_Backen
         $meta = $index[ $key ];
 
         global $wpdb;
-        $wpdb->replace(
+        $result = $wpdb->replace(
             $this->table_name,
             array(
                 'cache_key'     => $key,
-                'version'       => isset( $meta['version'] ) ? $meta['version'] : '',
+                'version'       => $meta['version'] ?? '',
                 'expires_at'    => isset( $meta['expires_at'] ) ? gmdate( 'Y-m-d H:i:s', absint( $meta['expires_at'] ) ) : gmdate( 'Y-m-d H:i:s' ),
-                'artifact_path' => isset( $meta['artifact_path'] ) ? $meta['artifact_path'] : '',
+                'artifact_path' => $meta['artifact_path'] ?? '',
                 'tags'          => wp_json_encode( isset( $meta['tags'] ) ? (array) $meta['tags'] : array() ),
                 'updated_at'    => current_time( 'mysql', true ),
             ),
             array( '%s', '%s', '%s', '%s', '%s', '%s' )
         );
 
+        if ( false === $result ) {
+            error_log( 'PCM Microcache: DB replace failed for key ' . $key . ': ' . $wpdb->last_error );
+        }
+
         return true;
     }
 
-    public function invalidate_by_tags( $tags ) {
+    public function invalidate_by_tags( array $tags ): int {
         $removed = parent::invalidate_by_tags( $tags );
 
         $tags = pcm_microcache_normalize_tags( $tags );
@@ -263,7 +273,7 @@ class PCM_Microcache_TableIndex_Backend extends PCM_Microcache_Filesystem_Backen
         return $removed;
     }
 
-    public function invalidate_key( $key ) {
+    public function invalidate_key( string $key ): bool {
         $removed = parent::invalidate_key( $key );
 
         global $wpdb;
@@ -272,35 +282,38 @@ class PCM_Microcache_TableIndex_Backend extends PCM_Microcache_Filesystem_Backen
         return $removed;
     }
 
-    public function flush_all() {
+    public function flush_all(): int {
         $removed = parent::flush_all();
 
         global $wpdb;
-        $wpdb->query( "TRUNCATE TABLE {$this->table_name}" );
+        $result = $wpdb->query( "TRUNCATE TABLE {$this->table_name}" );
+        if ( false === $result ) {
+            error_log( 'PCM Microcache: TRUNCATE TABLE failed: ' . $wpdb->last_error );
+        }
 
         return $removed;
     }
 }
 
-function pcm_microcache_get_backend() {
+function pcm_microcache_get_backend(): PCM_Microcache_Backend {
     static $backend = null;
 
     if ( null !== $backend ) {
         return $backend;
     }
 
-    $backend = get_option( PCM_Options::MICROCACHE_USE_CUSTOM_TABLE_INDEX, false )
+    $backend = get_option( PCM_Options::MICROCACHE_USE_CUSTOM_TABLE_INDEX->value, false )
         ? new PCM_Microcache_TableIndex_Backend()
         : new PCM_Microcache_Filesystem_Backend();
 
     return $backend;
 }
 
-function pcm_microcache_normalize_tags( $tags ) {
+function pcm_microcache_normalize_tags( array|string $tags ): array {
     return array_values( array_unique( array_filter( array_map( 'sanitize_key', (array) $tags ) ) ) );
 }
 
-function pcm_microcache_request_allowed( $key, $tags ) {
+function pcm_microcache_request_allowed( string $key, array $tags ): true|\WP_Error {
     $allowed_personalized = (bool) apply_filters( 'pcm_microcache_allow_personalized_request', false, $key, $tags );
 
     if ( is_user_logged_in() && ! $allowed_personalized ) {
@@ -315,7 +328,7 @@ function pcm_microcache_request_allowed( $key, $tags ) {
             $is_safe     = false;
 
             foreach ( $safe_prefixes as $prefix ) {
-                if ( 0 === strpos( $cookie_name, (string) $prefix ) ) {
+                if ( str_starts_with( $cookie_name, (string) $prefix ) ) {
                     $is_safe = true;
                     break;
                 }
@@ -330,7 +343,7 @@ function pcm_microcache_request_allowed( $key, $tags ) {
     return true;
 }
 
-function pcm_microcache_resolve_builder_name( $builder ) {
+function pcm_microcache_resolve_builder_name( callable|string|array $builder ): string {
     if ( is_string( $builder ) ) {
         return $builder;
     }
@@ -347,7 +360,7 @@ function pcm_microcache_resolve_builder_name( $builder ) {
     return 'callable_builder';
 }
 
-function pcm_microcache_get_or_build( $key, $builder, $ttl, $tags = array() ) {
+function pcm_microcache_get_or_build( string $key, callable $builder, int $ttl, array $tags = array() ): mixed {
     if ( ! is_callable( $builder ) ) {
         return new WP_Error( 'pcm_microcache_builder_invalid', 'Microcache builder must be callable.' );
     }
@@ -371,13 +384,13 @@ function pcm_microcache_get_or_build( $key, $builder, $ttl, $tags = array() ) {
 
     if ( is_array( $entry ) && isset( $entry['expires_at'], $entry['payload'] ) ) {
         if ( absint( $entry['expires_at'] ) >= $now ) {
-            pcm_microcache_record_stat( 'hit', $key, 0, isset( $entry['builder'] ) ? $entry['builder'] : 'unknown' );
+            pcm_microcache_record_stat( 'hit', $key, 0, $entry['builder'] ?? 'unknown' );
             return $entry['payload'];
         }
 
         $swr_window = (int) apply_filters( 'pcm_microcache_swr_window_seconds', min( $ttl, 120 ), $key, $ttl, $tags );
         if ( absint( $entry['expires_at'] ) + max( 1, $swr_window ) >= $now ) {
-            pcm_microcache_record_stat( 'stale', $key, 0, isset( $entry['builder'] ) ? $entry['builder'] : 'unknown' );
+            pcm_microcache_record_stat( 'stale', $key, 0, $entry['builder'] ?? 'unknown' );
             pcm_microcache_schedule_async_rebuild( $key, $builder, $ttl, $tags );
             return $entry['payload'];
         }
@@ -386,7 +399,7 @@ function pcm_microcache_get_or_build( $key, $builder, $ttl, $tags = array() ) {
     return pcm_microcache_build_and_store( $key, $builder, $ttl, $tags, ( is_array( $entry ) ? 'rebuild' : 'miss' ) );
 }
 
-function pcm_microcache_build_and_store( $key, $builder, $ttl, $tags, $event = 'miss' ) {
+function pcm_microcache_build_and_store( string $key, callable $builder, int $ttl, array $tags, string $event = 'miss' ): mixed {
     $backend      = pcm_microcache_get_backend();
     $builder_name = pcm_microcache_resolve_builder_name( $builder );
     $start        = microtime( true );
@@ -404,7 +417,7 @@ function pcm_microcache_build_and_store( $key, $builder, $ttl, $tags, $event = '
     return $payload;
 }
 
-function pcm_microcache_schedule_async_rebuild( $key, $builder, $ttl, $tags ) {
+function pcm_microcache_schedule_async_rebuild( string $key, callable $builder, int $ttl, array $tags ): void {
     $lock_key = 'pcm_microcache_rebuild_' . md5( $key );
     if ( get_transient( $lock_key ) ) {
         return;
@@ -414,7 +427,7 @@ function pcm_microcache_schedule_async_rebuild( $key, $builder, $ttl, $tags ) {
 
     add_action(
         'shutdown',
-        static function () use ( $key, $builder, $ttl, $tags, $lock_key ) {
+        static function () use ( $key, $builder, $ttl, $tags, $lock_key ): void {
             pcm_microcache_build_and_store( $key, $builder, $ttl, $tags, 'rebuild' );
             delete_transient( $lock_key );
         },
@@ -422,7 +435,7 @@ function pcm_microcache_schedule_async_rebuild( $key, $builder, $ttl, $tags ) {
     );
 }
 
-function pcm_microcache_record_stat( $event, $key, $build_ms, $builder_name ) {
+function pcm_microcache_record_stat( string $event, string $key, float $build_ms, string $builder_name ): void {
     $stats = get_option( pcm_microcache_stats_option_key(), array() );
     $stats = is_array( $stats ) ? $stats : array();
     $stats = array_merge(
@@ -452,7 +465,7 @@ function pcm_microcache_record_stat( $event, $key, $build_ms, $builder_name ) {
         $stats['build_errors']++;
     }
 
-    $stats['total_build_ms'] += (float) $build_ms;
+    $stats['total_build_ms'] += $build_ms;
     $stats['last_key']        = $key;
     $stats['updated_at']      = current_time( 'mysql', true );
 
@@ -464,12 +477,12 @@ function pcm_microcache_record_stat( $event, $key, $build_ms, $builder_name ) {
     }
 
     $stats['builder_costs'][ $builder_name ]['calls']++;
-    $stats['builder_costs'][ $builder_name ]['total_ms'] += (float) $build_ms;
+    $stats['builder_costs'][ $builder_name ]['total_ms'] += $build_ms;
 
     update_option( pcm_microcache_stats_option_key(), $stats, false );
 }
 
-function pcm_microcache_log_invalidation_event( $reason, $tags, $removed ) {
+function pcm_microcache_log_invalidation_event( string $reason, array $tags, int $removed ): void {
     $rows   = get_option( pcm_microcache_events_option_key(), array() );
     $rows   = is_array( $rows ) ? $rows : array();
     $rows[] = array(
@@ -482,7 +495,7 @@ function pcm_microcache_log_invalidation_event( $reason, $tags, $removed ) {
     update_option( pcm_microcache_events_option_key(), array_slice( $rows, -200 ), false );
 }
 
-function pcm_microcache_invalidate_tags( $tags, $reason = 'unknown' ) {
+function pcm_microcache_invalidate_tags( array $tags, string $reason = 'unknown' ): int {
     if ( ! pcm_durable_origin_microcache_is_enabled() ) {
         return 0;
     }
@@ -493,7 +506,7 @@ function pcm_microcache_invalidate_tags( $tags, $reason = 'unknown' ) {
     return $removed;
 }
 
-function pcm_microcache_flush_all( $reason = 'manual_flush' ) {
+function pcm_microcache_flush_all( string $reason = 'manual_flush' ): int {
     if ( ! pcm_durable_origin_microcache_is_enabled() ) {
         return 0;
     }
@@ -504,12 +517,12 @@ function pcm_microcache_flush_all( $reason = 'manual_flush' ) {
     return $removed;
 }
 
-function pcm_microcache_get_menu_tree_payload( $menu_location, $ttl = 300 ) {
+function pcm_microcache_get_menu_tree_payload( string $menu_location, int $ttl = 300 ): mixed {
     $location = sanitize_key( $menu_location );
 
     return pcm_microcache_get_or_build(
         'menu_tree_' . $location,
-        static function () use ( $location ) {
+        static function () use ( $location ): array {
             $locations = get_nav_menu_locations();
             $menu_id   = isset( $locations[ $location ] ) ? absint( $locations[ $location ] ) : 0;
             if ( $menu_id <= 0 ) {
@@ -522,7 +535,7 @@ function pcm_microcache_get_menu_tree_payload( $menu_location, $ttl = 300 ) {
             }
 
             return array_map(
-                static function ( $item ) {
+                static function ( object $item ): array {
                     return array(
                         'id'        => isset( $item->ID ) ? (int) $item->ID : 0,
                         'title'     => isset( $item->title ) ? wp_strip_all_tags( $item->title ) : '',
@@ -538,9 +551,9 @@ function pcm_microcache_get_menu_tree_payload( $menu_location, $ttl = 300 ) {
     );
 }
 
-function pcm_microcache_get_archive_cards( $query_args = array(), $ttl = 120 ) {
+function pcm_microcache_get_archive_cards( array $query_args = array(), int $ttl = 120 ): mixed {
     $args = wp_parse_args(
-        (array) $query_args,
+        $query_args,
         array(
             'post_type'      => 'post',
             'post_status'    => 'publish',
@@ -550,7 +563,7 @@ function pcm_microcache_get_archive_cards( $query_args = array(), $ttl = 120 ) {
 
     return pcm_microcache_get_or_build(
         'archive_cards_' . md5( wp_json_encode( $args ) ),
-        static function () use ( $args ) {
+        static function () use ( $args ): array {
             $query = new WP_Query( $args );
             if ( ! $query->have_posts() ) {
                 return array();
@@ -574,12 +587,12 @@ function pcm_microcache_get_archive_cards( $query_args = array(), $ttl = 120 ) {
     );
 }
 
-function pcm_microcache_get_adjacent_links_metadata( $post_id, $ttl = 180 ) {
+function pcm_microcache_get_adjacent_links_metadata( int $post_id, int $ttl = 180 ): mixed {
     $post_id = absint( $post_id );
 
     return pcm_microcache_get_or_build(
         'adjacent_links_' . $post_id,
-        static function () use ( $post_id ) {
+        static function () use ( $post_id ): array {
             $post = get_post( $post_id );
             if ( ! $post || 'publish' !== $post->post_status ) {
                 return array();
@@ -599,14 +612,24 @@ function pcm_microcache_get_adjacent_links_metadata( $post_id, $ttl = 180 ) {
     );
 }
 
-function pcm_microcache_public_health_endpoint() {
+function pcm_microcache_public_health_endpoint(): void {
+    // Rate-limit unauthenticated requests: max 1 per 10 seconds per IP
+    if ( ! is_user_logged_in() ) {
+        $ip_hash     = md5( $_SERVER['REMOTE_ADDR'] ?? 'unknown' );
+        $throttle_key = 'pcm_health_throttle_' . $ip_hash;
+        if ( get_transient( $throttle_key ) ) {
+            wp_send_json_error( array( 'message' => 'Rate limited' ), 429 );
+        }
+        set_transient( $throttle_key, 1, 10 );
+    }
+
     $data = pcm_microcache_get_or_build(
         'public_health_payload',
-        static function () {
+        static function (): array {
             return array(
                 'status'        => 'ok',
                 'generated_at'  => gmdate( 'c' ),
-                'batcache_hits' => (int) get_option( PCM_Options::BATCACHE_HITS_24H, 0 ),
+                'batcache_hits' => (int) get_option( PCM_Options::BATCACHE_HITS_24H->value, 0 ),
             );
         },
         60,
@@ -622,7 +645,7 @@ function pcm_microcache_public_health_endpoint() {
 add_action( 'wp_ajax_nopriv_pcm_microcache_public_health', 'pcm_microcache_public_health_endpoint' );
 add_action( 'wp_ajax_pcm_microcache_public_health', 'pcm_microcache_public_health_endpoint' );
 
-function pcm_microcache_invalidate_post_tags( $post_id ) {
+function pcm_microcache_invalidate_post_tags( int $post_id ): void {
     $post_id = absint( $post_id );
     if ( $post_id <= 0 ) {
         return;
@@ -639,7 +662,7 @@ function pcm_microcache_invalidate_post_tags( $post_id ) {
 }
 add_action( 'save_post', 'pcm_microcache_invalidate_post_tags', 20, 1 );
 
-function pcm_microcache_invalidate_taxonomy_tags( $term_id, $tt_id = 0, $taxonomy = '' ) {
+function pcm_microcache_invalidate_taxonomy_tags( int $term_id, int $tt_id = 0, string $taxonomy = '' ): void {
     $tags = array( 'taxonomy', 'archive_cards', 'term_' . absint( $term_id ) );
 
     if ( ! empty( $taxonomy ) ) {
@@ -652,14 +675,14 @@ add_action( 'created_term', 'pcm_microcache_invalidate_taxonomy_tags', 20, 3 );
 add_action( 'edited_term', 'pcm_microcache_invalidate_taxonomy_tags', 20, 3 );
 add_action( 'delete_term', 'pcm_microcache_invalidate_taxonomy_tags', 20, 3 );
 
-function pcm_microcache_on_manual_purge() {
+function pcm_microcache_on_manual_purge(): void {
     pcm_microcache_flush_all( 'manual_purge' );
 }
 add_action( 'pcm_after_object_cache_flush', 'pcm_microcache_on_manual_purge' );
 add_action( 'pcm_after_edge_cache_purge', 'pcm_microcache_on_manual_purge' );
 
-function pcm_microcache_maybe_install_table_index() {
-    if ( ! pcm_durable_origin_microcache_is_enabled() || ! get_option( PCM_Options::MICROCACHE_USE_CUSTOM_TABLE_INDEX, false ) ) {
+function pcm_microcache_maybe_install_table_index(): void {
+    if ( ! pcm_durable_origin_microcache_is_enabled() || ! get_option( PCM_Options::MICROCACHE_USE_CUSTOM_TABLE_INDEX->value, false ) ) {
         return;
     }
 
@@ -683,7 +706,7 @@ function pcm_microcache_maybe_install_table_index() {
 }
 add_action( 'init', 'pcm_microcache_maybe_install_table_index', 20 );
 
-function pcm_microcache_get_health_summary() {
+function pcm_microcache_get_health_summary(): array {
     $stats = get_option( pcm_microcache_stats_option_key(), array() );
     $stats = is_array( $stats ) ? $stats : array();
     $stats = array_merge(
@@ -715,7 +738,7 @@ function pcm_microcache_get_health_summary() {
 
     usort(
         $builders,
-        static function ( $a, $b ) {
+        static function ( array $a, array $b ): int {
             return $b['total_ms'] <=> $a['total_ms'];
         }
     );
@@ -727,7 +750,7 @@ function pcm_microcache_get_health_summary() {
     );
 }
 
-function pcm_microcache_render_deep_dive_card() {
+function pcm_microcache_render_deep_dive_card(): void {
     if ( ! pcm_durable_origin_microcache_is_enabled() ) {
         return;
     }
@@ -765,9 +788,9 @@ function pcm_microcache_render_deep_dive_card() {
                     <ul style="margin:0;padding-left:18px;font-size:12px;max-height:180px;overflow:auto;">
                         <?php foreach ( $summary['recent_events'] as $event ) : ?>
                             <li>
-                                <?php echo esc_html( isset( $event['timestamp'] ) ? (string) $event['timestamp'] : '' ); ?>
-                                — <?php echo esc_html( isset( $event['reason'] ) ? (string) $event['reason'] : 'unknown' ); ?>
-                                (<?php echo esc_html( isset( $event['removed'] ) ? (string) $event['removed'] : '0' ); ?>)
+                                <?php echo esc_html( (string) ( $event['timestamp'] ?? '' ) ); ?>
+                                — <?php echo esc_html( (string) ( $event['reason'] ?? 'unknown' ) ); ?>
+                                (<?php echo esc_html( (string) ( $event['removed'] ?? '0' ) ); ?>)
                             </li>
                         <?php endforeach; ?>
                     </ul>

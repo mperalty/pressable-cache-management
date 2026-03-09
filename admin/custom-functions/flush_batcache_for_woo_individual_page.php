@@ -28,27 +28,27 @@ if ( $enabled ) {
     $needs_update = ! file_exists( $mu_plugin_dest )
         || ( file_exists( $mu_plugin_src ) && md5_file( $mu_plugin_src ) !== md5_file( $mu_plugin_dest ) );
 
-    if ( $needs_update && file_exists( $mu_plugin_src ) && @copy( $mu_plugin_src, $mu_plugin_dest ) ) {
+    if ( $needs_update && file_exists( $mu_plugin_src ) && copy( $mu_plugin_src, $mu_plugin_dest ) ) {
         if ( ! file_exists( $mu_plugin_dest ) ) {
             // Only flush and show notice on fresh enable, not on every update
             wp_cache_flush();
-            update_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE, 'activating' );
+            update_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE->value, 'activating' );
         }
     }
 
     // ── Show branded activation notice (once, on next page load) ─────────────
     add_action( 'init', 'pcm_woo_individual_page_activation_notice' );
 
-    function pcm_woo_individual_page_activation_notice() {
-        $state = get_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE, 'activated' );
+    function pcm_woo_individual_page_activation_notice(): void {
+        $state = get_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE->value, 'activated' );
         if ( 'activating' !== $state || ! current_user_can( 'manage_options' ) ) {
             return;
         }
         add_action( 'admin_notices', 'pcm_woo_individual_page_render_notice' );
-        update_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE, 'activated' );
+        update_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE->value, 'activated' );
     }
 
-    function pcm_woo_individual_page_render_notice() {
+    function pcm_woo_individual_page_render_notice(): void {
         $screen = get_current_screen();
         if ( ! $screen || $screen->id !== 'toplevel_page_pressable_cache_management' ) {
             return;
@@ -80,7 +80,7 @@ if ( $enabled ) {
            . esc_html__( 'Automatically flush individual pages, including product pages updated via the WooCommerce API.', 'pressable_cache_management' )
            . '</p>';
         echo '</div></div>';
-        echo '<button type="button" onclick="document.getElementById(\'' . esc_js( $nid ) . '\').remove();" style="' . $btn . '">&#x2297;</button>';
+        echo '<button type="button" onclick="document.getElementById(\'' . esc_js( $nid ) . '\').remove();" style="' . $btn . '"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button>';
         echo '</div>';
         echo '</div>';
     }
@@ -90,7 +90,7 @@ if ( $enabled ) {
     // ── Feature OFF ──────────────────────────────────────────────────────────
 
     // Reset so notice shows again next time it is re-enabled
-    update_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE, 'activating' );
+    update_option( PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE->value, 'activating' );
 
     if ( file_exists( $mu_plugin_dest ) ) {
         @unlink( $mu_plugin_dest );

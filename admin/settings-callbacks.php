@@ -13,14 +13,14 @@ if (!defined('ABSPATH'))
 **********************************************/
 
 // callback: object cache section section
-function pressable_cache_management_callback_section_cache()
+function pressable_cache_management_callback_section_cache(): void
 {
 
     $remove_pressable_branding_tab_options = false;
 
-    $remove_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
+    $remove_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
 
-    if ($remove_pressable_branding_tab_options && 'disable' == $remove_pressable_branding_tab_options['branding_on_off_radio_button'])
+    if ($remove_pressable_branding_tab_options && isset($remove_pressable_branding_tab_options['branding_on_off_radio_button']) && 'disable' == $remove_pressable_branding_tab_options['branding_on_off_radio_button'])
     {
 
     }
@@ -36,7 +36,7 @@ function pressable_cache_management_callback_section_cache()
 }
 
 // RESTORED: This function is required by admin/settings-validate.php but was accidentally removed during cleanup.
-function pressable_cache_management_options_radio_button()
+function pressable_cache_management_options_radio_button(): array
 {
 
     return array(
@@ -48,7 +48,7 @@ function pressable_cache_management_options_radio_button()
 
 }
 
-function pressable_cache_management_callback_section_edge_cache()
+function pressable_cache_management_callback_section_edge_cache(): void
 {
 
    echo '<p>' . esc_html__('These settings enable you to manage Edge Cache settings.', 'pressable_cache_management') . '</p>';
@@ -56,7 +56,7 @@ function pressable_cache_management_callback_section_edge_cache()
 }
 
 // callback: Hide Pressable branding tab page description
-function pressable_cache_management_callback_section_branding()
+function pressable_cache_management_callback_section_branding(): void
 {
 
     echo '<p>' . esc_html__('This setting allows you to show or hide the plugin branding.', 'pressable_cache_management') . '</p>';
@@ -72,13 +72,13 @@ function pressable_cache_management_callback_section_branding()
  */
 
 // Flush object cache button
-function pressable_cache_management_callback_field_button($args)
+function pressable_cache_management_callback_field_button($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     echo '</form>';
 
@@ -92,19 +92,19 @@ function pressable_cache_management_callback_field_button($args)
 
     echo '</br>';
     //Display time stamp when object cache was last flushed
-    echo '<small><strong>Last flushed at: </strong></small> ' . wp_kses_post( get_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP ) );
+    echo '<small><strong>Last flushed at: </strong></small> ' . wp_kses_post( get_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value ) );
 
 }
 
 
 // Extend batcache checkbox
-function pressable_cache_management_callback_field_extend_cache_checkbox($args)
+function pressable_cache_management_callback_field_extend_cache_checkbox($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $checked = isset($options[$id]) ? checked($options[$id], 1, false) : '';
 
@@ -119,13 +119,13 @@ function pressable_cache_management_callback_field_extend_cache_checkbox($args)
 }
 
 // Flush site cache on Theme/Plugin update checkbox
-function pressable_cache_management_callback_field_plugin_theme_update_checkbox($args)
+function pressable_cache_management_callback_field_plugin_theme_update_checkbox($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $checked = isset($options[$id]) ? checked($options[$id], 1, false) : '';
 
@@ -139,18 +139,18 @@ function pressable_cache_management_callback_field_plugin_theme_update_checkbox(
     echo '</br>';
     echo '</br>';
     //Display time stamp when object cache was last flushed when theme plugin
-    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP ) );
+    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP->value ) );
 
 }
 
 // Flush site object cache on page & post update checkbox
-function pressable_cache_management_callback_field_page_edit_checkbox($args)
+function pressable_cache_management_callback_field_page_edit_checkbox($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $checked = isset($options[$id]) ? checked($options[$id], 1, false) : '';
 
@@ -164,19 +164,19 @@ function pressable_cache_management_callback_field_page_edit_checkbox($args)
     echo '</br>';
     echo '</br>';
     //Display time stamp when object cache was last flushed when page or post was updated
-    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP ) );
+    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP->value ) );
 
 }
 
 
 // Flush site object cache when page, post and posttypes are updated checkbox
-function pressable_cache_management_callback_field_page_post_delete_checkbox($args)
+function pressable_cache_management_callback_field_page_post_delete_checkbox($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $checked = isset($options[$id]) ? checked($options[$id], 1, false) : '';
 
@@ -190,19 +190,19 @@ function pressable_cache_management_callback_field_page_post_delete_checkbox($ar
     echo '</br>';
     echo '</br>';
     //Display time stamp when object cache was last flushed when page or post was deleted
-    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_PAGE_POST_DELETE_TIMESTAMP ) );
+    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_PAGE_POST_DELETE_TIMESTAMP->value ) );
 
 }
 
 
 // Flush cache when comment is deleted checkbox
-function pressable_cache_management_callback_field_comment_delete_checkbox($args)
+function pressable_cache_management_callback_field_comment_delete_checkbox($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $checked = isset($options[$id]) ? checked($options[$id], 1, false) : '';
 
@@ -216,19 +216,19 @@ function pressable_cache_management_callback_field_comment_delete_checkbox($args
     echo '</br>';
     echo '</br>';
     //Display time stamp when object cache was last flushed when comment was deleted
-    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP ) );
+    echo '<small><strong>Last flushed at: </strong></small>' . wp_kses_post( get_option( PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP->value ) );
 
 }
 
 
 //Flush cache for a single page
-function pressable_cache_management_callback_field_flush_batcache_particular_page_checbox($args)
+function pressable_cache_management_callback_field_flush_batcache_particular_page_checbox($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $checked = isset($options[$id]) ? checked($options[$id], 1, false) : '';
 
@@ -242,9 +242,9 @@ function pressable_cache_management_callback_field_flush_batcache_particular_pag
     echo '</br>';
     echo '</br>';
     //Display time stamp when object cache was last flushed
-    echo '<small><strong>Last flushed at:</strong></small> ' . wp_kses_post( get_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP ) );
+    echo '<small><strong>Last flushed at:</strong></small> ' . wp_kses_post( get_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP->value ) );
 	echo '</br>';
-	echo '<small><strong>Page URL:</strong></small> ' . esc_html( get_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED ) );
+	echo '<small><strong>Page URL:</strong></small> ' . esc_html( get_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value ) );
 
 }
 
@@ -252,13 +252,13 @@ function pressable_cache_management_callback_field_flush_batcache_particular_pag
 
 
 //Flush cache for WooCommerce product single page
-function pressable_cache_management_callback_field_flush_batcache_woo_product_page_checbox($args)
+function pressable_cache_management_callback_field_flush_batcache_woo_product_page_checbox($args): void
 {
 
     $options = pcm_get_options();
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $checked = isset($options[$id]) ? checked($options[$id], 1, false) : '';
 
@@ -277,11 +277,11 @@ function pressable_cache_management_callback_field_flush_batcache_woo_product_pa
 
 
 //Callback: text field to exempt individual page from batcache
-function pressable_cache_management_callback_field_exempt_batcache_text($args)
+function pressable_cache_management_callback_field_exempt_batcache_text($args): void
 {
     $options = pcm_get_options();
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
     $value = isset($options[$id]) ? sanitize_text_field($options[$id]) : '';
     echo '<input autocomplete="off" id="pressable_cache_management_options_' . esc_attr( $id ) . '" name="pressable_cache_management_options[' . $id . ']" type="text" placeholder=" Exclude single page ex  /pagename/"  size="70" value="' . esc_attr( $value ) . '"><br/>';
     echo '<label class="rad-text for="pressable_cache_management_options_' . esc_attr( $id ) . '">' . esc_html( $label ) . '</label>';
@@ -298,7 +298,7 @@ function pressable_cache_management_callback_field_exempt_batcache_text($args)
 
 
 // Radio button options to turn on/off Edge Cache
-function pressable_cache_management_options_radio_edge_cache_button()
+function pressable_cache_management_options_radio_edge_cache_button(): array
 {
 
     return array(
@@ -311,7 +311,7 @@ function pressable_cache_management_options_radio_edge_cache_button()
 }
 
 // AJAX handler function to check Edge Cache status on demand
-function pcm_ajax_check_edge_cache_status()
+function pcm_ajax_check_edge_cache_status(): void
 {
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => 'Unauthorized'], 403);
@@ -376,8 +376,8 @@ function pcm_ajax_check_edge_cache_status()
     ], $ttl );
 
     // Keep wp_options in sync for server-side badge rendering
-    update_option( PCM_Options::EDGE_CACHE_STATUS,  $status_flag);
-    update_option( PCM_Options::EDGE_CACHE_ENABLED, $is_enabled ? 'enabled' : 'disabled');
+    update_option( PCM_Options::EDGE_CACHE_STATUS->value,  $status_flag);
+    update_option( PCM_Options::EDGE_CACHE_ENABLED->value, $is_enabled ? 'enabled' : 'disabled');
 
     wp_send_json_success([
         'enabled'                      => $is_enabled,
@@ -393,7 +393,7 @@ add_action('wp_ajax_pcm_check_edge_cache_status', 'pcm_ajax_check_edge_cache_sta
  * Clear the edge cache status transient whenever the state changes
  * (enable, disable, purge) so the next request gets a fresh live value.
  */
-function pcm_clear_ec_status_cache() {
+function pcm_clear_ec_status_cache(): void {
     delete_transient( 'pcm_ec_status_cache' );
 }
 add_action( 'pcm_after_edge_cache_enable',  'pcm_clear_ec_status_cache' );
@@ -407,7 +407,7 @@ add_action( 'pcm_after_edge_cache_purge',   'pcm_clear_ec_status_cache' );
  * @param bool $is_enabled Whether the Edge Cache is currently enabled.
  * @return string The HTML containing only the Enable/Disable control.
  */
-function pressable_cache_management_generate_enable_disable_content($is_enabled) {
+function pressable_cache_management_generate_enable_disable_content(bool $is_enabled): string {
     ob_start();
 
     //Button form/label
@@ -444,7 +444,7 @@ return ob_get_clean();
 }
 
 // Renders the placeholder div and the synchronization script.
-function pressable_cache_management_callback_field_extend_edge_cache_radio_button($args)
+function pressable_cache_management_callback_field_extend_edge_cache_radio_button($args): void
 {
     // Renders the single placeholder div and the synchronization script.
     ?>
@@ -505,11 +505,11 @@ function pressable_cache_management_callback_field_extend_edge_cache_radio_butto
 
 
 //Purge Edge Cache
-function pressable_edge_cache_flush_management_callback_field_button($args)
+function pressable_edge_cache_flush_management_callback_field_button($args): void
 {
-    $options = get_option( PCM_Options::EDGE_CACHE_SETTINGS_OPTIONS );
+    $options = get_option( PCM_Options::EDGE_CACHE_SETTINGS_OPTIONS->value );
 
-    $id = isset($args['id']) ? $args['id'] : '';
+    $id = $args['id'] ?? '';
     // Remove $label to avoid showing text
     // $label = isset($args['label']) ? $args['label'] : '';
 
@@ -534,12 +534,12 @@ function pressable_edge_cache_flush_management_callback_field_button($args)
     </form>';
     echo '<br/>';
     // Display timestamp when object cache was last flushed
-    echo '<small><strong>' . esc_html__( 'Last purged at:', 'pressable_cache_management' ) . ' </strong></small>' . esc_html( get_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP ) );
+    echo '<small><strong>' . esc_html__( 'Last purged at:', 'pressable_cache_management' ) . ' </strong></small>' . esc_html( get_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP->value ) );
 	echo '<br/>';
     echo '<br/>';
-   echo '<small><strong>' . esc_html__( 'Single URL last purged at:', 'pressable_cache_management' ) . '</strong></small> ' . esc_html( get_option( PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP ) );
+   echo '<small><strong>' . esc_html__( 'Single URL last purged at:', 'pressable_cache_management' ) . '</strong></small> ' . esc_html( get_option( PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP->value ) );
 	echo '<br/>';
-	echo '<small><strong>' . esc_html__( 'Single URL:', 'pressable_cache_management' ) . '</strong></small> ' . esc_html( get_option( PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED ) );
+	echo '<small><strong>' . esc_html__( 'Single URL:', 'pressable_cache_management' ) . '</strong></small> ' . esc_html( get_option( PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED->value ) );
     echo '<br/>';
     echo '<br/>';
     echo '<p class="pcm-purge-warning-text">'
@@ -559,7 +559,7 @@ function pressable_edge_cache_flush_management_callback_field_button($args)
  */
 
 // Radio button options
-function pressable_cache_management_options_remove_branding_radio_button()
+function pressable_cache_management_options_remove_branding_radio_button(): array
 {
 
     return array(
@@ -571,13 +571,13 @@ function pressable_cache_management_options_remove_branding_radio_button()
 
 }
 
-function pressable_cache_management_callback_field_extend_remove_branding_radio_button($args)
+function pressable_cache_management_callback_field_extend_remove_branding_radio_button($args): void
 {
 
-    $options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
+    $options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
 
-    $id = isset($args['id']) ? $args['id'] : '';
-    $label = isset($args['label']) ? $args['label'] : '';
+    $id = $args['id'] ?? '';
+    $label = $args['label'] ?? '';
 
     $selected_option = isset($options[$id]) ? sanitize_text_field($options[$id]) : '';
 

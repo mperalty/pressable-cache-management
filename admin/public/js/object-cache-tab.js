@@ -74,8 +74,12 @@
                 errorContainer.setAttribute('aria-live', 'assertive');
                 badge.appendChild(errorContainer);
             }
-            var retryLink = '<a href="#" class="pcm-bc-retry-link">Try again</a>';
-            errorContainer.innerHTML = errorText + ' ' + retryLink;
+            errorContainer.textContent = errorText + ' ';
+            var retryLink = document.createElement('a');
+            retryLink.href = '#';
+            retryLink.className = 'pcm-bc-retry-link';
+            retryLink.textContent = 'Try again';
+            errorContainer.appendChild(retryLink);
             var link = errorContainer.querySelector('.pcm-bc-retry-link');
             if (link) {
                 link.addEventListener('click', function(e) {
@@ -164,6 +168,11 @@
                 var maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
                 if (maxAgeMatch) {
                     ttlHuman = pcmSecondsToHuman(parseInt(maxAgeMatch[1]));
+                } else if (window.pcmObjectCacheData && window.pcmObjectCacheData.batcacheMaxAge) {
+                    // Fallback: Pragma: no-cache bypasses the edge cache so the
+                    // response may lack a cache-control header.  Use the server-
+                    // side Batcache max_age value instead.
+                    ttlHuman = pcmSecondsToHuman(window.pcmObjectCacheData.batcacheMaxAge);
                 }
                 var ttlEl = document.getElementById('pcm-ttl-value');
                 if (ttlEl && ttlHuman !== '—') ttlEl.textContent = ttlHuman;
@@ -423,8 +432,17 @@
         function renderChip(val){
             var c = document.createElement('span');
             c.className = 'pcm-chip pcm-chip-added'; c.dataset.value = val;
-            c.innerHTML = val + ' <button type="button" class="pcm-chip-remove" title="Remove">&#xD7;</button>';
-            c.querySelector('.pcm-chip-remove').addEventListener('click', function(){ removeChipAnimated(c, val); });
+            c.textContent = val + ' ';
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'pcm-chip-remove';
+            removeBtn.title = 'Remove';
+            var icon = document.createElement('span');
+            icon.className = 'dashicons dashicons-no';
+            icon.setAttribute('aria-hidden', 'true');
+            removeBtn.appendChild(icon);
+            c.appendChild(removeBtn);
+            removeBtn.addEventListener('click', function(){ removeChipAnimated(c, val); });
             wrap.appendChild(c);
             // Remove the flash class after animation completes
             setTimeout(function(){ c.classList.remove('pcm-chip-added'); }, 500);

@@ -1,12 +1,12 @@
 <?php
 
-function pressable_cache_extend()
+function pcm_cache_extend(): void
 {
 
 }
 
 // http://www.php.net/is_writable
-function is_writeable_wp_config($path)
+function pcm_is_writeable_wp_config( string $path ): bool
 {
 
     if ((defined('PHP_OS_FAMILY') && 'Windows' !== constant('PHP_OS_FAMILY')) || stristr(PHP_OS, 'DAR') || !stristr(PHP_OS, 'WIN'))
@@ -17,17 +17,20 @@ function is_writeable_wp_config($path)
     // PHP's is_writable does not work with Win32 NTFS
     if ($path[strlen($path) - 1] == '/')
     { // recursively return a temporary file path
-        return is_writeable_wp_config($path . uniqid(mt_rand()) . '.tmp');
+        return pcm_is_writeable_wp_config($path . uniqid(mt_rand()) . '.tmp');
     }
     elseif (is_dir($path))
     {
-        return is_writeable_wp_config($path . '/' . uniqid(mt_rand()) . '.tmp');
+        return pcm_is_writeable_wp_config($path . '/' . uniqid(mt_rand()) . '.tmp');
     }
 
     // check tmp file for read/write capabilities
     $rm = file_exists($path);
-    $f = @fopen($path, 'a');
-    if ($f === false) return false;
+    $f = fopen($path, 'a');
+    if ($f === false) {
+        error_log( 'PCM: Unable to open file for write test: ' . $path );
+        return false;
+    }
     fclose($f);
     if (!$rm)
     {
@@ -41,21 +44,21 @@ function is_writeable_wp_config($path)
 // 	global $wp_cache_config_file;
 // 	$GLOBALS[ $field ] = $value;
 // 	if ( is_numeric( $value ) ) {
-// 		return wp_config_file_replace_line( '^ *\$' . $field, "\$$field = $value;", $wp_cache_config_file );
+// 		return pcm_config_file_replace_line( '^ *\$' . $field, "\$$field = $value;", $wp_cache_config_file );
 // 	} elseif ( is_bool( $value ) ) {
 // 		$output_value = $value === true ? 'true' : 'false';
-// 		return wp_config_file_replace_line( '^ *\$' . $field, "\$$field = $output_value;", $wp_cache_config_file );
+// 		return pcm_config_file_replace_line( '^ *\$' . $field, "\$$field = $output_value;", $wp_cache_config_file );
 // 	} elseif ( is_object( $value ) || is_array( $value ) ) {
 // 		$text = var_export( $value, true );
 // 		$text = preg_replace( '/[\s]+/', ' ', $text );
-// 		return wp_config_file_replace_line( '^ *\$' . $field, "\$$field = $text;", $wp_cache_config_file );
+// 		return pcm_config_file_replace_line( '^ *\$' . $field, "\$$field = $text;", $wp_cache_config_file );
 // 	} else {
-// 		return wp_config_file_replace_line( '^ *\$' . $field, "\$$field = '$value';", $wp_cache_config_file );
+// 		return pcm_config_file_replace_line( '^ *\$' . $field, "\$$field = '$value';", $wp_cache_config_file );
 // 	}
 // }
-function wp_config_file_replace_line($old, $new, $my_file)
+function pcm_config_file_replace_line( string $old, string $new, string $my_file ): bool
 {
-    if (@is_file($my_file) == false)
+    if (is_file($my_file) == false)
     {
         if (function_exists('set_transient'))
         {
@@ -63,7 +66,7 @@ function wp_config_file_replace_line($old, $new, $my_file)
         }
         return false;
     }
-    if (!is_writeable_wp_config($my_file))
+    if (!pcm_is_writeable_wp_config($my_file))
     {
         if (function_exists('set_transient'))
         {
@@ -93,7 +96,7 @@ function wp_config_file_replace_line($old, $new, $my_file)
                 {
                     set_transient('wpsc_config_error', 'config_file_not_loaded', 10);
                 }
-                trigger_error("wp_config_file_replace_line: Error  - file $my_file could not be loaded.");
+                trigger_error("pcm_config_file_replace_line: Error  - file $my_file could not be loaded.");
                 return false;
             }
         }
@@ -102,12 +105,12 @@ function wp_config_file_replace_line($old, $new, $my_file)
     {
         if (trim($new) != '' && trim($new) == trim($line))
         {
-            pressable_cache_extend("wp_config_file_replace_line: setting not changed - $new");
+            pcm_cache_extend("pcm_config_file_replace_line: setting not changed - $new");
             return true;
         }
         elseif (preg_match("/$old/", $line))
         {
-            pressable_cache_extend("wp_config_file_replace_line: changing line " . trim($line) . " to *$new*");
+            pcm_cache_extend("pcm_config_file_replace_line: changing line " . trim($line) . " to *$new*");
             $found = true;
         }
     }
@@ -116,7 +119,7 @@ function wp_config_file_replace_line($old, $new, $my_file)
     $tmp_config_filename = tempnam($GLOBALS['cache_path'], 'wpsc');
     rename($tmp_config_filename, $tmp_config_filename . ".php");
     $tmp_config_filename .= ".php";
-    pressable_cache_extend('wp_config_file_replace_line: writing to ' . $tmp_config_filename);
+    pcm_cache_extend('pcm_config_file_replace_line: writing to ' . $tmp_config_filename);
     $fd = fopen($tmp_config_filename, 'w');
     if (!$fd)
     {
@@ -124,7 +127,7 @@ function wp_config_file_replace_line($old, $new, $my_file)
         {
             set_transient('wpsc_config_error', 'config_file_ro', 10);
         }
-        trigger_error("wp_config_file_replace_line: Error  - could not write to $my_file");
+        trigger_error("pcm_config_file_replace_line: Error  - could not write to $my_file");
         return false;
     }
     if ($found)
@@ -165,7 +168,7 @@ function wp_config_file_replace_line($old, $new, $my_file)
     }
     fclose($fd);
     rename($tmp_config_filename, $my_file);
-    pressable_cache_extend('wp_config_file_replace_line: moved ' . $tmp_config_filename . ' to ' . $my_file);
+    pcm_cache_extend('pcm_config_file_replace_line: moved ' . $tmp_config_filename . ' to ' . $my_file);
 
     // if (function_exists("opcache_invalidate"))
     // {

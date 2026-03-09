@@ -14,8 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return bool
  */
-function pcm_guided_playbooks_is_enabled() {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, false );
+function pcm_guided_playbooks_is_enabled(): bool {
+    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
 
     return (bool) apply_filters( 'pcm_enable_guided_playbooks', $enabled );
 }
@@ -24,31 +24,49 @@ function pcm_guided_playbooks_is_enabled() {
  * Playbook repository backed by bundled markdown files.
  */
 class PCM_Playbook_Repository {
+    private ?array $playbooks_cache = null;
+    private ?array $id_index = null;
+    private ?array $rule_index = null;
+
     /**
      * @return string
      */
-    protected function get_playbooks_dir() {
+    protected function get_playbooks_dir(): string {
         return plugin_dir_path( __FILE__ ) . 'playbooks/';
     }
 
     /**
      * @return array
      */
-    public function list_playbooks() {
+    public function list_playbooks(): array {
+        if ( null !== $this->playbooks_cache ) {
+            return $this->playbooks_cache;
+        }
+
         $paths = glob( $this->get_playbooks_dir() . '*.md' );
 
         if ( ! is_array( $paths ) ) {
-            return array();
+            $this->playbooks_cache = array();
+            return $this->playbooks_cache;
         }
 
         $rows = array();
 
         foreach ( $paths as $path ) {
+            // Validate the file is inside the expected playbooks directory
+            $real = realpath( $path );
+            $base = realpath( $this->get_playbooks_dir() );
+            if ( false === $real || false === $base || ! str_starts_with( $real, $base ) ) {
+                continue;
+            }
+
             $playbook = $this->read_playbook_file( $path );
             if ( ! empty( $playbook ) ) {
                 $rows[] = $playbook;
             }
         }
+
+        $this->playbooks_cache = $rows;
 
         return $rows;
     }
@@ -58,16 +76,11 @@ class PCM_Playbook_Repository {
      *
      * @return array|null
      */
-    public function get_by_id( $playbook_id ) {
+    public function get_by_id( string $playbook_id ): ?array {
         $playbook_id = sanitize_key( $playbook_id );
+        $index       = $this->get_id_index();
 
-        foreach ( $this->list_playbooks() as $playbook ) {
-            if ( isset( $playbook['meta']['playbook_id'] ) && $playbook['meta']['playbook_id'] === $playbook_id ) {
-                return $playbook;
-            }
-        }
-
-        return null;
+        return $index[ $playbook_id ] ?? null;
     }
 
     /**
@@ -75,17 +88,52 @@ class PCM_Playbook_Repository {
      *
      * @return array|null
      */
-    public function get_by_rule_id( $rule_id ) {
+    public function get_by_rule_id( string $rule_id ): ?array {
         $rule_id = sanitize_key( $rule_id );
+        $index   = $this->get_rule_index();
 
+        return $index[ $rule_id ] ?? null;
+    }
+
+    /**
+     * Build a keyed index of playbooks by playbook_id for O(1) lookup.
+     *
+     * @return array<string, array>
+     */
+    protected function get_id_index(): array {
+        if ( null !== $this->id_index ) {
+            return $this->id_index;
+        }
+
+        $this->id_index = array();
         foreach ( $this->list_playbooks() as $playbook ) {
-            $mapped = isset( $playbook['meta']['rule_ids'] ) && is_array( $playbook['meta']['rule_ids'] ) ? $playbook['meta']['rule_ids'] : array();
-            if ( in_array( $rule_id, $mapped, true ) ) {
-                return $playbook;
+            if ( isset( $playbook['meta']['playbook_id'] ) ) {
+                $this->id_index[ $playbook['meta']['playbook_id'] ] = $playbook;
             }
         }
 
-        return null;
+        return $this->id_index;
+    }
+
+    /**
+     * Build a keyed index of playbooks by rule_id for O(1) lookup.
+     *
+     * @return array<string, array>
+     */
+    protected function get_rule_index(): array {
+        if ( null !== $this->rule_index ) {
+            return $this->rule_index;
+        }
+
+        $this->rule_index = array();
+        foreach ( $this->list_playbooks() as $playbook ) {
+            $rule_ids = isset( $playbook['meta']['rule_ids'] ) && is_array( $playbook['meta']['rule_ids'] ) ? $playbook['meta']['rule_ids'] : array();
+            foreach ( $rule_ids as $rid ) {
+                $this->rule_index[ $rid ] = $playbook;
+            }
+        }
+
+        return $this->rule_index;
     }
 
     /**
@@ -93,7 +141,7 @@ class PCM_Playbook_Repository {
      *
      * @return array
      */
-    protected function read_playbook_file( $path ) {
+    protected function read_playbook_file( string $path ): array {
         $content = file_get_contents( $path );
 
         if ( ! is_string( $content ) || '' === trim( $content ) ) {
@@ -119,7 +167,7 @@ class PCM_Playbook_Repository {
      *
      * @return array
      */
-    protected function parse_meta_json( $content ) {
+    protected function parse_meta_json( string $content ): array {
         if ( ! preg_match( '/\A\/\*PCM_PLAYBOOK_META\n(.*?)\nPCM_PLAYBOOK_META\*\//s', $content, $matches ) ) {
             return array();
         }
@@ -153,12 +201,33 @@ class PCM_Playbook_Repository {
  *
  * @return bool
  */
-function pcm_playbooks_ajax_can_manage() {
+function pcm_playbooks_ajax_can_manage(): bool {
     if ( function_exists( 'pcm_current_user_can' ) ) {
         return (bool) pcm_current_user_can( 'pcm_view_diagnostics' );
     }
 
     return current_user_can( 'manage_options' );
+}
+
+/**
+ * Verify nonce and capability for a playbook AJAX request.
+ *
+ * Uses pcm_ajax_enforce_permissions() when available (security-privacy module),
+ * otherwise falls back to check_ajax_referer() + capability check.
+ *
+ * @param string $capability Custom capability to check (e.g. 'pcm_view_diagnostics').
+ */
+function pcm_playbooks_verify_ajax( string $capability = 'pcm_view_diagnostics' ): void {
+    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', $capability );
+        return;
+    }
+
+    check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+
+    if ( ! pcm_playbooks_ajax_can_manage() ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+    }
 }
 
 /**
@@ -170,7 +239,7 @@ class PCM_Playbook_Progress_Store {
     /**
      * @return array
      */
-    protected function all() {
+    protected function all(): array {
         $raw = get_option( self::OPTION_KEY, array() );
 
         return is_array( $raw ) ? $raw : array();
@@ -178,10 +247,8 @@ class PCM_Playbook_Progress_Store {
 
     /**
      * @param array $rows Rows.
-     *
-     * @return void
      */
-    protected function save_all( $rows ) {
+    protected function save_all( array $rows ): void {
         update_option( self::OPTION_KEY, is_array( $rows ) ? $rows : array(), false );
     }
 
@@ -190,7 +257,7 @@ class PCM_Playbook_Progress_Store {
      *
      * @return array
      */
-    public function get_state( $playbook_id ) {
+    public function get_state( string $playbook_id ): array {
         $playbook_id = sanitize_key( $playbook_id );
         $rows        = $this->all();
 
@@ -210,17 +277,15 @@ class PCM_Playbook_Progress_Store {
      *
      * @return array
      */
-    public function save_checklist( $playbook_id, $checklist ) {
+    public function save_checklist( string $playbook_id, array $checklist ): array {
         $playbook_id = sanitize_key( $playbook_id );
         $rows        = $this->all();
         $state       = isset( $rows[ $playbook_id ] ) && is_array( $rows[ $playbook_id ] ) ? $rows[ $playbook_id ] : array();
         $clean       = array();
 
-        if ( is_array( $checklist ) ) {
-            foreach ( $checklist as $step => $complete ) {
-                $step          = sanitize_key( $step );
-                $clean[ $step ] = (bool) $complete;
-            }
+        foreach ( $checklist as $step => $complete ) {
+            $step          = sanitize_key( $step );
+            $clean[ $step ] = (bool) $complete;
         }
 
         $state['checklist']    = $clean;
@@ -238,7 +303,7 @@ class PCM_Playbook_Progress_Store {
      *
      * @return array
      */
-    public function save_verification( $playbook_id, $verification ) {
+    public function save_verification( string $playbook_id, array $verification ): array {
         $playbook_id = sanitize_key( $playbook_id );
         $rows        = $this->all();
         $state       = isset( $rows[ $playbook_id ] ) && is_array( $rows[ $playbook_id ] ) ? $rows[ $playbook_id ] : array();
@@ -263,11 +328,12 @@ class PCM_Playbook_Progress_Store {
  * Rule-to-playbook lookup service.
  */
 class PCM_Playbook_Lookup_Service {
-    /** @var PCM_Playbook_Repository */
-    protected $repository;
+    protected readonly PCM_Playbook_Repository $repository;
 
-    public function __construct( $repository = null ) {
-        $this->repository = $repository ? $repository : new PCM_Playbook_Repository();
+    public function __construct(
+        ?PCM_Playbook_Repository $repository = null,
+    ) {
+        $this->repository = $repository ?? new PCM_Playbook_Repository();
     }
 
     /**
@@ -275,7 +341,7 @@ class PCM_Playbook_Lookup_Service {
      *
      * @return array
      */
-    public function lookup_for_finding( $rule_id ) {
+    public function lookup_for_finding( string $rule_id ): array {
         if ( ! pcm_guided_playbooks_is_enabled() ) {
             return array(
                 'available' => false,
@@ -310,11 +376,11 @@ class PCM_Playbook_Renderer {
      *
      * @return string
      */
-    protected function render_ordered_lists( $text ) {
-        $lines = preg_split( '/\r\n|\r|\n/', (string) $text );
+    protected function render_ordered_lists( string $text ): string {
+        $lines = preg_split( '/\r\n|\r|\n/', $text );
 
         if ( ! is_array( $lines ) ) {
-            return (string) $text;
+            return $text;
         }
 
         $output      = array();
@@ -391,8 +457,7 @@ class PCM_Playbook_Renderer {
      *
      * @return string
      */
-    public function render( $markdown ) {
-        $markdown = (string) $markdown;
+    public function render( string $markdown ): string {
         $escaped  = esc_html( $markdown );
 
         $escaped = preg_replace( '/^###\s+(.+)$/m', '<h4>$1</h4>', $escaped );
@@ -405,7 +470,7 @@ class PCM_Playbook_Renderer {
 
         $escaped = preg_replace_callback(
             '/(?:^|\n)((?:-\s+[^\n]+(?:\n|$))+)/',
-            static function ( $matches ) {
+            static function ( array $matches ): string {
                 $lines = preg_split( '/\n+/', trim( $matches[1] ) );
                 $items = array();
 
@@ -457,15 +522,15 @@ class PCM_Playbook_Renderer {
  *
  * @return string
  */
-function pcm_render_playbook_panel( $playbook ) {
+function pcm_render_playbook_panel( array $playbook ): string {
     if ( empty( $playbook['meta']['playbook_id'] ) ) {
         return '';
     }
 
     $renderer    = new PCM_Playbook_Renderer();
     $playbook_id = $playbook['meta']['playbook_id'];
-    $title       = isset( $playbook['meta']['title'] ) ? $playbook['meta']['title'] : $playbook_id;
-    $content     = $renderer->render( isset( $playbook['body'] ) ? $playbook['body'] : '' );
+    $title       = $playbook['meta']['title'] ?? $playbook_id;
+    $content     = $renderer->render( $playbook['body'] ?? '' );
 
     $panel_id = 'pcm-playbook-' . $playbook_id;
     $ajax_url = admin_url( 'admin-ajax.php' );
@@ -477,10 +542,10 @@ function pcm_render_playbook_panel( $playbook ) {
         <h3><?php echo esc_html( $title ); ?></h3>
         <p>
             <strong><?php esc_html_e( 'Severity:', 'pressable_cache_management' ); ?></strong>
-            <?php echo esc_html( isset( $playbook['meta']['severity'] ) ? $playbook['meta']['severity'] : 'warning' ); ?>
+            <?php echo esc_html( $playbook['meta']['severity'] ?? 'warning' ); ?>
             &nbsp;|&nbsp;
             <strong><?php esc_html_e( 'Version:', 'pressable_cache_management' ); ?></strong>
-            <?php echo esc_html( isset( $playbook['meta']['version'] ) ? $playbook['meta']['version'] : '1.0.0' ); ?>
+            <?php echo esc_html( $playbook['meta']['version'] ?? '1.0.0' ); ?>
         </p>
         <div class="pcm-playbook-tabs" style="margin:12px 0;">
             <button type="button" class="pcm-btn-text" onclick="pcmPlaybookSwitchTab('<?php echo esc_js( $panel_id ); ?>','quick')"><?php esc_html_e( 'Quick Fix', 'pressable_cache_management' ); ?></button>
@@ -589,13 +654,13 @@ function pcm_render_playbook_panel( $playbook ) {
  *
  * @return array
  */
-function pcm_playbook_build_payload( $playbook ) {
+function pcm_playbook_build_payload( array $playbook ): array {
     $renderer = new PCM_Playbook_Renderer();
 
     return array(
         'meta'      => isset( $playbook['meta'] ) && is_array( $playbook['meta'] ) ? $playbook['meta'] : array(),
-        'body'      => isset( $playbook['body'] ) ? (string) $playbook['body'] : '',
-        'html_body' => $renderer->render( isset( $playbook['body'] ) ? $playbook['body'] : '' ),
+        'body'      => (string) ( $playbook['body'] ?? '' ),
+        'html_body' => $renderer->render( $playbook['body'] ?? '' ),
     );
 }
 
@@ -604,16 +669,8 @@ function pcm_playbook_build_payload( $playbook ) {
  *
  * @return void
  */
-function pcm_ajax_playbook_lookup() {
-    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
-    } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
-
-        if ( ! pcm_playbooks_ajax_can_manage() ) {
-            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-        }
-    }
+function pcm_ajax_playbook_lookup(): void {
+    pcm_playbooks_verify_ajax( 'pcm_view_diagnostics' );
 
     $rule_id = isset( $_REQUEST['rule_id'] ) ? sanitize_key( wp_unslash( $_REQUEST['rule_id'] ) ) : '';
     if ( '' === $rule_id ) {
@@ -624,12 +681,12 @@ function pcm_ajax_playbook_lookup() {
     $result = $lookup->lookup_for_finding( $rule_id );
 
     if ( empty( $result['available'] ) || empty( $result['playbook'] ) ) {
-        wp_send_json_success( array( 'available' => false, 'reason' => isset( $result['reason'] ) ? $result['reason'] : 'no_playbook' ) );
+        wp_send_json_success( array( 'available' => false, 'reason' => $result['reason'] ?? 'no_playbook' ) );
     }
 
     $playbook = $result['playbook'];
     $store    = new PCM_Playbook_Progress_Store();
-    $state    = $store->get_state( isset( $playbook['meta']['playbook_id'] ) ? $playbook['meta']['playbook_id'] : '' );
+    $state    = $store->get_state( $playbook['meta']['playbook_id'] ?? '' );
 
     if ( function_exists( 'pcm_audit_log' ) ) {
         pcm_audit_log( 'playbook_lookup', 'guided_playbooks', array( 'rule_id' => $rule_id ) );
@@ -650,16 +707,8 @@ add_action( 'wp_ajax_pcm_playbook_lookup', 'pcm_ajax_playbook_lookup' );
  *
  * @return void
  */
-function pcm_ajax_playbook_progress_save() {
-    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
-    } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
-
-        if ( ! pcm_playbooks_ajax_can_manage() ) {
-            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-        }
-    }
+function pcm_ajax_playbook_progress_save(): void {
+    pcm_playbooks_verify_ajax( 'pcm_view_diagnostics' );
 
     $playbook_id = isset( $_REQUEST['playbook_id'] ) ? sanitize_key( wp_unslash( $_REQUEST['playbook_id'] ) ) : '';
     if ( '' === $playbook_id ) {
@@ -689,16 +738,8 @@ add_action( 'wp_ajax_pcm_playbook_progress_save', 'pcm_ajax_playbook_progress_sa
  *
  * @return void
  */
-function pcm_ajax_playbook_verify() {
-    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_run_scans' );
-    } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
-
-        if ( ! pcm_playbooks_ajax_can_manage() ) {
-            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-        }
-    }
+function pcm_ajax_playbook_verify(): void {
+    pcm_playbooks_verify_ajax( 'pcm_run_scans' );
 
     if ( ! function_exists( 'pcm_cacheability_advisor_is_enabled' ) || ! pcm_cacheability_advisor_is_enabled() ) {
         wp_send_json_error( array( 'message' => 'Cacheability Advisor is disabled.' ), 400 );

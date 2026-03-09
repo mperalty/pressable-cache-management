@@ -16,11 +16,33 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return bool
  */
-function pcm_cache_busters_is_enabled() {
-    $suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, false );
+function pcm_cache_busters_is_enabled(): bool {
+    $suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
     $enabled       = $suite_enabled || ( function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() );
 
     return (bool) apply_filters( 'pcm_enable_cache_busters', $enabled );
+}
+
+/**
+ * Verify nonce and capability for a cache-busters AJAX request.
+ */
+function pcm_cache_busters_verify_ajax(): void {
+    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
+        return;
+    }
+
+    check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+
+    if ( function_exists( 'pcm_current_user_can' ) ) {
+        $can = pcm_current_user_can( 'pcm_view_diagnostics' );
+    } else {
+        $can = current_user_can( 'manage_options' );
+    }
+
+    if ( ! $can ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+    }
 }
 
 /**
@@ -28,30 +50,30 @@ function pcm_cache_busters_is_enabled() {
  */
 class PCM_Cache_Buster_Event {
     /** @var string */
-    public $category;
+    public string $category = '';
 
     /** @var string */
-    public $signature;
+    public string $signature = '';
 
     /** @var string */
-    public $confidence;
+    public string $confidence = 'low';
 
     /** @var int */
-    public $count;
+    public int $count = 0;
 
     /** @var string */
-    public $likely_source;
+    public string $likely_source = 'unknown';
 
-    /** @var array */
-    public $affected_urls;
+    /** @var array<int, string> */
+    public array $affected_urls = array();
 
-    /** @var array */
-    public $evidence_samples;
+    /** @var array<int, array<string, mixed>> */
+    public array $evidence_samples = array();
 
     /**
-     * @param array $args Event args.
+     * @param array<string, mixed> $args Event args.
      */
-    public function __construct( $args = array() ) {
+    public function __construct( array $args = array() ) {
         $this->category         = isset( $args['category'] ) ? sanitize_key( $args['category'] ) : '';
         $this->signature        = isset( $args['signature'] ) ? sanitize_text_field( $args['signature'] ) : '';
         $this->confidence       = isset( $args['confidence'] ) ? sanitize_key( $args['confidence'] ) : 'low';
@@ -62,9 +84,9 @@ class PCM_Cache_Buster_Event {
     }
 
     /**
-     * @return array
+     * @return array<string, mixed>
      */
-    public function to_array() {
+    public function to_array(): array {
         return array(
             'category'         => $this->category,
             'signature'        => $this->signature,
@@ -86,47 +108,47 @@ interface PCM_Cache_Buster_Detector_Interface {
      *
      * @return string
      */
-    public function get_key();
+    public function get_key(): string;
 
     /**
      * Detect cache busters from one snapshot.
      *
-     * @param array $snapshot Snapshot payload.
+     * @param array<string, mixed> $snapshot Snapshot payload.
      *
      * @return PCM_Cache_Buster_Event[]
      */
-    public function detect( $snapshot );
+    public function detect( array $snapshot ): array;
 }
 
 /**
  * Detector registry and execution.
  */
 class PCM_Cache_Buster_Detector_Registry {
-    /** @var array */
-    protected $detectors = array();
+    /** @var array<string, PCM_Cache_Buster_Detector_Interface> */
+    protected array $detectors = array();
 
     /**
      * @param PCM_Cache_Buster_Detector_Interface $detector Detector instance.
      *
      * @return void
      */
-    public function register( PCM_Cache_Buster_Detector_Interface $detector ) {
+    public function register( PCM_Cache_Buster_Detector_Interface $detector ): void {
         $this->detectors[ $detector->get_key() ] = $detector;
     }
 
     /**
-     * @return array
+     * @return array<string, PCM_Cache_Buster_Detector_Interface>
      */
-    public function get_detectors() {
+    public function get_detectors(): array {
         return $this->detectors;
     }
 
     /**
-     * @param array $snapshot Snapshot payload.
+     * @param array<string, mixed> $snapshot Snapshot payload.
      *
-     * @return array
+     * @return array<int, array<string, mixed>>
      */
-    public function run_all( $snapshot ) {
+    public function run_all( array $snapshot ): array {
         $events = array();
 
         foreach ( $this->detectors as $detector ) {
@@ -152,9 +174,9 @@ class PCM_Cache_Buster_Detector_Registry {
  */
 class PCM_Cache_Buster_Snapshot_Provider {
     /**
-     * @return array
+     * @return array<string, mixed>
      */
-    public function get_latest_snapshot() {
+    public function get_latest_snapshot(): array {
         global $wpdb;
 
         $runs_table     = $wpdb->prefix . 'pcm_scan_runs';
@@ -201,10 +223,10 @@ abstract class PCM_Cache_Buster_Base_Detector implements PCM_Cache_Buster_Detect
     /**
      * @param string $header_value Header value.
      *
-     * @return array
+     * @return array<int, string>
      */
-    protected function split_header_csv( $header_value ) {
-        if ( ! is_string( $header_value ) || '' === $header_value ) {
+    protected function split_header_csv( string $header_value ): array {
+        if ( '' === $header_value ) {
             return array();
         }
 
@@ -218,7 +240,7 @@ abstract class PCM_Cache_Buster_Base_Detector implements PCM_Cache_Buster_Detect
      *
      * @return string
      */
-    protected function get_cookie_name_only( $cookie_line ) {
+    protected function get_cookie_name_only( string $cookie_line ): string {
         $first_part = strtok( (string) $cookie_line, ';' );
         $pair       = explode( '=', (string) $first_part, 2 );
 
@@ -230,7 +252,7 @@ abstract class PCM_Cache_Buster_Base_Detector implements PCM_Cache_Buster_Detect
      *
      * @return string
      */
-    protected function normalize_url_for_report( $url ) {
+    protected function normalize_url_for_report( string $url ): string {
         $parts = wp_parse_url( $url );
 
         if ( empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
@@ -247,11 +269,11 @@ abstract class PCM_Cache_Buster_Base_Detector implements PCM_Cache_Buster_Detect
  * Detects anonymous Set-Cookie cache busters.
  */
 class PCM_Cache_Buster_Cookie_Detector extends PCM_Cache_Buster_Base_Detector {
-    public function get_key() {
+    public function get_key(): string {
         return 'cookie';
     }
 
-    public function detect( $snapshot ) {
+    public function detect( array $snapshot ): array {
         $events = array();
 
         if ( empty( $snapshot['findings'] ) || ! is_array( $snapshot['findings'] ) ) {
@@ -309,11 +331,11 @@ class PCM_Cache_Buster_Cookie_Detector extends PCM_Cache_Buster_Base_Detector {
  * Detect noisy query parameter fragmentation.
  */
 class PCM_Cache_Buster_Query_Detector extends PCM_Cache_Buster_Base_Detector {
-    public function get_key() {
+    public function get_key(): string {
         return 'query';
     }
 
-    public function detect( $snapshot ) {
+    public function detect( array $snapshot ): array {
         $events = array();
 
         if ( empty( $snapshot['urls'] ) || ! is_array( $snapshot['urls'] ) ) {
@@ -376,11 +398,11 @@ class PCM_Cache_Buster_Query_Detector extends PCM_Cache_Buster_Base_Detector {
  * Detect high-cardinality Vary headers.
  */
 class PCM_Cache_Buster_Vary_Detector extends PCM_Cache_Buster_Base_Detector {
-    public function get_key() {
+    public function get_key(): string {
         return 'vary';
     }
 
-    public function detect( $snapshot ) {
+    public function detect( array $snapshot ): array {
         $events = array();
 
         if ( empty( $snapshot['findings'] ) || ! is_array( $snapshot['findings'] ) ) {
@@ -437,11 +459,11 @@ class PCM_Cache_Buster_Vary_Detector extends PCM_Cache_Buster_Base_Detector {
  * Detect no-cache directives on public pages.
  */
 class PCM_Cache_Buster_No_Cache_Detector extends PCM_Cache_Buster_Base_Detector {
-    public function get_key() {
+    public function get_key(): string {
         return 'no_cache';
     }
 
-    public function detect( $snapshot ) {
+    public function detect( array $snapshot ): array {
         $events = array();
 
         if ( empty( $snapshot['findings'] ) || ! is_array( $snapshot['findings'] ) ) {
@@ -460,7 +482,7 @@ class PCM_Cache_Buster_No_Cache_Detector extends PCM_Cache_Buster_Base_Detector 
             }
 
             foreach ( $directives as $directive ) {
-                if ( false === strpos( $cache_control, $directive ) ) {
+                if ( ! str_contains( $cache_control, $directive ) ) {
                     continue;
                 }
 
@@ -496,16 +518,16 @@ class PCM_Cache_Buster_No_Cache_Detector extends PCM_Cache_Buster_Base_Detector 
  * Detect frequent full-site purge events using known timestamps.
  */
 class PCM_Cache_Buster_Purge_Detector extends PCM_Cache_Buster_Base_Detector {
-    public function get_key() {
+    public function get_key(): string {
         return 'purge';
     }
 
-    public function detect( $snapshot ) {
+    public function detect( array $snapshot ): array {
         unset( $snapshot );
 
         $known_timestamps = array(
-            get_option( PCM_Options::FLUSH_OBJECT_CACHE_TIMESTAMP, '' ),
-            get_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP, '' ),
+            get_option( PCM_Options::FLUSH_OBJECT_CACHE_TIMESTAMP->value, '' ),
+            get_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP->value, '' ),
         );
 
         $known_timestamps = array_filter( array_map( 'sanitize_text_field', $known_timestamps ) );
@@ -536,19 +558,20 @@ class PCM_Cache_Buster_Purge_Detector extends PCM_Cache_Buster_Base_Detector {
  * Engine service for single-pass detector execution.
  */
 class PCM_Cache_Buster_Detector_Engine {
-    /** @var PCM_Cache_Buster_Detector_Registry */
-    protected $registry;
+    protected readonly PCM_Cache_Buster_Detector_Registry $registry;
 
-    /** @var PCM_Cache_Buster_Snapshot_Provider */
-    protected $snapshot_provider;
+    protected readonly PCM_Cache_Buster_Snapshot_Provider $snapshot_provider;
 
     /**
-     * @param PCM_Cache_Buster_Detector_Registry|null $registry Registry dependency.
-     * @param PCM_Cache_Buster_Snapshot_Provider|null $snapshot_provider Snapshot provider dependency.
+     * @param PCM_Cache_Buster_Detector_Registry|null $registry          Registry dependency.
+     * @param PCM_Cache_Buster_Snapshot_Provider|null  $snapshot_provider Snapshot provider dependency.
      */
-    public function __construct( $registry = null, $snapshot_provider = null ) {
-        $this->registry          = $registry ? $registry : new PCM_Cache_Buster_Detector_Registry();
-        $this->snapshot_provider = $snapshot_provider ? $snapshot_provider : new PCM_Cache_Buster_Snapshot_Provider();
+    public function __construct(
+        ?PCM_Cache_Buster_Detector_Registry $registry = null,
+        ?PCM_Cache_Buster_Snapshot_Provider $snapshot_provider = null,
+    ) {
+        $this->registry          = $registry ?? new PCM_Cache_Buster_Detector_Registry();
+        $this->snapshot_provider = $snapshot_provider ?? new PCM_Cache_Buster_Snapshot_Provider();
 
         $this->registry->register( new PCM_Cache_Buster_Cookie_Detector() );
         $this->registry->register( new PCM_Cache_Buster_Query_Detector() );
@@ -560,9 +583,9 @@ class PCM_Cache_Buster_Detector_Engine {
     /**
      * Execute detectors once using latest completed scan snapshot.
      *
-     * @return array
+     * @return array<int, array<string, mixed>>
      */
-    public function detect_latest() {
+    public function detect_latest(): array {
         if ( ! pcm_cache_busters_is_enabled() ) {
             return array();
         }
@@ -583,10 +606,10 @@ class PCM_Cache_Buster_Detector_Engine {
  */
 class PCM_Cache_Buster_Event_Storage {
     /** @var string */
-    protected $key = 'pcm_cache_buster_events_v1';
+    protected string $key = 'pcm_cache_buster_events_v1';
 
     /** @var int */
-    protected $max_rows = 4000;
+    protected int $max_rows = 1000;
 
     /**
      * Persist detector events with timestamp and run context.
@@ -596,11 +619,11 @@ class PCM_Cache_Buster_Event_Storage {
      *
      * @return array
      */
-    public function persist_events( $events, $run_id = 0 ) {
+    public function persist_events( array $events, int $run_id = 0 ): array {
         $rows = $this->all();
         $now  = current_time( 'mysql', true );
 
-        foreach ( (array) $events as $event ) {
+        foreach ( $events as $event ) {
             if ( ! is_array( $event ) ) {
                 continue;
             }
@@ -626,9 +649,9 @@ class PCM_Cache_Buster_Event_Storage {
     }
 
     /**
-     * @return array
+     * @return array<int, array<string, mixed>>
      */
-    public function all() {
+    public function all(): array {
         $rows = get_option( $this->key, array() );
 
         return is_array( $rows ) ? $rows : array();
@@ -639,7 +662,7 @@ class PCM_Cache_Buster_Event_Storage {
      *
      * @return array
      */
-    public function query_by_range( $range = '7d' ) {
+    public function query_by_range( string $range = '7d' ): array {
         $rows = $this->all();
 
         $days_by_range = array(
@@ -668,14 +691,15 @@ class PCM_Cache_Buster_Event_Storage {
  * Query service for leaderboard + trends (A2.2).
  */
 class PCM_Cache_Buster_Insights_Service {
-    /** @var PCM_Cache_Buster_Event_Storage */
-    protected $storage;
+    protected readonly PCM_Cache_Buster_Event_Storage $storage;
 
     /**
      * @param PCM_Cache_Buster_Event_Storage|null $storage Storage.
      */
-    public function __construct( $storage = null ) {
-        $this->storage = $storage ? $storage : new PCM_Cache_Buster_Event_Storage();
+    public function __construct(
+        ?PCM_Cache_Buster_Event_Storage $storage = null,
+    ) {
+        $this->storage = $storage ?? new PCM_Cache_Buster_Event_Storage();
     }
 
     /**
@@ -684,7 +708,7 @@ class PCM_Cache_Buster_Insights_Service {
      *
      * @return array
      */
-    public function top_sources( $range = '7d', $limit = 10 ) {
+    public function top_sources( string $range = '7d', int $limit = 10 ): array {
         $rows = $this->storage->query_by_range( $range );
         $agg  = array();
 
@@ -725,7 +749,7 @@ class PCM_Cache_Buster_Insights_Service {
      *
      * @return array
      */
-    public function trend_points( $range = '7d' ) {
+    public function trend_points( string $range = '7d' ): array {
         $rows = $this->storage->query_by_range( $range );
         $agg  = array();
 
@@ -755,7 +779,7 @@ class PCM_Cache_Buster_Insights_Service {
      *
      * @return int
      */
-    public function total_incidence( $range = '7d' ) {
+    public function total_incidence( string $range = '7d' ): int {
         $rows = $this->storage->query_by_range( $range );
         $sum  = 0;
 
@@ -774,7 +798,7 @@ class PCM_Cache_Buster_Insights_Service {
  *
  * @return int
  */
-function pcm_cache_busters_get_total_incidence( $range = '7d' ) {
+function pcm_cache_busters_get_total_incidence( string $range = '7d' ): int {
     if ( ! pcm_cache_busters_is_enabled() ) {
         return 0;
     }
@@ -792,22 +816,8 @@ function pcm_cache_busters_get_total_incidence( $range = '7d' ) {
  *
  * @return void
  */
-function pcm_ajax_cache_busters_top_sources() {
-    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
-    } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
-
-        if ( function_exists( 'pcm_current_user_can' ) ) {
-            $can = pcm_current_user_can( 'pcm_view_diagnostics' );
-        } else {
-            $can = current_user_can( 'manage_options' );
-        }
-
-        if ( ! $can ) {
-            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-        }
-    }
+function pcm_ajax_cache_busters_top_sources(): void {
+    pcm_cache_busters_verify_ajax();
 
     $range   = isset( $_REQUEST['range'] ) ? sanitize_key( wp_unslash( $_REQUEST['range'] ) ) : '7d';
     $limit   = isset( $_REQUEST['limit'] ) ? absint( wp_unslash( $_REQUEST['limit'] ) ) : 10;
@@ -827,22 +837,8 @@ add_action( 'wp_ajax_pcm_cache_busters_top_sources', 'pcm_ajax_cache_busters_top
  *
  * @return void
  */
-function pcm_ajax_cache_busters_trends() {
-    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
-    } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
-
-        if ( function_exists( 'pcm_current_user_can' ) ) {
-            $can = pcm_current_user_can( 'pcm_view_diagnostics' );
-        } else {
-            $can = current_user_can( 'manage_options' );
-        }
-
-        if ( ! $can ) {
-            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-        }
-    }
+function pcm_ajax_cache_busters_trends(): void {
+    pcm_cache_busters_verify_ajax();
 
     $range   = isset( $_REQUEST['range'] ) ? sanitize_key( wp_unslash( $_REQUEST['range'] ) ) : '7d';
     $service = new PCM_Cache_Buster_Insights_Service();

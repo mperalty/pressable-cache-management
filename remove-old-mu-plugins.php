@@ -30,7 +30,7 @@ if ( version_compare( $current_version, '3.4.4', '>=' ) ) {
 	if ( apply_filters( 'wpsc_enable_wp_config_edit', true ) ) {
 		$line = 'global $batcache; if ( is_object($batcache) ) { $batcache->max_age = 86400; $batcache->seconds = 3600;  };';
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		if ( strpos( file_get_contents( $global_config_file ), $line ) !== false && ( ! is_writeable_wp_config( $global_config_file ) || ! wp_config_file_replace_line( 'global *\$batcache; if *\( *is_object', '', $global_config_file ) ) ) {
+		if ( str_contains( file_get_contents( $global_config_file ), $line ) && ( ! pcm_is_writeable_wp_config( $global_config_file ) || ! pcm_config_file_replace_line( 'global *\$batcache; if *\( *is_object', '', $global_config_file ) ) ) {
 			wp_die( esc_html( "Could not remove Extending Batcache settings from $global_config_file. Please edit that file and remove the line containing the function 'global  $batcache;'. Then refresh this page. orcontact Pressable Support for help" ) );
 		}
 	}

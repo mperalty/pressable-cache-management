@@ -1,63 +1,19 @@
-<?php //Pressable Cache Management - Custom function to turn on/off Pressable branding
+<?php
+/**
+ * Pressable Cache Management - Branding toggle.
+ *
+ * This file is loaded to allow the branding option to be read by
+ * admin-menu.php and settings-callbacks.php. The actual branding
+ * show/hide logic lives in those files; this file simply ensures
+ * the option exists and is sanitized on load.
+ *
+ * @package PressableCacheManagement
+ */
 
-
-/******************************
- * Show branding Option
- *******************************/
-
-$pressable_branding = false;
-
-$hide_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
-
-//Check if options are set before processing
-if (isset($hide_pressable_branding_tab_options['branding_on_off_radio_button']) && !empty($hide_pressable_branding_tab_options['branding_on_off_radio_button']))
-{
-
-    $hide_pressable_branding_tab_options = sanitize_text_field($hide_pressable_branding_tab_options['branding_on_off_radio_button']);
-
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
 }
 
-//Set radion button state to defualt
-if ('enable' === $hide_pressable_branding_tab_options)
-{
-
-    $hide_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
-
-    // echo 'Show Branding';
-    //run your functions here if radio button is enabled
-    
-}
-
-/******************************
- * Hide branding Option
- *******************************/
-
-else
-{
-
-    $pressable_branding = false;
-
-    $pressable_branding = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
-
-    //Check if options are set before processing
-    if (isset($hide_pressable_branding_tab_options['branding_on_off_radio_button']) && !empty($hide_pressable_branding_tab_options['branding_on_off_radio_button']))
-    {
-
-        $hide_pressable_branding_tab_options = sanitize_text_field($hide_pressable_branding_tab_options['branding_on_off_radio_button']);
-
-    }
-
-    //Set radio button state to defualt
-    if ('disable' === $hide_pressable_branding_tab_options)
-    {
-
-        $hide_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
-
-        // echo 'Hide Branding';
-        //run your functions here if radio button is disbaled      
-
-        
-    }
-
-}
-
+// The branding option is consumed directly by admin-menu.php and
+// settings-callbacks.php via get_option(). No additional processing
+// is needed here.
