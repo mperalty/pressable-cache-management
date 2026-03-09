@@ -1,4 +1,34 @@
 (function(){
+        if (window.pcmRenderDeepDiveDependencyError) return;
+
+        function escapeHtml(input) {
+            return String(input || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function payloadError(payload, fallback) {
+            if (payload && payload.data && payload.data.message) return payload.data.message;
+            if (payload && payload.message) return payload.message;
+            return fallback || 'Unexpected AJAX response.';
+        }
+
+        window.pcmRenderDeepDiveDependencyError = function(targetEl, dependencyLabel, retryAction, error, fallbackMessage) {
+            if (!targetEl) return;
+            var detail = error && error.message ? error.message : (fallbackMessage || 'Unexpected AJAX response.');
+            targetEl.innerHTML = '<div class="pcm-inline-error" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+                + '<span>This feature requires ' + escapeHtml(dependencyLabel) + ' to be enabled. ' + escapeHtml(detail) + '</span>'
+                + (retryAction ? '<button type="button" class="button button-small" data-action="pcm-retry" data-retry-action="' + escapeHtml(retryAction) + '">Retry</button>' : '')
+                + '</div>';
+        };
+
+        window.pcmPayloadErrorMessage = payloadError;
+    })();
+
+(function(){
         if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var runBtn = document.getElementById('pcm-advisor-run-btn');
         var runStatus = document.getElementById('pcm-advisor-run-status');
@@ -6,7 +36,13 @@
         var findingsWrap = document.getElementById('pcm-advisor-findings');
         var diagnosisWrap = document.getElementById('pcm-advisor-diagnosis');
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
+        var section = document.getElementById('pcm-feature-cacheability-advisor');
         var currentRunId = 0;
+        if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !diagnosisWrap || !playbookWrap || !section) return;
+
+        function showError(targetEl, retryAction, error, fallbackMessage) {
+            window.pcmRenderDeepDiveDependencyError(targetEl, 'Cacheability Advisor', retryAction, error, fallbackMessage);
+        }
 
         function renderScores(results) {
             if (!Array.isArray(results) || !results.length) {
@@ -116,12 +152,12 @@
             return window.pcmPost({ action: 'pcm_cacheability_route_diagnosis', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId), url: url })
                 .then(function(payload){
                     if (!payload || !payload.success || !payload.data) {
-                        throw new Error('Unable to load diagnosis');
+                        throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load diagnosis endpoint.'));
                     }
                     renderDiagnosis(payload.data);
                 })
                 .catch(function(error){
-                    window.pcmHandleError('Load Route Diagnosis', error, diagnosisWrap);
+                    showError(diagnosisWrap, 'reload-section', error);
                 });
         }
 
@@ -266,6 +302,9 @@
                 var resultsPayload = payloads[0];
                 var findingsPayload = payloads[1];
                 var sensitivityPayload = payloads[2];
+                if (!resultsPayload || !resultsPayload.success) throw new Error(window.pcmPayloadErrorMessage(resultsPayload, 'Unable to load cacheability results endpoint.'));
+                if (!findingsPayload || !findingsPayload.success) throw new Error(window.pcmPayloadErrorMessage(findingsPayload, 'Unable to load findings endpoint.'));
+                if (!sensitivityPayload || !sensitivityPayload.success) throw new Error(window.pcmPayloadErrorMessage(sensitivityPayload, 'Unable to load sensitivity endpoint.'));
                 renderScores(resultsPayload && resultsPayload.success ? resultsPayload.data.results : []);
                 renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
                 var firstResult = (resultsPayload && resultsPayload.success && resultsPayload.data && Array.isArray(resultsPayload.data.results)) ? resultsPayload.data.results[0] : null;
@@ -303,7 +342,8 @@
                     return loadRunDetails(payload.data.run_id);
                 })
                 .catch(function(error){
-                    window.pcmHandleError('Run Cacheability Scan', error, runStatus);
+                    showError(scoreWrap, 'reload-section', error);
+                    runStatus.textContent = 'Scan failed.';
                 })
                 .finally(function(){
                     runBtn.disabled = false;
@@ -333,8 +373,14 @@
                     renderPlaybook(payload.data.playbook, ruleId, payload.data.progress || {});
                 })
                 .catch(function(error){
-                    window.pcmHandleError('Load Playbook', error, runStatus);
+                    showError(playbookWrap, 'reload-section', error);
                 });
+        });
+
+        section.addEventListener('click', function(event){
+            var retry = event.target.closest('[data-action="pcm-retry"]');
+            if (!retry) return;
+            loadLatestRun().catch(function(error){ showError(scoreWrap, 'reload-section', error); });
         });
 
         playbookWrap.addEventListener('click', function(event){
@@ -404,7 +450,8 @@
         });
 
         loadLatestRun().catch(function(error){
-            window.pcmHandleError('Load Latest Scan Run', error, runStatus);
+            showError(scoreWrap, 'reload-section', error);
+            runStatus.textContent = 'Unable to load scan run.';
         });
     })();
 
@@ -414,6 +461,12 @@
         var summaryEl = document.getElementById('pcm-oci-summary');
         var latestEl = document.getElementById('pcm-oci-latest');
         var trendEl = document.getElementById('pcm-oci-trends');
+        var section = document.getElementById('pcm-feature-object-cache-intelligence');
+        if (!refreshBtn || !summaryEl || !latestEl || !trendEl || !section) return;
+
+        function showError(targetEl, error, fallbackMessage) {
+            window.pcmRenderDeepDiveDependencyError(targetEl, 'Object Cache Intelligence', 'reload-section', error, fallbackMessage);
+        }
 
         function renderLatest(snapshot) {
             if (!snapshot || !snapshot.taken_at) {
@@ -545,6 +598,9 @@
         function loadSnapshot(refresh) {
             return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' })
                 .then(function(payload){
+                    if (!payload || !payload.success) {
+                        throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load object cache snapshot endpoint.'));
+                    }
                     renderLatest(payload && payload.success ? payload.data.snapshot : null);
                 });
         }
@@ -552,6 +608,9 @@
         function loadTrends() {
             return window.pcmPost({ action: 'pcm_object_cache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' })
                 .then(function(payload){
+                    if (!payload || !payload.success) {
+                        throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load object cache trends endpoint.'));
+                    }
                     renderTrends(payload && payload.success ? payload.data.points : []);
                 });
         }
@@ -560,12 +619,17 @@
             refreshBtn.disabled = true;
             summaryEl.textContent = 'Refreshing…';
             Promise.all([loadSnapshot(true), loadTrends()])
-                .catch(function(error){ window.pcmHandleError('Refresh Object Cache Diagnostics', error, summaryEl); })
+                .catch(function(error){ showError(latestEl, error); })
                 .finally(function(){ refreshBtn.disabled = false; });
         });
 
+        section.addEventListener('click', function(event){
+            if (!event.target.closest('[data-action="pcm-retry"]')) return;
+            Promise.all([loadSnapshot(false), loadTrends()]).catch(function(error){ showError(latestEl, error); });
+        });
+
         Promise.all([loadSnapshot(false), loadTrends()]).catch(function(error){
-            window.pcmHandleError('Load Object Cache Diagnostics', error, summaryEl);
+            showError(latestEl, error);
         });
     })();
 
@@ -575,6 +639,12 @@
         var summaryEl = document.getElementById('pcm-opcache-summary');
         var latestEl = document.getElementById('pcm-opcache-latest');
         var trendEl = document.getElementById('pcm-opcache-trends');
+        var section = document.getElementById('pcm-feature-opcache-awareness');
+        if (!refreshBtn || !summaryEl || !latestEl || !trendEl || !section) return;
+
+        function showError(targetEl, error, fallbackMessage) {
+            window.pcmRenderDeepDiveDependencyError(targetEl, 'OPcache Awareness', 'reload-section', error, fallbackMessage);
+        }
 
         function renderLatest(snapshot) {
             if (!snapshot || !snapshot.taken_at) {
@@ -708,6 +778,9 @@
         function loadSnapshot(refresh) {
             return window.pcmPost({ action: 'pcm_opcache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' })
                 .then(function(payload){
+                    if (!payload || !payload.success) {
+                        throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load OPcache snapshot endpoint.'));
+                    }
                     return renderLatest(payload && payload.success ? payload.data.snapshot : null);
                 });
         }
@@ -715,6 +788,9 @@
         function loadTrends() {
             return window.pcmPost({ action: 'pcm_opcache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' })
                 .then(function(payload){
+                    if (!payload || !payload.success) {
+                        throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load OPcache trends endpoint.'));
+                    }
                     renderTrends(payload && payload.success ? payload.data.points : []);
                 });
         }
@@ -729,8 +805,15 @@
                     }
                     return null;
                 })
-                .catch(function(error){ window.pcmHandleError('Refresh OPcache Diagnostics', error, summaryEl); })
+                .catch(function(error){ showError(latestEl, error); })
                 .finally(function(){ refreshBtn.disabled = false; });
+        });
+
+        section.addEventListener('click', function(event){
+            if (!event.target.closest('[data-action="pcm-retry"]')) return;
+            loadSnapshot(false)
+                .then(function(enabled){ return enabled ? loadTrends() : null; })
+                .catch(function(error){ showError(latestEl, error); });
         });
 
         loadSnapshot(false)
@@ -741,7 +824,7 @@
                 return null;
             })
             .catch(function(error){
-                window.pcmHandleError('Load OPcache Diagnostics', error, summaryEl);
+                showError(latestEl, error);
             });
     })();
 
@@ -753,8 +836,21 @@
         var rulesBody = document.getElementById('pcm-ra-rules-body');
         var ruleErrors = document.getElementById('pcm-ra-rule-errors');
         var toggleAdvancedBtn = document.getElementById('pcm-ra-toggle-advanced');
+        var section = document.getElementById('pcm-feature-redirect-assistant');
         var advancedVisible = false;
         var ruleState = [];
+        if (!out || !rulesBox || !exportBox || !rulesBody || !ruleErrors || !toggleAdvancedBtn || !section) return;
+
+        function requireSuccess(res, fallbackMessage) {
+            if (!res || !res.success) {
+                throw new Error(window.pcmPayloadErrorMessage(res, fallbackMessage));
+            }
+            return res;
+        }
+
+        function showError(error, fallbackMessage) {
+            window.pcmRenderDeepDiveDependencyError(out, 'Redirect Assistant', 'reload-section', error, fallbackMessage);
+        }
 
         function escapeHtml(value) {
             var str = String(value == null ? '' : value);
@@ -1038,25 +1134,27 @@
         document.getElementById('pcm-ra-discover').addEventListener('click', function(){
             window.pcmPost({ action: 'pcm_redirect_assistant_discover_candidates', nonce: window.pcmGetCacheabilityNonce(), urls: document.getElementById('pcm-ra-urls').value })
                 .then(function(res){
+                    requireSuccess(res, 'Unable to load redirect discovery endpoint.');
                     if (res && res.success && res.data && Array.isArray(res.data.candidates)) {
                         rulesBox.value = JSON.stringify(res.data.candidates, null, 2);
                         setRulesFromJson(rulesBox.value, true);
                     }
                     render(res);
                 })
-                .catch(function(error){ window.pcmHandleError('Discover Redirect Candidates', error, out); });
+                .catch(function(error){ showError(error); });
         });
 
         document.getElementById('pcm-ra-load-rules').addEventListener('click', function(){
             window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: window.pcmGetCacheabilityNonce() })
                 .then(function(res){
+                    requireSuccess(res, 'Unable to load redirect rules endpoint.');
                     if (res && res.success && res.data) {
                         rulesBox.value = JSON.stringify(res.data.rules || [], null, 2);
                         setRulesFromJson(rulesBox.value, true);
                     }
                     render(res);
                 })
-                .catch(function(error){ window.pcmHandleError('Load Redirect Rules', error, out); });
+                .catch(function(error){ showError(error); });
         });
 
         document.getElementById('pcm-ra-save').addEventListener('click', function(){
@@ -1066,30 +1164,32 @@
             }
             syncJsonFromState();
             window.pcmPost({ action: 'pcm_redirect_assistant_save_rules', nonce: window.pcmGetCacheabilityNonce(), rules: rulesBox.value, confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
-                .then(render)
-                .catch(function(error){ window.pcmHandleError('Save Redirect Rules', error, out); });
+                .then(function(res){ render(requireSuccess(res, 'Unable to save redirect rules endpoint.')); })
+                .catch(function(error){ showError(error); });
         });
 
         document.getElementById('pcm-ra-simulate').addEventListener('click', function(){
             syncJsonFromState();
             window.pcmPost({ action: 'pcm_redirect_assistant_simulate', nonce: window.pcmGetCacheabilityNonce(), urls: document.getElementById('pcm-ra-sim-urls').value, rules: rulesBox.value })
                 .then(function(res){
+                    requireSuccess(res, 'Unable to run redirect simulation endpoint.');
                     renderDryRunTable(res);
                 })
-                .catch(function(error){ window.pcmHandleError('Simulate Redirect Rules', error, out); });
+                .catch(function(error){ showError(error); });
         });
 
         document.getElementById('pcm-ra-export').addEventListener('click', function(){
             syncJsonFromState();
             window.pcmPost({ action: 'pcm_redirect_assistant_export', nonce: window.pcmGetCacheabilityNonce(), confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
                 .then(function(res){
+                    requireSuccess(res, 'Unable to export redirect rules endpoint.');
                     if (res && res.success && res.data && res.data.export) {
                         var content = (res.data.export.content || "") + "\n\n/* JSON PAYLOAD FOR IMPORT */\n" + (res.data.meta_json || "");
                         exportBox.value = content;
                     }
                     render(res);
                 })
-                .catch(function(error){ window.pcmHandleError('Export Redirect Rules', error, out); });
+                .catch(function(error){ showError(error); });
         });
 
         document.getElementById('pcm-ra-copy').addEventListener('click', function(){
@@ -1118,18 +1218,25 @@
             var payload = raw.indexOf(marker) > -1 ? raw.substring(raw.indexOf(marker) + marker.length).trim() : raw.trim();
             window.pcmPost({ action: 'pcm_redirect_assistant_import', nonce: window.pcmGetCacheabilityNonce(), payload: payload })
                 .then(function(res){
+                    requireSuccess(res, 'Unable to import redirect rules endpoint.');
                     render(res);
                     if (res && res.success) {
                         return window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: window.pcmGetCacheabilityNonce() });
                     }
                 })
                 .then(function(res){
+                    if (res) requireSuccess(res, 'Unable to refresh redirect rules endpoint.');
                     if (res && res.success && res.data) {
                         rulesBox.value = JSON.stringify(res.data.rules || [], null, 2);
                         setRulesFromJson(rulesBox.value, true);
                     }
                 })
-                .catch(function(error){ window.pcmHandleError('Import Redirect Rules', error, out); });
+                .catch(function(error){ showError(error); });
+        });
+
+        section.addEventListener('click', function(event){
+            if (!event.target.closest('[data-action="pcm-retry"]')) return;
+            document.getElementById('pcm-ra-load-rules').click();
         });
 
         setRulesFromJson(rulesBox.value, true);
@@ -1162,6 +1269,19 @@
         if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var out = document.getElementById('pcm-report-output');
         var rangeEl = document.getElementById('pcm-report-range');
+        var section = document.getElementById('pcm-feature-observability-reporting');
+        if (!out || !rangeEl || !section) return;
+
+        function requireSuccess(res, fallbackMessage) {
+            if (!res || !res.success) {
+                throw new Error(window.pcmPayloadErrorMessage(res, fallbackMessage));
+            }
+            return res;
+        }
+
+        function showError(error, fallbackMessage) {
+            window.pcmRenderDeepDiveDependencyError(out, 'Observability Reporting', 'reload-section', error, fallbackMessage);
+        }
 
 
         function metricName(key){
@@ -1270,7 +1390,7 @@
                 nonce: window.pcmGetCacheabilityNonce(),
                 range: rangeEl.value,
                 metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
-            }).then(render).catch(function(error){ window.pcmHandleError('Load Trends', error, out); });
+            }).then(function(res){ render(requireSuccess(res, 'Unable to load reporting trends endpoint.')); }).catch(function(error){ showError(error); });
         });
 
         function doExport(format){
@@ -1281,6 +1401,7 @@
                 range: rangeEl.value,
                 metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(function(res){
+                requireSuccess(res, 'Unable to export reporting endpoint.');
                 if (res && res.success && res.data && res.data.content) {
                     var ext = format === 'csv' ? 'csv' : 'json';
                     var mime = format === 'csv' ? 'text/csv' : 'application/json';
@@ -1288,11 +1409,16 @@
                     downloadText(fname, res.data.content, mime);
                     out.innerHTML = '<div class="pcm-inline-success" style="font-size:13px;">✅ Downloaded ' + fname + '</div>';
                 }
-            }).catch(function(error){ window.pcmHandleError('Export ' + format.toUpperCase(), error, out); });
+            }).catch(function(error){ showError(error); });
         }
 
         document.getElementById('pcm-report-export-json').addEventListener('click', function(){ doExport('json'); });
         document.getElementById('pcm-report-export-csv').addEventListener('click', function(){ doExport('csv'); });
+
+        section.addEventListener('click', function(event){
+            if (!event.target.closest('[data-action="pcm-retry"]')) return;
+            document.getElementById('pcm-report-load').click();
+        });
 
         document.getElementById('pcm-report-load').click();
     })();
