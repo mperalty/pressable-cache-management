@@ -130,12 +130,22 @@ window.pcmOnSectionReady = function(sectionId, initFn) {
 
         window.pcmRenderDeepDiveDependencyError = function(targetEl, dependencyLabel, retryAction, error, fallbackMessage) {
             if (!targetEl) return;
-            var detail = error && error.message ? error.message : (fallbackMessage || 'Unexpected AJAX response.');
+            var raw = error && error.message ? error.message : (fallbackMessage || 'Unexpected AJAX response.');
+            var detail;
+            if (error && (error.isTimeout || raw === 'timeout')) {
+                detail = 'The request timed out. The server may be busy — please try again.';
+            } else if (error && error.status >= 500) {
+                detail = 'Server error (HTTP ' + error.status + '). Check your PHP error logs for details.';
+            } else if (error && error.status >= 400) {
+                detail = 'Request failed (HTTP ' + error.status + '). The nonce may have expired — try reloading the page.';
+            } else {
+                detail = raw;
+            }
             if (targetEl.style && targetEl.style.display === 'none') {
                 targetEl.style.display = 'block';
             }
             targetEl.innerHTML = '<div class="pcm-inline-error" role="alert" aria-live="assertive" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-                + '<span>This feature requires ' + escapeHtml(dependencyLabel) + ' to be enabled. ' + escapeHtml(detail) + '</span>'
+                + '<span>' + escapeHtml(dependencyLabel) + ': ' + escapeHtml(detail) + '</span>'
                 + (retryAction ? '<button type="button" class="pcm-btn-text" data-action="pcm-retry" data-retry-action="' + escapeHtml(retryAction) + '">Retry</button>' : '')
                 + '</div>';
         };
@@ -291,7 +301,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                 '<div class="pcm-diagnosis-grid">',
                     '<div class="pcm-diagnosis-card"><dt>URL</dt><dd>' + escapeHtml(diagnosis.url || payload.url || '') + '</dd></div>',
                     '<div class="pcm-diagnosis-card"><dt>Final URL</dt><dd>' + escapeHtml(probe.effective_url || diagnosis.url || '') + '</dd></div>',
-                    '<div class="pcm-diagnosis-card"><dt>Redirect chain</dt><dd>' + escapeHtml((probe.redirect_chain || []).join(' → ') || 'None') + '</dd></div>',
+                    '<div class="pcm-diagnosis-card"><dt>Redirect chain</dt><dd>' + escapeHtml((probe.redirect_chain || []).join(' \u2192 ') || 'None') + '</dd></div>',
                     '<div class="pcm-diagnosis-card"><dt>Response size</dt><dd>' + escapeHtml(responseSizeLabel) + ' bytes</dd></div>',
                 '</div>',
                 '<div class="pcm-diagnosis-section"><strong>Why bypassed (Edge)</strong><div>' + chips(trace.edge_bypass_reasons || []) + '</div></div>',
@@ -1573,7 +1583,8 @@ window.pcmOnSectionReady('pcm-feature-redirect-assistant', function(){
             var html = '<table class="widefat striped"><thead><tr><th>Metric</th><th>Current Value</th><th>7-day Trend</th></tr></thead><tbody>';
             summaryRows.forEach(function(row){
                 var hasDelta = Number.isFinite(row.delta);
-                var arrow = hasDelta ? (row.delta >= 0 ? '↑' : '↓') : '→';
+                var arrowClass = hasDelta ? (row.delta >= 0 ? 'dashicons-arrow-up-alt' : 'dashicons-arrow-down-alt') : 'dashicons-arrow-right-alt';
+                var arrow = '<span class="dashicons ' + arrowClass + ' pcm-trend-arrow" aria-hidden="true"></span>';
                 var deltaText = hasDelta ? Math.abs(row.delta).toLocaleString(undefined, { maximumFractionDigits: 2 }) : 'n/a';
                 html += '<tr><td>' + metricName(row.metric) + '</td><td>' + formatValue(row.currentValue) + '</td><td>' + arrow + ' ' + deltaText + '</td></tr>';
             });
@@ -1615,7 +1626,7 @@ window.pcmOnSectionReady('pcm-feature-redirect-assistant', function(){
                     var mime = format === 'csv' ? 'text/csv' : 'application/json';
                     var fname = 'pcm-report-' + rangeEl.value + '.' + ext;
                     downloadText(fname, res.data.content, mime);
-                    out.innerHTML = '<div class="pcm-inline-success" style="font-size:13px;">✅ Downloaded ' + fname + '</div>';
+                    out.innerHTML = '<div class="pcm-inline-success" style="font-size:13px;"><span class="dashicons dashicons-yes-alt" aria-hidden="true" style="color:#00a32a;font-size:16px;vertical-align:middle;margin-right:2px;"></span> Downloaded ' + fname + '</div>';
                 }
             }).catch(function(error){ showError(error); });
         }

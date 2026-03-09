@@ -76,10 +76,12 @@ body.admin-color-modern .pcm-wrap {
 }
 
 .pcm-wrap .nav-tab-disabled::before {
-  content: "\1F512";
-  font-size: 11px;
+  content: "\f160";
+  font-family: dashicons;
+  font-size: 14px;
   margin-right: 4px;
   line-height: 1;
+  vertical-align: middle;
 }
 
 .pcm-wrap .nav-tab-disabled:hover {
@@ -1775,18 +1777,15 @@ div.notice.pcm-branded.pcm-warning {
 }
 
 .pcm-bc-tooltip-trigger {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #e2e8f0;
   color: var(--pcm-muted, #475569);
-  font-size: 10px;
-  font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: default;
-  font-family: 'Inter', sans-serif;
   line-height: 1;
   flex-shrink: 0;
   border: none;
@@ -2358,13 +2357,19 @@ div.notice.pcm-branded.pcm-warning {
 
 .pcm-footer-heart-icon-branded {
   color: #dd3a03;
-  font-size: 20px;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
   transition: opacity .2s;
 }
 
 .pcm-footer-heart-icon-minimal {
   color: #03fcc2;
-  font-size: 18px;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
   transition: opacity .2s;
 }
 
@@ -2402,4 +2407,93 @@ div.notice.pcm-branded.pcm-warning {
 
 .pcm-mb-0 {
   margin-bottom: 0;
+}
+
+/* ---- Dashicon sizing for various contexts ---- */
+.pcm-wrap .pcm-title-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.pcm-wrap .pcm-rule-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.pcm-wrap .pcm-chip-info-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  opacity: 0.6;
+}
+
+.pcm-wrap .pcm-chip-remove .dashicons {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 1;
+}
+
+.pcm-wrap .pcm-summary-icon .dashicons {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.pcm-wrap .pcm-bc-refresh-btn .dashicons {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+.pcm-wrap .pcm-bc-tooltip-trigger .dashicons {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.pcm-wrap .pcm-warning-banner-icon .dashicons {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: #dba617;
+}
+
+.pcm-wrap .pcm-settings-saved-close .dashicons,
+.pcm-wrap .pcm-branded-notice-close .dashicons {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.pcm-wrap .pcm-save-row .dashicons {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.pcm-trend-arrow {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+.pcm-deep-dive-disabled-icon .dashicons {
+  font-size: 32px;
+  width: 32px;
+  height: 32px;
 }

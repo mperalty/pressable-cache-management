@@ -24,46 +24,46 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/constants.php';
 $options_to_delete = array(
 
     // ── Main settings groups ──────────────────────────────────────────────────
-    PCM_Options::MAIN_OPTIONS,                              // All main tab checkbox settings
-    PCM_Options::REMOVE_BRANDING_OPTIONS,                   // Branding show/hide setting
-    PCM_Options::EDGE_CACHE_SETTINGS_OPTIONS,               // Edge Cache tab settings
+    PCM_Options::MAIN_OPTIONS->value,                              // All main tab checkbox settings
+    PCM_Options::REMOVE_BRANDING_OPTIONS->value,                   // Branding show/hide setting
+    PCM_Options::EDGE_CACHE_SETTINGS_OPTIONS->value,               // Edge Cache tab settings
 
     // ── Object cache flush timestamps ─────────────────────────────────────────
-    PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP,                 // Global object cache flush time
-    PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP,        // Flush on plugin/theme update
-    PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP,           // Flush on post/page edit
-    PCM_Options::FLUSH_CACHE_PAGE_POST_DELETE_TIMESTAMP,    // Flush on page/post delete
-    PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP,      // Flush on comment delete
+    PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value,                 // Global object cache flush time
+    PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP->value,        // Flush on plugin/theme update
+    PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP->value,           // Flush on post/page edit
+    PCM_Options::FLUSH_CACHE_PAGE_POST_DELETE_TIMESTAMP->value,    // Flush on page/post delete
+    PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP->value,      // Flush on comment delete
 
     // ── Individual page flush ─────────────────────────────────────────────────
-    PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP,               // Single page flush time
-    PCM_Options::FLUSH_SINGLE_PAGE_NOTICE,                  // Single page flush notice
-    PCM_Options::SINGLE_PAGE_URL_FLUSHED,                   // URL of last single-page flush
-    PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP,    // Single page edge cache purge time
+    PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP->value,               // Single page flush time
+    PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value,                  // Single page flush notice
+    PCM_Options::SINGLE_PAGE_URL_FLUSHED->value,                   // URL of last single-page flush
+    PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP->value,    // Single page edge cache purge time
     'single-page-path-url',                                 // Stored path for single page (legacy)
-    PCM_Options::PAGE_TITLE,                                // Stored page title
+    PCM_Options::PAGE_TITLE->value,                                // Stored page title
     'page-url',                                             // Stored page URL (legacy)
 
     // ── Edge cache ────────────────────────────────────────────────────────────
-    PCM_Options::EDGE_CACHE_ENABLED,                        // Edge cache on/off state
-    PCM_Options::EDGE_CACHE_STATUS,                         // Edge cache status string
-    PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP,                // Last edge cache purge time
-    PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED,         // Last single-page edge purge URL
+    PCM_Options::EDGE_CACHE_ENABLED->value,                        // Edge cache on/off state
+    PCM_Options::EDGE_CACHE_STATUS->value,                         // Edge cache status string
+    PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP->value,                // Last edge cache purge time
+    PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED->value,         // Last single-page edge purge URL
 
     // ── Batcache extension ────────────────────────────────────────────────────
-    PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING,            // Pending "extending batcache" notice flag
+    PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING->value,            // Pending "extending batcache" notice flag
 
     // ── Cache exclusions ──────────────────────────────────────────────────────
-    PCM_Options::EXEMPT_FROM_BATCACHE,                      // Pages excluded from Batcache
-    PCM_Options::EXCLUDE_QUERY_STRING_GCLID,                // GCLID query string exclusion flag
-    PCM_Options::EXCLUDE_QUERY_STRING_GCLID_NOTICE,
+    PCM_Options::EXEMPT_FROM_BATCACHE->value,                      // Pages excluded from Batcache
+    PCM_Options::EXCLUDE_QUERY_STRING_GCLID->value,                // GCLID query string exclusion flag
+    PCM_Options::EXCLUDE_QUERY_STRING_GCLID_NOTICE->value,
 
     // ── WooCommerce product page flush ────────────────────────────────────────
-    PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE,
+    PCM_Options::WOO_INDIVIDUAL_PAGE_NOTICE->value,
 
     // ── Cookie / WP-PP cache ──────────────────────────────────────────────────
-    PCM_Options::CACHE_WPP_COOKIES_PAGES,
-    PCM_Options::CACHE_WPP_COOKIES_PAGES_NOTICE,
+    PCM_Options::CACHE_WPP_COOKIES_PAGES->value,
+    PCM_Options::CACHE_WPP_COOKIES_PAGES_NOTICE->value,
 
     // ── Legacy / CDN options (from older plugin versions) ─────────────────────
     'cdn_settings_tab_options',
@@ -71,7 +71,7 @@ $options_to_delete = array(
     'cdn-cache-purge-time-stamp',
     'cdn-api-state',
     'cdnenabled',
-    PCM_Options::API_ADMIN_NOTICE_STATUS,
+    PCM_Options::API_ADMIN_NOTICE_STATUS->value,
     'pressable_cdn_connection_decactivated_notice',
     'pressable_api_enable_cdn_connection_admin_notice',
     'extend_batcache_activate_notice',
@@ -82,7 +82,7 @@ $options_to_delete = array(
     'exclude_css_from_cdn_activate_notice',
     'exclude_fonts_from_cdn_activate_notice',
     'exempt_batcache_activate_notice',
-    PCM_Options::FLUSH_SINGLE_PAGE_NOTICE,
+    PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value,
     'pressable_site_id',
     'pcm_site_id_added_activate_notice',
     'pcm_site_id_con_res',

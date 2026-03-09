@@ -21,7 +21,7 @@ if (!defined('ABSPATH'))
 $all_wpp_cookies = array();
 if ( is_array( $_COOKIE) && ! empty( $_COOKIE ) ) {
   foreach ( array_keys( $_COOKIE ) as $maybe_wpp ) {
-    if ( substr( $maybe_wpp, 0, 4 ) == 'wpp_' ) {
+    if ( str_starts_with( $maybe_wpp, 'wpp_' ) ) {
       $all_wpp_cookies[] = $maybe_wpp;
     }
   }

@@ -26,7 +26,7 @@ if ( isset( $options['flush_cache_page_edit_checkbox'] ) && ! empty( $options['f
      * @param WP_Post $post     The saved post object.
      * @param bool    $update   True if this is an update, false for a new post.
      */
-    function pcm_flush_batcache_on_page_edit( $post_id, $post, $update ) {
+    function pcm_flush_batcache_on_page_edit( int $post_id, \WP_Post $post, bool $update ): void {
 
         // Skip auto-saves, revisions, and non-published posts
         if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
@@ -79,16 +79,16 @@ if ( isset( $options['flush_cache_page_edit_checkbox'] ) && ! empty( $options['f
         do_action( 'batcache_manager_after_flush', $url );
 
         // Record the flush for display on the settings page
-        $post_type_obj  = get_post_type_object( $post->post_type );
-        $post_type_name = $post_type_obj ? $post_type_obj->labels->singular_name : $post->post_type;
+        $post_type_name = get_post_type_object( $post->post_type )?->labels->singular_name
+            ?? $post->post_type;
 
         $stamp = pcm_format_flush_timestamp()
                . '<b> — cache flushed for ' . esc_html( $post_type_name )
                . ' edit: ' . esc_html( $post->post_title ) . '</b>';
 
-        update_option( PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP, $stamp );
+        update_option( PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP->value, $stamp );
         // Also write the flushed URL so the settings page can show it
-        update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED, $url );
+        update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, $url );
     }
 
     add_action( 'save_post', 'pcm_flush_batcache_on_page_edit', 10, 3 );

@@ -9,9 +9,9 @@ $options = pcm_get_options();
 
 if ( isset( $options['flush_cache_theme_plugin_checkbox'] ) && ! empty( $options['flush_cache_theme_plugin_checkbox'] ) ) {
 
-    function pcm_plugins_themes_update_completed( $upgrader_object, $hook_extra ) {
+    function pcm_plugins_themes_update_completed( object $upgrader_object, array $hook_extra ): void {
 
-        $type = isset( $hook_extra['type'] ) ? $hook_extra['type'] : '';
+        $type = $hook_extra['type'] ?? '';
 
         if ( ! in_array( $type, array( 'plugin', 'theme' ), true ) ) {
             return;
@@ -69,7 +69,7 @@ if ( isset( $options['flush_cache_theme_plugin_checkbox'] ) && ! empty( $options
 
         // ── Build timestamp with bold item name ──────────────────────────────
         $timestamp = pcm_format_flush_timestamp() . ' — <b>' . esc_html( $name ) . ' ' . esc_html( $type ) . ' was updated</b>';
-        update_option( PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP, $timestamp );
+        update_option( PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP->value, $timestamp );
     }
 
     add_action( 'upgrader_process_complete', 'pcm_plugins_themes_update_completed', 10, 2 );

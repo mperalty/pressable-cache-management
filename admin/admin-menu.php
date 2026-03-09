@@ -10,7 +10,7 @@ if (!defined('ABSPATH'))
 }
 
 // add top-level administrative menu
-function pressable_cache_management_add_toplevel_menu()
+function pressable_cache_management_add_toplevel_menu(): void
 {
 
     /*
@@ -32,7 +32,7 @@ function pressable_cache_management_add_toplevel_menu()
 
     $remove_pressable_branding_tab_options  = false;
     
-    $remove_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
+    $remove_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
    
     
 if ($remove_pressable_branding_tab_options && 'disable'  == $remove_pressable_branding_tab_options['branding_on_off_radio_button'] )
@@ -53,7 +53,7 @@ if ($remove_pressable_branding_tab_options && 'disable'  == $remove_pressable_br
 add_action('admin_menu', 'pressable_cache_management_add_toplevel_menu');
 
 //Display admin notices for top level menu
-function plugin_admin_notice()
+function plugin_admin_notice(): void
 {
     //get the current screen
     $screen = get_current_screen();

@@ -16,8 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return bool
  */
-function pcm_opcache_awareness_is_enabled() {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, false ) && current_user_can( 'manage_options' );
+function pcm_opcache_awareness_is_enabled(): bool {
+    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false ) && current_user_can( 'manage_options' );
 
     return (bool) apply_filters( 'pcm_enable_opcache_awareness', $enabled );
 }
@@ -27,14 +27,14 @@ function pcm_opcache_awareness_is_enabled() {
  *
  * @return array
  */
-function pcm_get_opcache_thresholds() {
+function pcm_get_opcache_thresholds(): array {
     $defaults = array(
         'free_warning_percent'     => 10.0,
         'wasted_warning_percent'   => 10.0,
         'restart_critical_count'   => 3,
     );
 
-    $stored = get_option( PCM_Options::OPCACHE_THRESHOLDS_V1, array() );
+    $stored = get_option( PCM_Options::OPCACHE_THRESHOLDS_V1->value, array() );
     if ( ! is_array( $stored ) ) {
         return $defaults;
     }
@@ -55,7 +55,7 @@ class PCM_OPcache_Collector_Service {
     /**
      * @return array
      */
-    public function collect() {
+    public function collect(): array {
         if ( ! pcm_opcache_awareness_is_enabled() ) {
             return array();
         }
@@ -95,7 +95,7 @@ class PCM_OPcache_Collector_Service {
     /**
      * @return array
      */
-    protected function safe_get_status() {
+    protected function safe_get_status(): array {
         if ( ! function_exists( 'opcache_get_status' ) ) {
             return array();
         }
@@ -112,7 +112,7 @@ class PCM_OPcache_Collector_Service {
     /**
      * @return array
      */
-    protected function collect_ini() {
+    protected function collect_ini(): array {
         $keys = array(
             'opcache.enable',
             'opcache.memory_consumption',
@@ -141,7 +141,7 @@ class PCM_OPcache_Collector_Service {
      *
      * @return array
      */
-    protected function normalize_status( $raw_status ) {
+    protected function normalize_status( array $raw_status ): array {
         $opcache_enabled = ! empty( $raw_status['opcache_enabled'] );
         $memory_usage    = isset( $raw_status['memory_usage'] ) && is_array( $raw_status['memory_usage'] ) ? $raw_status['memory_usage'] : array();
         $statistics      = isset( $raw_status['opcache_statistics'] ) && is_array( $raw_status['opcache_statistics'] ) ? $raw_status['opcache_statistics'] : array();
@@ -191,7 +191,7 @@ class PCM_OPcache_Recommendation_Engine {
      *
      * @return array
      */
-    public function evaluate( $snapshot ) {
+    public function evaluate( array $snapshot ): array {
         $health          = 'healthy';
         $recommendations = array();
 
@@ -266,7 +266,7 @@ class PCM_OPcache_Recommendation_Engine {
  *
  * @return float
  */
-function pcm_opcache_percent( $value, $total ) {
+function pcm_opcache_percent( int|float $value, int|float $total ): float {
     $value = (float) $value;
     $total = (float) $total;
 
@@ -280,11 +280,11 @@ function pcm_opcache_percent( $value, $total ) {
 /**
  * Redact/sanitize OPcache snapshot for API/export safety (A4.4).
  *
- * @param array $snapshot Snapshot.
+ * @param mixed $snapshot Snapshot.
  *
  * @return array
  */
-function pcm_opcache_sanitize_snapshot( $snapshot ) {
+function pcm_opcache_sanitize_snapshot( mixed $snapshot ): array {
     $snapshot = is_array( $snapshot ) ? $snapshot : array();
 
     $output = array(
@@ -339,16 +339,14 @@ function pcm_opcache_sanitize_snapshot( $snapshot ) {
  * OPcache snapshot storage (A4.1).
  */
 class PCM_OPcache_Snapshot_Storage {
-    /** @var string */
-    protected $key = 'pcm_opcache_snapshots_v1';
+    protected string $key = 'pcm_opcache_snapshots_v1';
 
-    /** @var int */
-    protected $max_rows = 2000;
+    protected int $max_rows = 2000;
 
     /**
      * @return array
      */
-    public function all() {
+    public function all(): array {
         $rows = get_option( $this->key, array() );
 
         return is_array( $rows ) ? $rows : array();
@@ -359,7 +357,7 @@ class PCM_OPcache_Snapshot_Storage {
      *
      * @return void
      */
-    public function append( $snapshot ) {
+    public function append( array $snapshot ): void {
         $rows   = $this->all();
         $rows[] = pcm_opcache_sanitize_snapshot( $snapshot );
         update_option( $this->key, array_slice( $rows, -1 * $this->max_rows ), false );
@@ -370,20 +368,20 @@ class PCM_OPcache_Snapshot_Storage {
      *
      * @return array
      */
-    public function query( $range = '7d' ) {
+    public function query( string $range = '7d' ): array {
         $days_map = array(
             '24h' => 1,
             '7d'  => 7,
             '30d' => 30,
         );
 
-        $days      = isset( $days_map[ $range ] ) ? $days_map[ $range ] : 7;
+        $days      = $days_map[ $range ] ?? 7;
         $cutoff_ts = time() - ( DAY_IN_SECONDS * $days );
 
         return array_values(
             array_filter(
                 $this->all(),
-                static function ( $row ) use ( $cutoff_ts ) {
+                static function ( array $row ) use ( $cutoff_ts ): bool {
                     $taken_at = isset( $row['taken_at'] ) ? strtotime( $row['taken_at'] ) : 0;
 
                     return $taken_at >= $cutoff_ts;
@@ -397,14 +395,14 @@ class PCM_OPcache_Snapshot_Storage {
      *
      * @return void
      */
-    public function cleanup( $retention_days = 90 ) {
+    public function cleanup( int $retention_days = 90 ): void {
         $retention = max( 7, min( 365, absint( $retention_days ) ) );
         $cutoff_ts = time() - ( DAY_IN_SECONDS * $retention );
 
         $rows = array_values(
             array_filter(
                 $this->all(),
-                static function ( $row ) use ( $cutoff_ts ) {
+                static function ( array $row ) use ( $cutoff_ts ): bool {
                     $taken_at = isset( $row['taken_at'] ) ? strtotime( $row['taken_at'] ) : 0;
 
                     return $taken_at >= $cutoff_ts;
@@ -421,7 +419,7 @@ class PCM_OPcache_Snapshot_Storage {
  *
  * @return array
  */
-function pcm_opcache_collect_and_store_snapshot() {
+function pcm_opcache_collect_and_store_snapshot(): array {
     if ( ! pcm_opcache_awareness_is_enabled() ) {
         return array();
     }
@@ -437,7 +435,7 @@ function pcm_opcache_collect_and_store_snapshot() {
 
     $storage = new PCM_OPcache_Snapshot_Storage();
     $storage->append( $snapshot );
-    $storage->cleanup( (int) get_option( PCM_Options::OPCACHE_RETENTION_DAYS, 90 ) );
+    $storage->cleanup( (int) get_option( PCM_Options::OPCACHE_RETENTION_DAYS->value, 90 ) );
 
     $memory_pressure = isset( $snapshot['memory']['used_memory'], $snapshot['memory']['free_memory'], $snapshot['memory']['wasted_memory'] )
         ? pcm_opcache_percent(
@@ -446,8 +444,8 @@ function pcm_opcache_collect_and_store_snapshot() {
         )
         : 0;
 
-    update_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE, (float) $memory_pressure, false );
-    update_option( PCM_Options::LATEST_OPCACHE_RESTARTS, isset( $snapshot['statistics']['restart_total'] ) ? (float) $snapshot['statistics']['restart_total'] : 0, false );
+    update_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE->value, (float) $memory_pressure, false );
+    update_option( PCM_Options::LATEST_OPCACHE_RESTARTS->value, isset( $snapshot['statistics']['restart_total'] ) ? (float) $snapshot['statistics']['restart_total'] : 0, false );
 
     return $snapshot;
 }
@@ -455,7 +453,7 @@ function pcm_opcache_collect_and_store_snapshot() {
 /**
  * @return array
  */
-function pcm_opcache_get_latest_snapshot() {
+function pcm_opcache_get_latest_snapshot(): array {
     $storage = new PCM_OPcache_Snapshot_Storage();
     $rows    = $storage->all();
 
@@ -473,7 +471,7 @@ function pcm_opcache_get_latest_snapshot() {
  *
  * @return array
  */
-function pcm_opcache_get_trends( $range = '7d' ) {
+function pcm_opcache_get_trends( string $range = '7d' ): array {
     $storage   = new PCM_OPcache_Snapshot_Storage();
     $snapshots = $storage->query( $range );
     $points    = array();
@@ -484,7 +482,7 @@ function pcm_opcache_get_trends( $range = '7d' ) {
         $wasted = isset( $snapshot['memory']['wasted_memory'] ) ? absint( $snapshot['memory']['wasted_memory'] ) : 0;
 
         $points[] = array(
-            'taken_at'        => isset( $snapshot['taken_at'] ) ? $snapshot['taken_at'] : '',
+            'taken_at'        => $snapshot['taken_at'] ?? '',
             'memory_pressure' => pcm_opcache_percent( $used + $wasted, $used + $free + $wasted ),
             'restart_total'   => isset( $snapshot['statistics']['restart_total'] ) ? absint( $snapshot['statistics']['restart_total'] ) : 0,
             'hit_rate'        => isset( $snapshot['statistics']['opcache_hit_rate'] ) ? (float) $snapshot['statistics']['opcache_hit_rate'] : 0,
@@ -500,7 +498,7 @@ function pcm_opcache_get_trends( $range = '7d' ) {
  *
  * @return void
  */
-function pcm_ajax_opcache_snapshot() {
+function pcm_ajax_opcache_snapshot(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -523,7 +521,7 @@ add_action( 'wp_ajax_pcm_opcache_snapshot', 'pcm_ajax_opcache_snapshot' );
  *
  * @return void
  */
-function pcm_ajax_opcache_trends() {
+function pcm_ajax_opcache_trends(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -550,7 +548,7 @@ add_action( 'wp_ajax_pcm_opcache_trends', 'pcm_ajax_opcache_trends' );
  *
  * @return void
  */
-function pcm_opcache_maybe_schedule_collection() {
+function pcm_opcache_maybe_schedule_collection(): void {
     if ( ! pcm_opcache_awareness_is_enabled() ) {
         return;
     }
@@ -566,7 +564,7 @@ add_action( 'init', 'pcm_opcache_maybe_schedule_collection' );
  *
  * @return void
  */
-function pcm_opcache_collect_snapshot() {
+function pcm_opcache_collect_snapshot(): void {
     pcm_opcache_collect_and_store_snapshot();
 }
 add_action( 'pcm_opcache_collect_snapshot', 'pcm_opcache_collect_snapshot' );

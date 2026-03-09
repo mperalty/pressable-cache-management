@@ -9,8 +9,8 @@ $options = pcm_get_options();
 
 if ( isset( $options['extend_batcache_checkbox'] ) && ! empty( $options['extend_batcache_checkbox'] ) ) {
 
-    update_option( PCM_Options::EXTEND_BATCACHE_CHECKBOX, $options['extend_batcache_checkbox'] );
-    $extend_batcache = get_option( PCM_Options::EXTEND_BATCACHE_CHECKBOX );
+    update_option( PCM_Options::EXTEND_BATCACHE_CHECKBOX->value, $options['extend_batcache_checkbox'] );
+    $extend_batcache = get_option( PCM_Options::EXTEND_BATCACHE_CHECKBOX->value );
 
     // Create the mu-plugin index file if it doesn't exist
     $pcm_mu_plugins_index = WP_CONTENT_DIR . '/mu-plugins/pressable-cache-management.php';
@@ -32,7 +32,7 @@ if ( isset( $options['extend_batcache_checkbox'] ) && ! empty( $options['extend_
         wp_cache_flush();
         if ( copy( $obj_extend_batcache_source, $obj_extend_batcache_active ) ) {
             // Mark notice as pending — will show ONCE on next admin page load, then clear itself
-            update_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING, '1' );
+            update_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING->value, '1' );
         }
     }
     // If file already exists: checkbox was already on before this load — do NOT re-queue notice
@@ -40,7 +40,7 @@ if ( isset( $options['extend_batcache_checkbox'] ) && ! empty( $options['extend_
 } else {
 
     // Checkbox is OFF — clear the notice flag and remove the mu-plugin
-    delete_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING );
+    delete_option( PCM_Options::EXTEND_BATCACHE_NOTICE_PENDING->value );
 
     $obj_extend_batcache = WP_CONTENT_DIR . '/mu-plugins/pressable-cache-management/pcm_extend_batcache.php';
     if ( file_exists( $obj_extend_batcache ) ) {

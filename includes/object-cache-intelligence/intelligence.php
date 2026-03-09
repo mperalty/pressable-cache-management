@@ -16,8 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return bool
  */
-function pcm_object_cache_intelligence_is_enabled() {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, false );
+function pcm_object_cache_intelligence_is_enabled(): bool {
+    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
 
     return (bool) apply_filters( 'pcm_enable_object_cache_intelligence', $enabled );
 }
@@ -29,16 +29,16 @@ interface PCM_Object_Cache_Stats_Provider_Interface {
     /**
      * Return a normalized metrics payload.
      *
-     * @return array
+     * @return array<string, mixed>
      */
-    public function get_metrics();
+    public function get_metrics(): array;
 
     /**
      * Identifier for active provider.
      *
      * @return string
      */
-    public function get_provider_key();
+    public function get_provider_key(): string;
 }
 
 /**
@@ -48,14 +48,14 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     /**
      * @return string
      */
-    public function get_provider_key() {
+    public function get_provider_key(): string {
         return 'dropin';
     }
 
     /**
-     * @return array
+     * @return array<string, mixed>
      */
-    public function get_metrics() {
+    public function get_metrics(): array {
         global $wp_object_cache;
 
         if ( ! is_object( $wp_object_cache ) ) {
@@ -77,25 +77,25 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             $parsed_text   = $this->parse_dropin_stats_text( $stats_text );
             $parsed_struct = $this->parse_dropin_stats_struct( $stats_result );
 
-            $hits      = null !== $parsed_text['hits'] ? $parsed_text['hits'] : $hits;
-            $hits      = null !== $parsed_struct['hits'] ? $parsed_struct['hits'] : $hits;
-            $misses    = null !== $parsed_text['misses'] ? $parsed_text['misses'] : $misses;
-            $misses    = null !== $parsed_struct['misses'] ? $parsed_struct['misses'] : $misses;
-            $evictions = null !== $parsed_text['evictions'] ? $parsed_text['evictions'] : $evictions;
-            $evictions = null !== $parsed_struct['evictions'] ? $parsed_struct['evictions'] : $evictions;
-            $bytes     = null !== $parsed_text['bytes_used'] ? $parsed_text['bytes_used'] : $bytes;
-            $bytes     = null !== $parsed_struct['bytes_used'] ? $parsed_struct['bytes_used'] : $bytes;
-            $limit     = null !== $parsed_text['bytes_limit'] ? $parsed_text['bytes_limit'] : $limit;
-            $limit     = null !== $parsed_struct['bytes_limit'] ? $parsed_struct['bytes_limit'] : $limit;
+            $hits      = $parsed_text['hits'] ?? $hits;
+            $hits      = $parsed_struct['hits'] ?? $hits;
+            $misses    = $parsed_text['misses'] ?? $misses;
+            $misses    = $parsed_struct['misses'] ?? $misses;
+            $evictions = $parsed_text['evictions'] ?? $evictions;
+            $evictions = $parsed_struct['evictions'] ?? $evictions;
+            $bytes     = $parsed_text['bytes_used'] ?? $bytes;
+            $bytes     = $parsed_struct['bytes_used'] ?? $bytes;
+            $limit     = $parsed_text['bytes_limit'] ?? $limit;
+            $limit     = $parsed_struct['bytes_limit'] ?? $limit;
         }
 
         $client_stats = $this->get_client_stats( $wp_object_cache );
         if ( ! empty( $client_stats ) ) {
-            $hits      = null !== $client_stats['hits'] ? $client_stats['hits'] : $hits;
-            $misses    = null !== $client_stats['misses'] ? $client_stats['misses'] : $misses;
-            $evictions = null !== $client_stats['evictions'] ? $client_stats['evictions'] : $evictions;
-            $bytes     = null !== $client_stats['bytes_used'] ? $client_stats['bytes_used'] : $bytes;
-            $limit     = null !== $client_stats['bytes_limit'] ? $client_stats['bytes_limit'] : $limit;
+            $hits      = $client_stats['hits'] ?? $hits;
+            $misses    = $client_stats['misses'] ?? $misses;
+            $evictions = $client_stats['evictions'] ?? $evictions;
+            $bytes     = $client_stats['bytes_used'] ?? $bytes;
+            $limit     = $client_stats['bytes_limit'] ?? $limit;
         }
 
         return array(
@@ -108,12 +108,12 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             'bytes_used'    => $bytes,
             'bytes_limit'   => $limit,
             'meta'          => array(
-                'curr_items'       => isset( $client_stats['curr_items'] ) ? $client_stats['curr_items'] : null,
-                'total_items'      => isset( $client_stats['total_items'] ) ? $client_stats['total_items'] : null,
-                'curr_connections' => isset( $client_stats['curr_connections'] ) ? $client_stats['curr_connections'] : null,
-                'uptime_seconds'   => isset( $client_stats['uptime'] ) ? $client_stats['uptime'] : null,
+                'curr_items'       => $client_stats['curr_items'] ?? null,
+                'total_items'      => $client_stats['total_items'] ?? null,
+                'curr_connections' => $client_stats['curr_connections'] ?? null,
+                'uptime_seconds'   => $client_stats['uptime'] ?? null,
                 'uptime_human'     => isset( $client_stats['uptime'] ) ? pcm_object_cache_format_uptime( $client_stats['uptime'] ) : null,
-                'nodes_reported'   => isset( $client_stats['nodes_reported'] ) ? $client_stats['nodes_reported'] : null,
+                'nodes_reported'   => $client_stats['nodes_reported'] ?? null,
             ),
         );
     }
@@ -125,7 +125,7 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
      *
      * @return object|null
      */
-    protected function get_underlying_client( $wp_object_cache ) {
+    protected function get_underlying_client( object $wp_object_cache ): ?object {
         foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client' ) as $prop ) {
             if ( ! isset( $wp_object_cache->{$prop} ) || ! is_object( $wp_object_cache->{$prop} ) ) {
                 continue;
@@ -144,9 +144,9 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
      *
      * @param object $wp_object_cache Active object cache drop-in instance.
      *
-     * @return array
+     * @return array<string, int|null>
      */
-    protected function get_client_stats( $wp_object_cache ) {
+    protected function get_client_stats( object $wp_object_cache ): array {
         $client = $this->get_underlying_client( $wp_object_cache );
         if ( ! $client ) {
             return array();
@@ -221,13 +221,13 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     /**
      * Read one metric from known drop-in properties.
      *
-     * @param object $wp_object_cache Active object cache drop-in instance.
-     * @param array  $keys            Candidate keys.
+     * @param object        $wp_object_cache Active object cache drop-in instance.
+     * @param array<string> $keys            Candidate keys.
      *
      * @return int|null
      */
-    protected function read_metric_from_dropin( $wp_object_cache, $keys ) {
-        $value = $this->extract_metric_value( $wp_object_cache, (array) $keys );
+    protected function read_metric_from_dropin( object $wp_object_cache, array $keys ): ?int {
+        $value = $this->extract_metric_value( $wp_object_cache, $keys );
 
         return null === $value ? null : absint( $value );
     }
@@ -237,9 +237,9 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
      *
      * @param mixed $stats_result Return value from $wp_object_cache->stats().
      *
-     * @return array
+     * @return array<string, int|null>
      */
-    protected function parse_dropin_stats_struct( $stats_result ) {
+    protected function parse_dropin_stats_struct( mixed $stats_result ): array {
         return array(
             'hits'       => $this->extract_metric_value( $stats_result, array( 'get_hits', 'cache_hits', 'hits' ) ),
             'misses'     => $this->extract_metric_value( $stats_result, array( 'get_misses', 'cache_misses', 'misses' ) ),
@@ -252,17 +252,17 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     /**
      * Recursively read numeric metric values from nested array/object structures.
      *
-     * @param mixed $source Value to inspect.
-     * @param array $keys   Candidate keys.
+     * @param mixed          $source Value to inspect.
+     * @param array<string>  $keys   Candidate keys.
      *
      * @return int|null
      */
-    protected function extract_metric_value( $source, $keys ) {
+    protected function extract_metric_value( mixed $source, array $keys ): ?int {
         if ( is_scalar( $source ) || null === $source ) {
             return null;
         }
 
-        $normalized_keys = array_map( 'strtolower', array_map( 'strval', (array) $keys ) );
+        $normalized_keys = array_map( 'strtolower', array_map( 'strval', $keys ) );
         $stack           = array( $source );
         $sum             = null;
 
@@ -296,7 +296,14 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
         return $sum;
     }
 
-    protected function parse_dropin_stats_text( $stats_text ) {
+    /**
+     * Parse text output from drop-in stats method.
+     *
+     * @param string $stats_text Stats text output.
+     *
+     * @return array<string, int|null>
+     */
+    protected function parse_dropin_stats_text( string $stats_text ): array {
         $output = array(
             'hits'       => null,
             'misses'     => null,
@@ -340,14 +347,14 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
     /**
      * @return string
      */
-    public function get_provider_key() {
+    public function get_provider_key(): string {
         return 'memcached_extension';
     }
 
     /**
-     * @return array
+     * @return array<string, mixed>
      */
-    public function get_metrics() {
+    public function get_metrics(): array {
         if ( ! class_exists( 'Memcached' ) ) {
             return array();
         }
@@ -357,8 +364,8 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
         $server_ok = false;
 
         foreach ( $servers as $server ) {
-            $host = isset( $server['host'] ) ? $server['host'] : '';
-            $port = isset( $server['port'] ) ? $server['port'] : 11211;
+            $host = $server['host'] ?? '';
+            $port = $server['port'] ?? 11211;
 
             if ( '' === $host ) {
                 continue;
@@ -433,14 +440,14 @@ class PCM_Object_Cache_Memcache_Extension_Stats_Provider implements PCM_Object_C
     /**
      * @return string
      */
-    public function get_provider_key() {
+    public function get_provider_key(): string {
         return 'memcache_extension';
     }
 
     /**
-     * @return array
+     * @return array<string, mixed>
      */
-    public function get_metrics() {
+    public function get_metrics(): array {
         if ( ! class_exists( 'Memcache' ) ) {
             return array();
         }
@@ -453,7 +460,7 @@ class PCM_Object_Cache_Memcache_Extension_Stats_Provider implements PCM_Object_C
         $all_stats = array();
 
         foreach ( $servers as $server ) {
-            $host = isset( $server['host'] ) ? $server['host'] : '';
+            $host = $server['host'] ?? '';
             $port = isset( $server['port'] ) ? absint( $server['port'] ) : 11211;
 
             if ( '' === $host ) {
@@ -534,14 +541,14 @@ class PCM_Object_Cache_Null_Stats_Provider implements PCM_Object_Cache_Stats_Pro
     /**
      * @return string
      */
-    public function get_provider_key() {
+    public function get_provider_key(): string {
         return 'none';
     }
 
     /**
-     * @return array
+     * @return array<string, mixed>
      */
-    public function get_metrics() {
+    public function get_metrics(): array {
         return array(
             'provider'      => $this->get_provider_key(),
             'status'        => 'offline',
@@ -565,7 +572,7 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
     /**
      * @return PCM_Object_Cache_Stats_Provider_Interface
      */
-    public function resolve() {
+    public function resolve(): PCM_Object_Cache_Stats_Provider_Interface {
         $providers = array(
             new PCM_Object_Cache_Dropin_Stats_Provider(),
             new PCM_Object_Cache_Memcached_Extension_Stats_Provider(),
@@ -588,11 +595,11 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
  */
 class PCM_Object_Cache_Health_Evaluator {
     /**
-     * @param array $metrics Metrics payload.
+     * @param array<string, mixed> $metrics Metrics payload.
      *
-     * @return array
+     * @return array{health: string, recommendations: array<int, array<string, mixed>>}
      */
-    public function evaluate( $metrics ) {
+    public function evaluate( array $metrics ): array {
         $health = 'connected';
         $recommendations = array();
 
@@ -660,27 +667,28 @@ class PCM_Object_Cache_Health_Evaluator {
  * Facade service used by admin UI/scheduler in future slices.
  */
 class PCM_Object_Cache_Intelligence_Service {
-    /** @var PCM_Object_Cache_Stats_Provider_Resolver */
-    protected $resolver;
+    protected PCM_Object_Cache_Stats_Provider_Resolver $resolver;
 
-    /** @var PCM_Object_Cache_Health_Evaluator */
-    protected $evaluator;
+    protected PCM_Object_Cache_Health_Evaluator $evaluator;
 
     /**
-     * @param PCM_Object_Cache_Stats_Provider_Resolver|null $resolver Resolver dependency.
+     * @param PCM_Object_Cache_Stats_Provider_Resolver|null $resolver  Resolver dependency.
      * @param PCM_Object_Cache_Health_Evaluator|null        $evaluator Evaluator dependency.
      */
-    public function __construct( $resolver = null, $evaluator = null ) {
-        $this->resolver  = $resolver ? $resolver : new PCM_Object_Cache_Stats_Provider_Resolver();
-        $this->evaluator = $evaluator ? $evaluator : new PCM_Object_Cache_Health_Evaluator();
+    public function __construct(
+        ?PCM_Object_Cache_Stats_Provider_Resolver $resolver = null,
+        ?PCM_Object_Cache_Health_Evaluator $evaluator = null,
+    ) {
+        $this->resolver  = $resolver ?? new PCM_Object_Cache_Stats_Provider_Resolver();
+        $this->evaluator = $evaluator ?? new PCM_Object_Cache_Health_Evaluator();
     }
 
     /**
      * Collect one normalized intelligence payload.
      *
-     * @return array
+     * @return array<string, mixed>
      */
-    public function collect_snapshot() {
+    public function collect_snapshot(): array {
         if ( ! pcm_object_cache_intelligence_is_enabled() ) {
             return array();
         }
@@ -692,17 +700,17 @@ class PCM_Object_Cache_Intelligence_Service {
         return array(
             'taken_at'         => current_time( 'mysql', true ),
             'provider'         => $provider->get_provider_key(),
-            'status'           => isset( $metrics['status'] ) ? $metrics['status'] : 'offline',
+            'status'           => $metrics['status'] ?? 'offline',
             'health'           => $derived['health'],
-            'hits'             => isset( $metrics['hits'] ) ? $metrics['hits'] : null,
-            'misses'           => isset( $metrics['misses'] ) ? $metrics['misses'] : null,
-            'hit_ratio'        => isset( $metrics['hit_ratio'] ) ? $metrics['hit_ratio'] : null,
-            'evictions'        => isset( $metrics['evictions'] ) ? $metrics['evictions'] : null,
-            'bytes_used'       => isset( $metrics['bytes_used'] ) ? $metrics['bytes_used'] : null,
-            'bytes_limit'      => isset( $metrics['bytes_limit'] ) ? $metrics['bytes_limit'] : null,
+            'hits'             => $metrics['hits'] ?? null,
+            'misses'           => $metrics['misses'] ?? null,
+            'hit_ratio'        => $metrics['hit_ratio'] ?? null,
+            'evictions'        => $metrics['evictions'] ?? null,
+            'bytes_used'       => $metrics['bytes_used'] ?? null,
+            'bytes_limit'      => $metrics['bytes_limit'] ?? null,
             'memory_pressure'  => pcm_calculate_memory_pressure( $metrics ),
             'recommendations'  => $derived['recommendations'],
-            'meta'             => isset( $metrics['meta'] ) ? $metrics['meta'] : array(),
+            'meta'             => $metrics['meta'] ?? array(),
         );
     }
 }
@@ -713,7 +721,7 @@ class PCM_Object_Cache_Intelligence_Service {
  *
  * @return float|null
  */
-function pcm_calculate_hit_ratio( $hits, $misses ) {
+function pcm_calculate_hit_ratio( ?int $hits, ?int $misses ): ?float {
     if ( null === $hits || null === $misses ) {
         return null;
     }
@@ -727,11 +735,11 @@ function pcm_calculate_hit_ratio( $hits, $misses ) {
 }
 
 /**
- * @param array $metrics Metrics payload.
+ * @param array<string, mixed> $metrics Metrics payload.
  *
  * @return float
  */
-function pcm_calculate_memory_pressure( $metrics ) {
+function pcm_calculate_memory_pressure( array $metrics ): float {
     $used  = isset( $metrics['bytes_used'] ) ? absint( $metrics['bytes_used'] ) : 0;
     $limit = isset( $metrics['bytes_limit'] ) ? absint( $metrics['bytes_limit'] ) : 0;
 
@@ -745,7 +753,7 @@ function pcm_calculate_memory_pressure( $metrics ) {
 /**
  * @return array<int,array{host:string,port:int}>
  */
-function pcm_object_cache_memcached_servers_from_constant() {
+function pcm_object_cache_memcached_servers_from_constant(): array {
     $servers = array();
 
     if ( ! defined( 'WP_MEMCACHED_SERVERS' ) || ! is_array( WP_MEMCACHED_SERVERS ) ) {
@@ -777,7 +785,7 @@ function pcm_object_cache_memcached_servers_from_constant() {
  *
  * @return array<string,int|string>
  */
-function pcm_object_cache_parse_memcache_server( $server_def ) {
+function pcm_object_cache_parse_memcache_server( mixed $server_def ): array {
     $parts = explode( ':', (string) $server_def );
     $host  = isset( $parts[0] ) ? sanitize_text_field( $parts[0] ) : '';
     $port  = isset( $parts[1] ) ? absint( $parts[1] ) : 11211;
@@ -797,7 +805,7 @@ function pcm_object_cache_parse_memcache_server( $server_def ) {
  *
  * @return float
  */
-function pcm_object_cache_bytes_to_gb( $bytes ) {
+function pcm_object_cache_bytes_to_gb( int $bytes ): float {
     return round( absint( $bytes ) / 1024 / 1024 / 1024, 2 );
 }
 
@@ -806,7 +814,7 @@ function pcm_object_cache_bytes_to_gb( $bytes ) {
  *
  * @return string
  */
-function pcm_object_cache_format_uptime( $uptime_seconds ) {
+function pcm_object_cache_format_uptime( int $uptime_seconds ): string {
     $uptime = absint( $uptime_seconds );
     if ( $uptime <= 0 ) {
         return 'n/a';
@@ -824,27 +832,25 @@ function pcm_object_cache_format_uptime( $uptime_seconds ) {
  * Snapshot storage for object cache intelligence (A3.1).
  */
 class PCM_Object_Cache_Snapshot_Storage {
-    /** @var string */
-    protected $key = 'pcm_object_cache_snapshots_v1';
+    protected string $key = 'pcm_object_cache_snapshots_v1';
 
-    /** @var int */
-    protected $max_rows = 2000;
+    protected int $max_rows = 2000;
 
     /**
-     * @return array
+     * @return array<int, array<string, mixed>>
      */
-    public function all() {
+    public function all(): array {
         $rows = get_option( $this->key, array() );
 
         return is_array( $rows ) ? $rows : array();
     }
 
     /**
-     * @param array $snapshot Snapshot.
+     * @param array<string, mixed> $snapshot Snapshot.
      *
      * @return void
      */
-    public function append( $snapshot ) {
+    public function append( array $snapshot ): void {
         $rows   = $this->all();
         $rows[] = $snapshot;
         update_option( $this->key, array_slice( $rows, -1 * $this->max_rows ), false );
@@ -853,9 +859,9 @@ class PCM_Object_Cache_Snapshot_Storage {
     /**
      * @param string $range 24h|7d|30d
      *
-     * @return array
+     * @return array<int, array<string, mixed>>
      */
-    public function query( $range = '7d' ) {
+    public function query( string $range = '7d' ): array {
         $days_map = array(
             '24h' => 1,
             '7d'  => 7,
@@ -868,7 +874,7 @@ class PCM_Object_Cache_Snapshot_Storage {
         return array_values(
             array_filter(
                 $this->all(),
-                static function ( $row ) use ( $cutoff_ts ) {
+                static function ( array $row ) use ( $cutoff_ts ): bool {
                     $taken_at = isset( $row['taken_at'] ) ? strtotime( $row['taken_at'] ) : 0;
 
                     return $taken_at >= $cutoff_ts;
@@ -882,14 +888,14 @@ class PCM_Object_Cache_Snapshot_Storage {
      *
      * @return void
      */
-    public function cleanup( $retention_days = 90 ) {
+    public function cleanup( int $retention_days = 90 ): void {
         $retention = max( 7, min( 365, absint( $retention_days ) ) );
         $cutoff_ts = time() - ( DAY_IN_SECONDS * $retention );
 
         $rows = array_values(
             array_filter(
                 $this->all(),
-                static function ( $row ) use ( $cutoff_ts ) {
+                static function ( array $row ) use ( $cutoff_ts ): bool {
                     $taken_at = isset( $row['taken_at'] ) ? strtotime( $row['taken_at'] ) : 0;
 
                     return $taken_at >= $cutoff_ts;
@@ -904,9 +910,9 @@ class PCM_Object_Cache_Snapshot_Storage {
 /**
  * Persist one snapshot and return it.
  *
- * @return array
+ * @return array<string, mixed>
  */
-function pcm_object_cache_collect_and_store_snapshot() {
+function pcm_object_cache_collect_and_store_snapshot(): array {
     if ( ! pcm_object_cache_intelligence_is_enabled() ) {
         return array();
     }
@@ -920,10 +926,10 @@ function pcm_object_cache_collect_and_store_snapshot() {
 
     $storage = new PCM_Object_Cache_Snapshot_Storage();
     $storage->append( $snapshot );
-    $storage->cleanup( (int) get_option( PCM_Options::OBJECT_CACHE_RETENTION_DAYS, 90 ) );
+    $storage->cleanup( (int) get_option( PCM_Options::OBJECT_CACHE_RETENTION_DAYS->value, 90 ) );
 
-    update_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO, isset( $snapshot['hit_ratio'] ) ? (float) $snapshot['hit_ratio'] : 0, false );
-    update_option( PCM_Options::LATEST_OBJECT_CACHE_EVICTIONS, isset( $snapshot['evictions'] ) ? (float) $snapshot['evictions'] : 0, false );
+    update_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, isset( $snapshot['hit_ratio'] ) ? (float) $snapshot['hit_ratio'] : 0, false );
+    update_option( PCM_Options::LATEST_OBJECT_CACHE_EVICTIONS->value, isset( $snapshot['evictions'] ) ? (float) $snapshot['evictions'] : 0, false );
 
     return $snapshot;
 }
@@ -931,9 +937,9 @@ function pcm_object_cache_collect_and_store_snapshot() {
 /**
  * Fetch latest stored snapshot, collecting one if missing.
  *
- * @return array
+ * @return array<string, mixed>
  */
-function pcm_object_cache_get_latest_snapshot() {
+function pcm_object_cache_get_latest_snapshot(): array {
     $storage = new PCM_Object_Cache_Snapshot_Storage();
     $rows    = $storage->all();
 
@@ -951,9 +957,9 @@ function pcm_object_cache_get_latest_snapshot() {
  *
  * @param string $range Range.
  *
- * @return array
+ * @return array<int, array<string, mixed>>
  */
-function pcm_object_cache_get_trends( $range = '7d' ) {
+function pcm_object_cache_get_trends( string $range = '7d' ): array {
     $storage   = new PCM_Object_Cache_Snapshot_Storage();
     $snapshots = $storage->query( $range );
 
@@ -961,7 +967,7 @@ function pcm_object_cache_get_trends( $range = '7d' ) {
 
     foreach ( $snapshots as $snapshot ) {
         $points[] = array(
-            'taken_at'        => isset( $snapshot['taken_at'] ) ? $snapshot['taken_at'] : '',
+            'taken_at'        => $snapshot['taken_at'] ?? '',
             'hit_ratio'       => isset( $snapshot['hit_ratio'] ) ? (float) $snapshot['hit_ratio'] : null,
             'evictions'       => isset( $snapshot['evictions'] ) ? (float) $snapshot['evictions'] : null,
             'memory_pressure' => isset( $snapshot['memory_pressure'] ) ? (float) $snapshot['memory_pressure'] : 0,
@@ -975,39 +981,37 @@ function pcm_object_cache_get_trends( $range = '7d' ) {
  * Storage for per-route memcache sensitivity assessments.
  */
 class PCM_Object_Cache_Route_Sensitivity_Storage {
-    /** @var string */
-    protected $key = 'pcm_route_memcache_sensitivity_v1';
+    protected string $key = 'pcm_route_memcache_sensitivity_v1';
 
-    /** @var int */
-    protected $max_rows = 5000;
+    protected int $max_rows = 5000;
 
     /**
-     * @return array
+     * @return array<int, array<string, mixed>>
      */
-    public function all() {
+    public function all(): array {
         $rows = get_option( $this->key, array() );
 
         return is_array( $rows ) ? $rows : array();
     }
 
     /**
-     * @param array $rows Rows.
+     * @param array<int, array<string, mixed>> $rows Rows.
      *
      * @return void
      */
-    public function replace( $rows ) {
-        update_option( $this->key, array_slice( array_values( (array) $rows ), -1 * $this->max_rows ), false );
+    public function replace( array $rows ): void {
+        update_option( $this->key, array_slice( array_values( $rows ), -1 * $this->max_rows ), false );
     }
 
     /**
      * @param int    $run_id Run ID.
      * @param string $route Route key.
      *
-     * @return array|null
+     * @return array<string, mixed>|null
      */
-    public function get_for_run_route( $run_id, $route ) {
+    public function get_for_run_route( int $run_id, string $route ): ?array {
         foreach ( array_reverse( $this->all() ) as $row ) {
-            if ( (int) $run_id === (int) $row['run_id'] && (string) $route === (string) $row['route'] ) {
+            if ( $run_id === (int) $row['run_id'] && $route === (string) $row['route'] ) {
                 return $row;
             }
         }
@@ -1016,11 +1020,11 @@ class PCM_Object_Cache_Route_Sensitivity_Storage {
     }
 
     /**
-     * @param array $assessments Rows.
+     * @param array<int, array<string, mixed>> $assessments Rows.
      *
      * @return void
      */
-    public function upsert_batch( $assessments ) {
+    public function upsert_batch( array $assessments ): void {
         $existing = $this->all();
         $index    = array();
 
@@ -1031,8 +1035,8 @@ class PCM_Object_Cache_Route_Sensitivity_Storage {
         $filtered = array_values(
             array_filter(
                 $existing,
-                static function ( $row ) use ( $index ) {
-                    $key = (int) ( isset( $row['run_id'] ) ? $row['run_id'] : 0 ) . '|' . (string) ( isset( $row['route'] ) ? $row['route'] : '' );
+                static function ( array $row ) use ( $index ): bool {
+                    $key = (int) ( $row['run_id'] ?? 0 ) . '|' . (string) ( $row['route'] ?? '' );
 
                     return ! isset( $index[ $key ] );
                 }
@@ -1047,7 +1051,7 @@ class PCM_Object_Cache_Route_Sensitivity_Storage {
      *
      * @return void
      */
-    public function cleanup( $retention_days = 90 ) {
+    public function cleanup( int $retention_days = 90 ): void {
         $retention = max( 7, min( 365, absint( $retention_days ) ) );
         $cutoff_ts = time() - ( DAY_IN_SECONDS * $retention );
 
@@ -1055,7 +1059,7 @@ class PCM_Object_Cache_Route_Sensitivity_Storage {
             array_values(
                 array_filter(
                     $this->all(),
-                    static function ( $row ) use ( $cutoff_ts ) {
+                    static function ( array $row ) use ( $cutoff_ts ): bool {
                         $taken_at = isset( $row['assessed_at'] ) ? strtotime( $row['assessed_at'] ) : 0;
 
                         return $taken_at >= $cutoff_ts;
@@ -1073,9 +1077,9 @@ class PCM_Object_Cache_Route_Correlation_Service {
     /**
      * @param int $run_id Run ID. 0 means latest completed run.
      *
-     * @return array
+     * @return array<string, mixed>
      */
-    public function correlate_latest( $run_id = 0 ) {
+    public function correlate_latest( int $run_id = 0 ): array {
         global $wpdb;
 
         $snapshot = pcm_object_cache_get_latest_snapshot();
@@ -1126,7 +1130,7 @@ class PCM_Object_Cache_Route_Correlation_Service {
             }
 
             $route = pcm_object_cache_route_from_url( $url );
-            $calc  = pcm_object_cache_calculate_memcache_sensitivity( $score, isset( $grouped_findings[ $url ] ) ? $grouped_findings[ $url ] : array(), $snapshot );
+            $calc  = pcm_object_cache_calculate_memcache_sensitivity( $score, $grouped_findings[ $url ] ?? array(), $snapshot );
 
             if ( ! isset( $route_groups[ $route ] ) ) {
                 $route_groups[ $route ] = array(
@@ -1181,7 +1185,7 @@ class PCM_Object_Cache_Route_Correlation_Service {
 
         $storage = new PCM_Object_Cache_Route_Sensitivity_Storage();
         $storage->upsert_batch( $rows );
-        $storage->cleanup( (int) get_option( PCM_Options::OBJECT_CACHE_RETENTION_DAYS, 90 ) );
+        $storage->cleanup( (int) get_option( PCM_Options::OBJECT_CACHE_RETENTION_DAYS->value, 90 ) );
 
         $high_count = 0;
         foreach ( $rows as $row ) {
@@ -1205,8 +1209,8 @@ class PCM_Object_Cache_Route_Correlation_Service {
  *
  * @return string
  */
-function pcm_object_cache_route_from_url( $url ) {
-    $path = wp_parse_url( (string) $url, PHP_URL_PATH );
+function pcm_object_cache_route_from_url( string $url ): string {
+    $path = wp_parse_url( $url, PHP_URL_PATH );
     if ( ! is_string( $path ) || '' === $path ) {
         return '/';
     }
@@ -1215,13 +1219,13 @@ function pcm_object_cache_route_from_url( $url ) {
 }
 
 /**
- * @param int   $score Cacheability score.
- * @param array $findings Findings for URL.
- * @param array $snapshot Object cache snapshot.
+ * @param int                          $score    Cacheability score.
+ * @param array<int, array<string, mixed>> $findings Findings for URL.
+ * @param array<string, mixed>         $snapshot Object cache snapshot.
  *
- * @return array
+ * @return array<string, mixed>
  */
-function pcm_object_cache_calculate_memcache_sensitivity( $score, $findings, $snapshot ) {
+function pcm_object_cache_calculate_memcache_sensitivity( int $score, array $findings, array $snapshot ): array {
     $score     = max( 0, min( 100, absint( $score ) ) );
     $hit_ratio = isset( $snapshot['hit_ratio'] ) ? (float) $snapshot['hit_ratio'] : 0.0;
     $evictions = isset( $snapshot['evictions'] ) ? (float) $snapshot['evictions'] : 0.0;
@@ -1231,7 +1235,7 @@ function pcm_object_cache_calculate_memcache_sensitivity( $score, $findings, $sn
     $warning  = 0;
     $expensive_signals = 0;
 
-    foreach ( (array) $findings as $finding ) {
+    foreach ( $findings as $finding ) {
         $severity = isset( $finding['severity'] ) ? sanitize_key( $finding['severity'] ) : '';
         $rule_id  = isset( $finding['rule_id'] ) ? sanitize_key( $finding['rule_id'] ) : '';
 
@@ -1245,7 +1249,7 @@ function pcm_object_cache_calculate_memcache_sensitivity( $score, $findings, $sn
             $expensive_signals += $count;
         }
 
-        if ( false !== strpos( $rule_id, 'cookie' ) || false !== strpos( $rule_id, 'vary' ) || false !== strpos( $rule_id, 'query' ) || false !== strpos( $rule_id, 'nocache' ) ) {
+        if ( str_contains( $rule_id, 'cookie' ) || str_contains( $rule_id, 'vary' ) || str_contains( $rule_id, 'query' ) || str_contains( $rule_id, 'nocache' ) ) {
             $expensive_signals += 1;
         }
     }
@@ -1289,9 +1293,9 @@ function pcm_object_cache_calculate_memcache_sensitivity( $score, $findings, $sn
 /**
  * @param string $range 24h|7d|30d
  *
- * @return array
+ * @return array<string, mixed>
  */
-function pcm_object_cache_memcache_sensitivity_summary( $range = '24h' ) {
+function pcm_object_cache_memcache_sensitivity_summary( string $range = '24h' ): array {
     $storage = new PCM_Object_Cache_Route_Sensitivity_Storage();
     $rows    = $storage->all();
 
@@ -1305,7 +1309,7 @@ function pcm_object_cache_memcache_sensitivity_summary( $range = '24h' ) {
     $filtered = array_values(
         array_filter(
             $rows,
-            static function ( $row ) use ( $cutoff ) {
+            static function ( array $row ) use ( $cutoff ): bool {
                 $ts = isset( $row['assessed_at'] ) ? strtotime( $row['assessed_at'] ) : 0;
 
                 return $ts >= $cutoff;
@@ -1315,7 +1319,7 @@ function pcm_object_cache_memcache_sensitivity_summary( $range = '24h' ) {
 
     $high_routes = array();
     foreach ( $filtered as $row ) {
-        if ( 'high' !== ( isset( $row['memcache_sensitivity'] ) ? $row['memcache_sensitivity'] : '' ) ) {
+        if ( 'high' !== ( $row['memcache_sensitivity'] ?? '' ) ) {
             continue;
         }
         $high_routes[ (string) $row['route'] ] = true;
@@ -1333,7 +1337,7 @@ function pcm_object_cache_memcache_sensitivity_summary( $range = '24h' ) {
  *
  * @return void
  */
-function pcm_ajax_object_cache_snapshot() {
+function pcm_ajax_object_cache_snapshot(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1362,7 +1366,7 @@ add_action( 'wp_ajax_pcm_object_cache_snapshot', 'pcm_ajax_object_cache_snapshot
  *
  * @return void
  */
-function pcm_ajax_object_cache_trends() {
+function pcm_ajax_object_cache_trends(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1395,7 +1399,7 @@ add_action( 'wp_ajax_pcm_object_cache_trends', 'pcm_ajax_object_cache_trends' );
  *
  * @return void
  */
-function pcm_ajax_route_memcache_sensitivity() {
+function pcm_ajax_route_memcache_sensitivity(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1414,12 +1418,12 @@ function pcm_ajax_route_memcache_sensitivity() {
     $routes = isset( $result['routes'] ) ? (array) $result['routes'] : array();
     usort(
         $routes,
-        static function ( $a, $b ) {
+        static function ( array $a, array $b ): int {
             $rank = array( 'high' => 3, 'medium' => 2, 'low' => 1 );
-            $a_s  = isset( $a['memcache_sensitivity'] ) ? $a['memcache_sensitivity'] : 'low';
-            $b_s  = isset( $b['memcache_sensitivity'] ) ? $b['memcache_sensitivity'] : 'low';
-            $a_r  = isset( $rank[ $a_s ] ) ? $rank[ $a_s ] : 0;
-            $b_r  = isset( $rank[ $b_s ] ) ? $rank[ $b_s ] : 0;
+            $a_s  = $a['memcache_sensitivity'] ?? 'low';
+            $b_s  = $b['memcache_sensitivity'] ?? 'low';
+            $a_r  = $rank[ $a_s ] ?? 0;
+            $b_r  = $rank[ $b_s ] ?? 0;
 
             if ( $a_r === $b_r ) {
                 $a_score = isset( $a['metrics']['score'] ) ? (int) $a['metrics']['score'] : 0;
@@ -1438,7 +1442,7 @@ function pcm_ajax_route_memcache_sensitivity() {
     wp_send_json_success(
         array(
             'run_id'       => isset( $result['run_id'] ) ? (int) $result['run_id'] : 0,
-            'assessed_at'  => isset( $result['assessed_at'] ) ? $result['assessed_at'] : '',
+            'assessed_at'  => $result['assessed_at'] ?? '',
             'top_routes'   => array_slice( $routes, 0, 10 ),
             'summary'      => array(
                 'high_24h' => isset( $summary_24h['high_route_count'] ) ? (int) $summary_24h['high_route_count'] : 0,
@@ -1454,7 +1458,7 @@ add_action( 'wp_ajax_pcm_route_memcache_sensitivity', 'pcm_ajax_route_memcache_s
  *
  * @return void
  */
-function pcm_object_cache_maybe_schedule_snapshot_collection() {
+function pcm_object_cache_maybe_schedule_snapshot_collection(): void {
     if ( ! pcm_object_cache_intelligence_is_enabled() ) {
         return;
     }
@@ -1470,7 +1474,7 @@ add_action( 'init', 'pcm_object_cache_maybe_schedule_snapshot_collection' );
  *
  * @return void
  */
-function pcm_object_cache_collect_snapshot() {
+function pcm_object_cache_collect_snapshot(): void {
     pcm_object_cache_collect_and_store_snapshot();
 }
 add_action( 'pcm_object_cache_collect_snapshot', 'pcm_object_cache_collect_snapshot' );

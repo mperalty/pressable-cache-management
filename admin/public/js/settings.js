@@ -283,7 +283,7 @@ jQuery(document).ready(function($){
                     if (r.success && r.data.html_controls_enable_disable) {
                         wrapper.html(r.data.html_controls_enable_disable);
                         if (r.data.enabled) {
-                            purgeBtn.removeClass('ec-disabled-btn')
+                            purgeBtn.removeClass('disabled-button-style ec-disabled-btn')
                                     .prop('disabled', false)
                                     .css({ opacity:1, cursor:'pointer', pointerEvents:'auto' });
                         }
@@ -439,7 +439,9 @@ jQuery(document).ready(function($){
             .then(function(res){
                 if (!res || !res.success) {
                     var fallback = (window.pcmSettingsData && window.pcmSettingsData.strings && window.pcmSettingsData.strings.flushFailed) || 'Object cache flush failed. Please try again.';
-                    var msg = (res && res.data && res.data.message) ? res.data.message : fallback;
+                    var msg = (res && res.data && typeof res.data === 'object' && res.data.message)
+                        ? res.data.message
+                        : (res && res.data && typeof res.data === 'string') ? res.data : fallback;
                     throw new Error(msg);
                 }
 

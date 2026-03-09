@@ -13,7 +13,7 @@ if ( isset( $_POST['purge_edge_cache_nonce'] ) ) {
 
     if ( ! function_exists( 'pcm_pressable_edge_cache_purge_local' ) ) {
 
-        function pcm_pressable_edge_cache_purge_local() {
+        function pcm_pressable_edge_cache_purge_local(): void {
             // 1. Verify nonce + capability
             if ( ! pcm_verify_request( 'purge_edge_cache_nonce', 'purge_edge_cache_nonce' ) ) {
                 return;
@@ -73,7 +73,7 @@ if ( isset( $_POST['purge_edge_cache_nonce'] ) ) {
                 : false;
 
             if ( $result ) {
-                update_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP, pcm_format_flush_timestamp() );
+                update_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
                 // Clear the Batcache status transient so the badge re-probes immediately.
                 // Without this the badge can sit on 'active' for up to 90s after a purge
                 // even though Batcache is now in a transitional broken state.

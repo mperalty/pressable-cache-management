@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // ─── Branded modal popup (replaces browser alert) ─────────────────────────
 add_action( 'admin_footer', 'pcm_abar_modal_html' );
-function pcm_abar_modal_html() {
+function pcm_abar_modal_html(): void {
     if ( ! pcm_abar_can_view() ) return;
     ?>
     <div id="pcm-modal-overlay" class="pcm-modal-overlay">
@@ -41,7 +41,7 @@ function pcm_abar_modal_html() {
 
 // ─── JS: Flush Object Cache ────────────────────────────────────────────────
 add_action( 'admin_footer', 'pcm_abar_object_js' );
-function pcm_abar_object_js() { ?>
+function pcm_abar_object_js(): void { ?>
     <script>
     jQuery(document).ready(function($){
         $('li#wp-admin-bar-cache-purge .ab-item').on('click', function(e){
@@ -56,7 +56,7 @@ function pcm_abar_object_js() { ?>
 
 // ─── JS: Purge Edge Cache ──────────────────────────────────────────────────
 add_action( 'admin_footer', 'pcm_abar_edge_js' );
-function pcm_abar_edge_js() { ?>
+function pcm_abar_edge_js(): void { ?>
     <script>
     jQuery(document).ready(function($){
         $('li#wp-admin-bar-edge-purge .ab-item').on('click', function(e){
@@ -72,7 +72,7 @@ function pcm_abar_edge_js() { ?>
 
 // ─── JS: Flush Object + Edge Cache ────────────────────────────────────────
 add_action( 'admin_footer', 'pcm_abar_combined_js' );
-function pcm_abar_combined_js() { ?>
+function pcm_abar_combined_js(): void { ?>
     <script>
     jQuery(document).ready(function($){
         $('li#wp-admin-bar-combined-cache-purge .ab-item').on('click', function(e){
@@ -87,7 +87,7 @@ function pcm_abar_combined_js() { ?>
 <?php }
 
 // ─── Enqueue toolbar CSS ───────────────────────────────────────────────────
-function pcm_abar_load_css() {
+function pcm_abar_load_css(): void {
     $css_path = plugin_dir_path( dirname( __FILE__ ) ) . 'public/css/toolbar.css';
     wp_enqueue_style( 'pressable-cache-management-toolbar',
         plugin_dir_url( dirname( __FILE__ ) ) . 'public/css/toolbar.css',
@@ -100,7 +100,7 @@ add_action( 'wp_ajax_flush_pressable_cache',    'pcm_abar_flush_object_callback'
 add_action( 'wp_ajax_pressable_edge_cache_purge', 'pcm_abar_purge_edge_callback' );
 add_action( 'wp_ajax_flush_combined_cache',     'pcm_abar_flush_combined_callback' );
 
-function pcm_abar_flush_object_callback() {
+function pcm_abar_flush_object_callback(): void {
     $required_cap = apply_filters( 'pcm_flush_cache_capability', 'manage_options' );
     if ( ! current_user_can( $required_cap ) ) {
         echo 'You do not have permission to flush the Object Cache.';
@@ -108,12 +108,12 @@ function pcm_abar_flush_object_callback() {
     }
     wp_cache_flush();
     if ( function_exists('batcache_clear_cache') ) batcache_clear_cache();
-    update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP, pcm_format_flush_timestamp() );
+    update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, pcm_format_flush_timestamp() );
     echo esc_html__( 'Object Cache Flushed successfully.', 'pressable_cache_management' );
     wp_die();
 }
 
-function pcm_abar_purge_edge_callback() {
+function pcm_abar_purge_edge_callback(): void {
     $required_cap = apply_filters( 'pcm_flush_cache_capability', 'manage_options' );
     if ( ! current_user_can( $required_cap ) ) {
         echo 'You do not have permission to purge the Edge Cache.';
@@ -130,7 +130,7 @@ function pcm_abar_purge_edge_callback() {
     }
     $result = $edge_cache->purge_domain_now( 'admin-bar-edge-purge' );
     if ( $result ) {
-        update_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP, pcm_format_flush_timestamp() );
+        update_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
         echo esc_html__( 'Edge Cache purged successfully.', 'pressable_cache_management' );
     } else {
         echo esc_html__( 'Edge Cache purge failed. It might be disabled or rate-limited.', 'pressable_cache_management' );
@@ -138,7 +138,7 @@ function pcm_abar_purge_edge_callback() {
     wp_die();
 }
 
-function pcm_abar_flush_combined_callback() {
+function pcm_abar_flush_combined_callback(): void {
     $required_cap = apply_filters( 'pcm_flush_cache_capability', 'manage_options' );
     if ( ! current_user_can( $required_cap ) ) {
         echo 'You do not have permission to flush the combined cache.';
@@ -149,7 +149,7 @@ function pcm_abar_flush_combined_callback() {
     // Object cache
     wp_cache_flush();
     if ( function_exists('batcache_clear_cache') ) batcache_clear_cache();
-    update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP, pcm_format_flush_timestamp() );
+    update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, pcm_format_flush_timestamp() );
     $messages[] = esc_html__( 'Object Cache Flushed successfully.', 'pressable_cache_management' );
 
     // Edge cache
@@ -158,7 +158,7 @@ function pcm_abar_flush_combined_callback() {
         if ( method_exists( $edge_cache, 'purge_domain_now' ) ) {
             $result = $edge_cache->purge_domain_now( 'admin-bar-combined-purge' );
             if ( $result ) {
-                update_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP, pcm_format_flush_timestamp() );
+                update_option( PCM_Options::EDGE_CACHE_PURGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
                 $messages[] = esc_html__( 'Edge Cache Purged successfully.', 'pressable_cache_management' );
             } else {
                 $messages[] = esc_html__( 'Edge Cache purge failed (possibly disabled or rate-limited).', 'pressable_cache_management' );
@@ -185,7 +185,7 @@ function pcm_abar_flush_combined_callback() {
  * @return bool
  */
 if ( ! function_exists( 'pcm_abar_can_global_flush' ) ) {
-    function pcm_abar_can_global_flush() {
+    function pcm_abar_can_global_flush(): bool {
         $required_cap = apply_filters( 'pcm_flush_cache_capability', 'manage_options' );
         return current_user_can( $required_cap );
     }
@@ -199,7 +199,7 @@ if ( ! function_exists( 'pcm_abar_can_global_flush' ) ) {
  * @return bool
  */
 if ( ! function_exists( 'pcm_abar_can_single_page_flush' ) ) {
-    function pcm_abar_can_single_page_flush() {
+    function pcm_abar_can_single_page_flush(): bool {
         return current_user_can( 'edit_posts' );
     }
 }
@@ -213,17 +213,17 @@ if ( ! function_exists( 'pcm_abar_can_single_page_flush' ) ) {
  * @return bool
  */
 if ( ! function_exists( 'pcm_abar_can_view' ) ) {
-    function pcm_abar_can_view() {
+    function pcm_abar_can_view(): bool {
         return pcm_abar_can_global_flush() || pcm_abar_can_single_page_flush();
     }
 }
 
 // ─── Admin Bar Menu ───────────────────────────────────────────────────────
 add_action( 'admin_bar_menu', 'pcm_abar_add_menu', 100 );
-function pcm_abar_add_menu( $wp_admin_bar ) {
+function pcm_abar_add_menu( \WP_Admin_Bar $wp_admin_bar ): void {
     if ( is_network_admin() || ! pcm_abar_can_view() ) return;
 
-    $branding_opts     = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS );
+    $branding_opts     = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
     $branding_disabled = $branding_opts && 'disable' == $branding_opts['branding_on_off_radio_button'];
 
     $parent_id    = $branding_disabled ? 'pcm-wp-admin-toolbar-parent-remove-branding' : 'pcm-wp-admin-toolbar-parent';
@@ -236,7 +236,7 @@ function pcm_abar_add_menu( $wp_admin_bar ) {
         $server_status = method_exists($ec,'get_ec_status') ? $ec->get_ec_status() : null;
         if ( defined('Edge_Cache_Plugin::EC_ENABLED') && $server_status === Edge_Cache_Plugin::EC_ENABLED ) {
             $edge_cache_is_enabled = true;
-        } elseif ( get_option( PCM_Options::EDGE_CACHE_ENABLED ) === 'enabled' ) {
+        } elseif ( get_option( PCM_Options::EDGE_CACHE_ENABLED->value ) === 'enabled' ) {
             $edge_cache_is_enabled = true;
         }
     }

@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return bool
  */
-function pcm_security_privacy_is_enabled() {
+function pcm_security_privacy_is_enabled(): bool {
     return (bool) apply_filters( 'pcm_enable_security_privacy', true );
 }
 
@@ -23,7 +23,7 @@ function pcm_security_privacy_is_enabled() {
  *
  * @return array
  */
-function pcm_get_capability_matrix() {
+function pcm_get_capability_matrix(): array {
     return array(
         'pcm_view_diagnostics'       => __( 'View diagnostics and reports', 'pressable_cache_management' ),
         'pcm_run_scans'              => __( 'Run cacheability scans', 'pressable_cache_management' ),
@@ -39,12 +39,12 @@ function pcm_get_capability_matrix() {
  *
  * @return void
  */
-function pcm_register_default_capabilities() {
+function pcm_register_default_capabilities(): void {
     if ( ! pcm_security_privacy_is_enabled() || ! is_admin() ) {
         return;
     }
 
-    $version = (string) get_option( PCM_Options::SECURITY_PRIVACY_CAPS_VERSION, '' );
+    $version = (string) get_option( PCM_Options::SECURITY_PRIVACY_CAPS_VERSION->value, '' );
     if ( '1.0.0' === $version ) {
         return;
     }
@@ -60,7 +60,7 @@ function pcm_register_default_capabilities() {
         }
     }
 
-    update_option( PCM_Options::SECURITY_PRIVACY_CAPS_VERSION, '1.0.0', false );
+    update_option( PCM_Options::SECURITY_PRIVACY_CAPS_VERSION->value, '1.0.0', false );
 }
 add_action( 'admin_init', 'pcm_register_default_capabilities' );
 
@@ -71,7 +71,7 @@ add_action( 'admin_init', 'pcm_register_default_capabilities' );
  *
  * @return bool
  */
-function pcm_current_user_can( $capability ) {
+function pcm_current_user_can( string $capability ): bool {
     if ( current_user_can( $capability ) ) {
         return true;
     }
@@ -85,7 +85,7 @@ function pcm_current_user_can( $capability ) {
  *
  * @return array
  */
-function pcm_get_privacy_settings() {
+function pcm_get_privacy_settings(): array {
     $defaults = array(
         'retention_days'       => 90,
         'redaction_level'      => 'standard',
@@ -95,7 +95,7 @@ function pcm_get_privacy_settings() {
         'sensitive_keys'       => array( 'email', 'token', 'auth', 'authorization', 'password', 'pass', 'nonce', 'key', 'secret' ),
     );
 
-    $stored = get_option( PCM_Options::PRIVACY_SETTINGS_V1, array() );
+    $stored = get_option( PCM_Options::PRIVACY_SETTINGS_V1->value, array() );
     if ( ! is_array( $stored ) ) {
         return $defaults;
     }
@@ -124,7 +124,7 @@ function pcm_get_privacy_settings() {
  *
  * @return mixed
  */
-function pcm_privacy_redact_value( $value, $settings = array() ) {
+function pcm_privacy_redact_value( mixed $value, array $settings = array() ): mixed {
     $settings = wp_parse_args( $settings, pcm_get_privacy_settings() );
 
     if ( is_array( $value ) ) {
@@ -156,7 +156,7 @@ function pcm_privacy_redact_value( $value, $settings = array() ) {
  *
  * @return string
  */
-function pcm_privacy_mask_scalar( $value, $redaction_level = 'standard' ) {
+function pcm_privacy_mask_scalar( mixed $value, string $redaction_level = 'standard' ): string {
     $string = is_scalar( $value ) ? (string) $value : wp_json_encode( $value );
     $string = is_string( $string ) ? $string : '';
 
@@ -182,9 +182,9 @@ function pcm_privacy_mask_scalar( $value, $redaction_level = 'standard' ) {
  *
  * @param mixed $cookie_value Raw cookie header value(s).
  *
- * @return mixed
+ * @return string|array
  */
-function pcm_privacy_mask_cookie_values( $cookie_value ) {
+function pcm_privacy_mask_cookie_values( mixed $cookie_value ): string|array {
     if ( is_array( $cookie_value ) ) {
         return array_map( 'pcm_privacy_mask_cookie_values', $cookie_value );
     }
@@ -202,11 +202,9 @@ function pcm_privacy_mask_cookie_values( $cookie_value ) {
  * Audit writer with tamper-evident sequence/hash chain.
  */
 class PCM_Audit_Log_Service {
-    /** @var string */
-    protected $key = 'pcm_audit_log_v1';
+    protected string $key = 'pcm_audit_log_v1';
 
-    /** @var int */
-    protected $max_rows = 2000;
+    protected int $max_rows = 2000;
 
     /**
      * @param string $action Action.
@@ -215,19 +213,19 @@ class PCM_Audit_Log_Service {
      *
      * @return array
      */
-    public function log( $action, $target = '', $context = array() ) {
+    public function log( string $action, string $target = '', array $context = array() ): array {
         $rows = $this->all();
         $last = end( $rows );
 
         $sequence  = isset( $last['sequence_id'] ) ? absint( $last['sequence_id'] ) + 1 : 1;
-        $prev_hash = isset( $last['entry_hash'] ) ? (string) $last['entry_hash'] : '';
+        $prev_hash = (string) ( $last['entry_hash'] ?? '' );
 
         $entry = array(
             'sequence_id' => $sequence,
             'actor_id'    => get_current_user_id(),
             'action'      => sanitize_key( $action ),
             'target'      => sanitize_text_field( $target ),
-            'context_json'=> pcm_privacy_redact_value( (array) $context ),
+            'context_json'=> pcm_privacy_redact_value( $context ),
             'created_at'  => current_time( 'mysql', true ),
             'prev_hash'   => $prev_hash,
         );
@@ -243,7 +241,7 @@ class PCM_Audit_Log_Service {
     /**
      * @return array
      */
-    public function all() {
+    public function all(): array {
         $rows = get_option( $this->key, array() );
 
         return is_array( $rows ) ? $rows : array();
@@ -252,7 +250,7 @@ class PCM_Audit_Log_Service {
     /**
      * @return bool
      */
-    public function verify_chain() {
+    public function verify_chain(): bool {
         $rows      = $this->all();
         $prev_hash = '';
 
@@ -261,7 +259,7 @@ class PCM_Audit_Log_Service {
                 return false;
             }
 
-            $entry_hash = isset( $row['entry_hash'] ) ? (string) $row['entry_hash'] : '';
+            $entry_hash = (string) ( $row['entry_hash'] ?? '' );
             $computed   = $row;
             unset( $computed['entry_hash'] );
 
@@ -289,7 +287,7 @@ class PCM_Risky_Action_Confirmation_Service {
      *
      * @return string
      */
-    public function issue_token( $action ) {
+    public function issue_token( string $action ): string {
         $action = sanitize_key( $action );
         $token  = wp_generate_password( 32, false, false );
         set_transient( 'pcm_confirm_' . $action . '_' . get_current_user_id(), $token, MINUTE_IN_SECONDS * 10 );
@@ -303,7 +301,7 @@ class PCM_Risky_Action_Confirmation_Service {
      *
      * @return bool
      */
-    public function verify_token( $action, $token ) {
+    public function verify_token( string $action, string $token ): bool {
         $action = sanitize_key( $action );
         $token  = sanitize_text_field( $token );
 
@@ -331,7 +329,7 @@ class PCM_Telemetry_Retention_Manager {
     /**
      * @return void
      */
-    public function cleanup() {
+    public function cleanup(): void {
         $settings = pcm_get_privacy_settings();
         $days     = $settings['retention_days'];
 
@@ -348,7 +346,7 @@ class PCM_Telemetry_Retention_Manager {
      *
      * @return void
      */
-    protected function prune_option_rows( $option_key, $date_key, $days ) {
+    protected function prune_option_rows( string $option_key, string $date_key, int $days ): void {
         $rows = get_option( $option_key, array() );
 
         if ( ! is_array( $rows ) || empty( $rows ) ) {
@@ -360,7 +358,7 @@ class PCM_Telemetry_Retention_Manager {
         $rows = array_values(
             array_filter(
                 $rows,
-                static function ( $row ) use ( $date_key, $cutoff ) {
+                static function ( array $row ) use ( $date_key, $cutoff ): bool {
                     $ts = isset( $row[ $date_key ] ) ? strtotime( (string) $row[ $date_key ] ) : 0;
                     return $ts >= $cutoff;
                 }
@@ -376,7 +374,7 @@ class PCM_Telemetry_Retention_Manager {
  *
  * @return void
  */
-function pcm_security_privacy_maybe_schedule_cleanup() {
+function pcm_security_privacy_maybe_schedule_cleanup(): void {
     if ( ! pcm_security_privacy_is_enabled() ) {
         return;
     }
@@ -392,7 +390,7 @@ add_action( 'init', 'pcm_security_privacy_maybe_schedule_cleanup' );
  *
  * @return void
  */
-function pcm_security_privacy_cleanup() {
+function pcm_security_privacy_cleanup(): void {
     if ( ! pcm_security_privacy_is_enabled() ) {
         return;
     }
@@ -410,7 +408,7 @@ add_action( 'pcm_security_privacy_cleanup', 'pcm_security_privacy_cleanup' );
  *
  * @return void
  */
-function pcm_ajax_enforce_permissions( $nonce_action, $capability ) {
+function pcm_ajax_enforce_permissions( string $nonce_action, string $capability ): void {
     check_ajax_referer( $nonce_action, 'nonce' );
 
     if ( ! pcm_current_user_can( $capability ) ) {
@@ -421,11 +419,11 @@ function pcm_ajax_enforce_permissions( $nonce_action, $capability ) {
 /**
  * Save privacy settings.
  *
- * @param array $raw Incoming settings.
+ * @param mixed $raw Incoming settings.
  *
  * @return array
  */
-function pcm_save_privacy_settings( $raw ) {
+function pcm_save_privacy_settings( mixed $raw ): array {
     $raw = is_array( $raw ) ? $raw : array();
 
     $settings = array(
@@ -437,7 +435,7 @@ function pcm_save_privacy_settings( $raw ) {
         'sensitive_keys'       => isset( $raw['sensitive_keys'] ) ? array_filter( array_map( 'sanitize_key', (array) $raw['sensitive_keys'] ) ) : array(),
     );
 
-    update_option( PCM_Options::PRIVACY_SETTINGS_V1, $settings, false );
+    update_option( PCM_Options::PRIVACY_SETTINGS_V1->value, $settings, false );
 
     return pcm_get_privacy_settings();
 }
@@ -451,7 +449,7 @@ function pcm_save_privacy_settings( $raw ) {
  *
  * @return array|null
  */
-function pcm_audit_log( $action, $target = '', $context = array() ) {
+function pcm_audit_log( string $action, string $target = '', array $context = array() ): ?array {
     $settings = pcm_get_privacy_settings();
     if ( empty( $settings['audit_log_enabled'] ) ) {
         return null;
@@ -467,7 +465,7 @@ function pcm_audit_log( $action, $target = '', $context = array() ) {
  *
  * @return void
  */
-function pcm_ajax_privacy_settings_get() {
+function pcm_ajax_privacy_settings_get(): void {
     pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_privacy_settings' );
 
     wp_send_json_success( array( 'settings' => pcm_get_privacy_settings() ) );
@@ -479,7 +477,7 @@ add_action( 'wp_ajax_pcm_privacy_settings_get', 'pcm_ajax_privacy_settings_get' 
  *
  * @return void
  */
-function pcm_ajax_privacy_settings_save() {
+function pcm_ajax_privacy_settings_save(): void {
     pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_privacy_settings' );
 
     $payload = isset( $_REQUEST['settings'] ) ? json_decode( wp_unslash( $_REQUEST['settings'] ), true ) : array();
@@ -500,7 +498,7 @@ add_action( 'wp_ajax_pcm_privacy_settings_save', 'pcm_ajax_privacy_settings_save
  *
  * @return void
  */
-function pcm_ajax_audit_log_list() {
+function pcm_ajax_audit_log_list(): void {
     pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_privacy_settings' );
 
     $limit   = isset( $_REQUEST['limit'] ) ? max( 1, min( 200, absint( $_REQUEST['limit'] ) ) ) : 20;
@@ -534,8 +532,10 @@ add_action( 'wp_ajax_pcm_audit_log_list', 'pcm_ajax_audit_log_list' );
 
 /**
  * AJAX: Refresh cacheability nonce for long-lived admin pages.
+ *
+ * @return void
  */
-function pcm_ajax_refresh_cacheability_nonce() {
+function pcm_ajax_refresh_cacheability_nonce(): void {
     if ( ! pcm_current_user_can( 'pcm_view_diagnostics' ) ) {
         wp_send_json_error( array( 'message' => __( 'Permission denied.', 'pressable_cache_management' ) ), 403 );
     }
@@ -547,4 +547,3 @@ function pcm_ajax_refresh_cacheability_nonce() {
     );
 }
 add_action( 'wp_ajax_pcm_refresh_cacheability_nonce', 'pcm_ajax_refresh_cacheability_nonce' );
-

@@ -14,7 +14,7 @@ if (!defined('ABSPATH'))
 **/
 
 if (!function_exists('exclude_gclid_from_batcache')) {
-  function exclude_gclid_from_batcache() {
+  function exclude_gclid_from_batcache(): void {
     global $batcache;
     if ( is_object( $batcache ) ) {
         $batcache->ignored_query_args = array( 'gclid' );

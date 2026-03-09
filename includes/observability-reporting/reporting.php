@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return bool
  */
-function pcm_reporting_is_enabled() {
+function pcm_reporting_is_enabled(): bool {
     $enabled = true;
 
     return (bool) apply_filters( 'pcm_enable_observability_reporting', $enabled );
@@ -25,9 +25,9 @@ function pcm_reporting_is_enabled() {
  */
 class PCM_Metric_Registry {
     /**
-     * @return array
+     * @return array<string, array<string, string>>
      */
-    public function get_catalog() {
+    public function get_catalog(): array {
         return array(
             'cacheability_score'        => array( 'unit' => 'score', 'source' => 'cacheability_advisor' ),
             'cache_buster_incidence'    => array( 'unit' => 'count', 'source' => 'cache_busters' ),
@@ -47,7 +47,7 @@ class PCM_Metric_Registry {
      *
      * @return bool
      */
-    public function has_metric( $metric_key ) {
+    public function has_metric( string $metric_key ): bool {
         $catalog = $this->get_catalog();
 
         return isset( $catalog[ $metric_key ] );
@@ -58,18 +58,14 @@ class PCM_Metric_Registry {
  * Lightweight rollup storage using options in v1 scaffolding.
  */
 class PCM_Metric_Rollup_Storage {
-    /** @var string */
-    protected $key = 'pcm_metric_rollups_v1';
+    protected string $key = 'pcm_metric_rollups_v1';
 
-    /** @var int */
-    protected $max_rows = 2000;
+    protected int $max_rows = 2000;
 
     /**
      * @param array $row Rollup row.
-     *
-     * @return void
      */
-    public function append_rollup( $row ) {
+    public function append_rollup( array $row ): void {
         $rows   = $this->get_rollups();
         $rows[] = $row;
         update_option( $this->key, array_slice( $rows, -1 * $this->max_rows ), false );
@@ -78,7 +74,7 @@ class PCM_Metric_Rollup_Storage {
     /**
      * @return array
      */
-    public function get_rollups() {
+    public function get_rollups(): array {
         $rows = get_option( $this->key, array() );
 
         return is_array( $rows ) ? $rows : array();
@@ -86,10 +82,8 @@ class PCM_Metric_Rollup_Storage {
 
     /**
      * @param int $retention_days Retention period.
-     *
-     * @return void
      */
-    public function cleanup( $retention_days = 90 ) {
+    public function cleanup( int $retention_days = 90 ): void {
         $rows       = $this->get_rollups();
         $retention  = max( 7, min( 365, absint( $retention_days ) ) );
         $cutoff_ts  = time() - ( DAY_IN_SECONDS * $retention );
@@ -113,15 +107,16 @@ class PCM_Metric_Rollup_Storage {
  * Rollup service.
  */
 class PCM_Metric_Rollup_Service {
-    /** @var PCM_Metric_Registry */
-    protected $registry;
+    protected readonly PCM_Metric_Registry $registry;
 
-    /** @var PCM_Metric_Rollup_Storage */
-    protected $storage;
+    protected readonly PCM_Metric_Rollup_Storage $storage;
 
-    public function __construct( $registry = null, $storage = null ) {
-        $this->registry = $registry ? $registry : new PCM_Metric_Registry();
-        $this->storage  = $storage ? $storage : new PCM_Metric_Rollup_Storage();
+    public function __construct(
+        ?PCM_Metric_Registry $registry = null,
+        ?PCM_Metric_Rollup_Storage $storage = null,
+    ) {
+        $this->registry = $registry ?? new PCM_Metric_Registry();
+        $this->storage  = $storage ?? new PCM_Metric_Rollup_Storage();
     }
 
     /**
@@ -129,10 +124,8 @@ class PCM_Metric_Rollup_Service {
      * @param float  $value Metric value.
      * @param array  $dimensions Dimensions.
      * @param string $bucket_size Bucket size label.
-     *
-     * @return bool
      */
-    public function write_rollup( $metric_key, $value, $dimensions = array(), $bucket_size = '1d' ) {
+    public function write_rollup( string $metric_key, float $value, array $dimensions = array(), string $bucket_size = '1d' ): bool {
         $metric_key = sanitize_key( $metric_key );
 
         if ( ! $this->registry->has_metric( $metric_key ) ) {
@@ -158,14 +151,14 @@ class PCM_Metric_Rollup_Service {
      *
      * @return array
      */
-    public function query_trends( $range = '7d', $metric_keys = array() ) {
+    public function query_trends( string $range = '7d', array $metric_keys = array() ): array {
         $range_days = array(
             '24h' => 1,
             '7d'  => 7,
             '30d' => 30,
         );
 
-        $days     = isset( $range_days[ $range ] ) ? $range_days[ $range ] : 7;
+        $days     = $range_days[ $range ] ?? 7;
         $cutoff   = time() - ( DAY_IN_SECONDS * $days );
         $keys     = array_map( 'sanitize_key', (array) $metric_keys );
         $rollups  = $this->storage->get_rollups();
@@ -194,13 +187,12 @@ class PCM_Metric_Rollup_Service {
  * Export service for JSON / CSV with capability checks and basic redaction.
  */
 class PCM_Report_Export_Service {
-    /**
-     * @var PCM_Metric_Rollup_Service
-     */
-    protected $rollup_service;
+    protected readonly PCM_Metric_Rollup_Service $rollup_service;
 
-    public function __construct( $rollup_service = null ) {
-        $this->rollup_service = $rollup_service ? $rollup_service : new PCM_Metric_Rollup_Service();
+    public function __construct(
+        ?PCM_Metric_Rollup_Service $rollup_service = null,
+    ) {
+        $this->rollup_service = $rollup_service ?? new PCM_Metric_Rollup_Service();
     }
 
     /**
@@ -210,7 +202,7 @@ class PCM_Report_Export_Service {
      *
      * @return array
      */
-    public function export( $format = 'json', $range = '7d', $metric_keys = array() ) {
+    public function export( string $format = 'json', string $range = '7d', array $metric_keys = array() ): array {
         if ( function_exists( 'pcm_get_privacy_settings' ) ) {
             $privacy = pcm_get_privacy_settings();
             if ( 'admin_only' === $privacy['export_restrictions'] && ! current_user_can( 'manage_options' ) ) {
@@ -257,7 +249,7 @@ class PCM_Report_Export_Service {
      *
      * @return array
      */
-    protected function redact_rows( $rows ) {
+    protected function redact_rows( array $rows ): array {
         foreach ( $rows as $index => $row ) {
             $dimensions = isset( $row['dimensions_json'] ) ? (array) $row['dimensions_json'] : array();
 
@@ -284,7 +276,7 @@ class PCM_Report_Export_Service {
      *
      * @return string
      */
-    protected function to_csv( $rows ) {
+    protected function to_csv( array $rows ): string {
         $fp = fopen( 'php://temp', 'r+' );
         fputcsv( $fp, array( 'metric_key', 'bucket_start', 'bucket_size', 'value', 'dimensions_json' ) );
 
@@ -292,11 +284,11 @@ class PCM_Report_Export_Service {
             fputcsv(
                 $fp,
                 array(
-                    isset( $row['metric_key'] ) ? $row['metric_key'] : '',
-                    isset( $row['bucket_start'] ) ? $row['bucket_start'] : '',
-                    isset( $row['bucket_size'] ) ? $row['bucket_size'] : '',
-                    isset( $row['value'] ) ? $row['value'] : '',
-                    wp_json_encode( isset( $row['dimensions_json'] ) ? $row['dimensions_json'] : array() ),
+                    $row['metric_key'] ?? '',
+                    $row['bucket_start'] ?? '',
+                    $row['bucket_size'] ?? '',
+                    $row['value'] ?? '',
+                    wp_json_encode( $row['dimensions_json'] ?? array() ),
                 )
             );
         }
@@ -313,22 +305,23 @@ class PCM_Report_Export_Service {
  * Weekly digest scheduler and sender.
  */
 class PCM_Report_Digest_Service {
-    /** @var PCM_Metric_Rollup_Service */
-    protected $rollup_service;
+    protected readonly PCM_Metric_Rollup_Service $rollup_service;
 
-    public function __construct( $rollup_service = null ) {
-        $this->rollup_service = $rollup_service ? $rollup_service : new PCM_Metric_Rollup_Service();
+    public function __construct(
+        ?PCM_Metric_Rollup_Service $rollup_service = null,
+    ) {
+        $this->rollup_service = $rollup_service ?? new PCM_Metric_Rollup_Service();
     }
 
     /**
      * @return void
      */
-    public function send_weekly_digest() {
+    public function send_weekly_digest(): void {
         if ( ! pcm_reporting_is_enabled() ) {
             return;
         }
 
-        $recipients = get_option( PCM_Options::REPORT_DIGEST_RECIPIENTS, get_option( 'admin_email' ) );
+        $recipients = get_option( PCM_Options::REPORT_DIGEST_RECIPIENTS->value, get_option( 'admin_email' ) );
         $recipients = array_filter( array_map( 'sanitize_email', array_map( 'trim', explode( ',', (string) $recipients ) ) ) );
 
         if ( empty( $recipients ) ) {
@@ -350,7 +343,7 @@ class PCM_Report_Digest_Service {
      *
      * @return string
      */
-    protected function build_digest_body( $rows ) {
+    protected function build_digest_body( array $rows ): string {
         $lines = array();
         $lines[] = 'Pressable Cache Management Weekly Digest';
         $lines[] = 'Generated: ' . gmdate( 'Y-m-d H:i:s' ) . ' UTC';
@@ -361,9 +354,9 @@ class PCM_Report_Digest_Service {
         foreach ( $top as $row ) {
             $lines[] = sprintf(
                 '- %s @ %s = %s',
-                isset( $row['metric_key'] ) ? $row['metric_key'] : 'unknown_metric',
-                isset( $row['bucket_start'] ) ? $row['bucket_start'] : 'unknown_time',
-                isset( $row['value'] ) ? $row['value'] : 'n/a'
+                $row['metric_key'] ?? 'unknown_metric',
+                $row['bucket_start'] ?? 'unknown_time',
+                $row['value'] ?? 'n/a'
             );
         }
 
@@ -381,7 +374,7 @@ class PCM_Report_Digest_Service {
  *
  * @return array
  */
-function pcm_reporting_register_schedules( $schedules ) {
+function pcm_reporting_register_schedules( array $schedules ): array {
     if ( ! isset( $schedules['pcm_daily'] ) ) {
         $schedules['pcm_daily'] = array(
             'interval' => DAY_IN_SECONDS,
@@ -405,7 +398,7 @@ add_filter( 'cron_schedules', 'pcm_reporting_register_schedules' );
  *
  * @return void
  */
-function pcm_reporting_maybe_schedule_jobs() {
+function pcm_reporting_maybe_schedule_jobs(): void {
     if ( ! pcm_reporting_is_enabled() ) {
         return;
     }
@@ -425,7 +418,7 @@ add_action( 'init', 'pcm_reporting_maybe_schedule_jobs' );
  *
  * @return void
  */
-function pcm_reporting_daily_rollup() {
+function pcm_reporting_daily_rollup(): void {
     if ( ! pcm_reporting_is_enabled() ) {
         return;
     }
@@ -442,8 +435,8 @@ function pcm_reporting_daily_rollup() {
     $rollups->write_rollup( 'purge_frequency_by_scope', $purge_frequency );
 
     $object_snapshot = function_exists( 'pcm_object_cache_collect_and_store_snapshot' ) ? pcm_object_cache_collect_and_store_snapshot() : array();
-    $object_hit_ratio = isset( $object_snapshot['hit_ratio'] ) ? (float) $object_snapshot['hit_ratio'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO, 0 );
-    $object_evictions = isset( $object_snapshot['evictions'] ) ? (float) $object_snapshot['evictions'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_EVICTIONS, 0 );
+    $object_hit_ratio = isset( $object_snapshot['hit_ratio'] ) ? (float) $object_snapshot['hit_ratio'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, 0 );
+    $object_evictions = isset( $object_snapshot['evictions'] ) ? (float) $object_snapshot['evictions'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_EVICTIONS->value, 0 );
 
     $rollups->write_rollup( 'object_cache_hit_ratio', $object_hit_ratio );
     $rollups->write_rollup( 'object_cache_evictions', $object_evictions );
@@ -454,10 +447,10 @@ function pcm_reporting_daily_rollup() {
             $opcache_snapshot['memory']['used_memory'] + $opcache_snapshot['memory']['wasted_memory'],
             $opcache_snapshot['memory']['used_memory'] + $opcache_snapshot['memory']['free_memory'] + $opcache_snapshot['memory']['wasted_memory']
         )
-        : (float) get_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE, 0 );
+        : (float) get_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE->value, 0 );
     $opcache_restarts = isset( $opcache_snapshot['statistics']['restart_total'] )
         ? (float) $opcache_snapshot['statistics']['restart_total']
-        : (float) get_option( PCM_Options::LATEST_OPCACHE_RESTARTS, 0 );
+        : (float) get_option( PCM_Options::LATEST_OPCACHE_RESTARTS->value, 0 );
 
     $rollups->write_rollup( 'opcache_memory_pressure', $opcache_memory_pressure );
     $rollups->write_rollup( 'opcache_restarts', $opcache_restarts );
@@ -468,7 +461,7 @@ function pcm_reporting_daily_rollup() {
     $rollups->write_rollup( 'high_memcache_sensitivity_routes_7d', (float) pcm_reporting_high_memcache_sensitivity_routes( '7d' ) );
 
     $storage = new PCM_Metric_Rollup_Storage();
-    $storage->cleanup( (int) get_option( PCM_Options::REPORTING_RETENTION_DAYS, 90 ) );
+    $storage->cleanup( (int) get_option( PCM_Options::REPORTING_RETENTION_DAYS->value, 90 ) );
 }
 add_action( 'pcm_reporting_daily_rollup', 'pcm_reporting_daily_rollup' );
 
@@ -477,7 +470,7 @@ add_action( 'pcm_reporting_daily_rollup', 'pcm_reporting_daily_rollup' );
  *
  * @return void
  */
-function pcm_reporting_weekly_digest() {
+function pcm_reporting_weekly_digest(): void {
     $service = new PCM_Report_Digest_Service();
     $service->send_weekly_digest();
 }
@@ -487,7 +480,7 @@ add_action( 'pcm_reporting_weekly_digest', 'pcm_reporting_weekly_digest' );
 /**
  * @return float
  */
-function pcm_reporting_latest_cacheability_score() {
+function pcm_reporting_latest_cacheability_score(): float {
     global $wpdb;
 
     $runs_table = $wpdb->prefix . 'pcm_scan_runs';
@@ -495,7 +488,7 @@ function pcm_reporting_latest_cacheability_score() {
 
     $run_id = (int) $wpdb->get_var( "SELECT id FROM {$runs_table} WHERE status = 'completed' ORDER BY id DESC LIMIT 1" );
     if ( $run_id <= 0 ) {
-        return (float) get_option( PCM_Options::LATEST_CACHEABILITY_SCORE, 0 );
+        return (float) get_option( PCM_Options::LATEST_CACHEABILITY_SCORE->value, 0 );
     }
 
     $avg = $wpdb->get_var( $wpdb->prepare( "SELECT AVG(score) FROM {$urls_table} WHERE run_id = %d", $run_id ) );
@@ -506,8 +499,8 @@ function pcm_reporting_latest_cacheability_score() {
 /**
  * @return float
  */
-function pcm_reporting_latest_purge_frequency() {
-    $rows = get_option( PCM_Options::SMART_PURGE_JOBS_V1, array() );
+function pcm_reporting_latest_purge_frequency(): float {
+    $rows = get_option( PCM_Options::SMART_PURGE_JOBS_V1->value, array() );
     if ( ! is_array( $rows ) ) {
         return 0.0;
     }
@@ -528,8 +521,8 @@ function pcm_reporting_latest_purge_frequency() {
 /**
  * @return int
  */
-function pcm_reporting_latest_batcache_hits() {
-    return (int) get_option( PCM_Options::BATCACHE_HITS_24H, 0 );
+function pcm_reporting_latest_batcache_hits(): int {
+    return (int) get_option( PCM_Options::BATCACHE_HITS_24H->value, 0 );
 }
 
 /**
@@ -537,7 +530,7 @@ function pcm_reporting_latest_batcache_hits() {
  *
  * @return int
  */
-function pcm_reporting_high_memcache_sensitivity_routes( $range = '24h' ) {
+function pcm_reporting_high_memcache_sensitivity_routes( string $range = '24h' ): int {
     if ( ! function_exists( 'pcm_object_cache_memcache_sensitivity_summary' ) ) {
         return 0;
     }
@@ -552,7 +545,7 @@ function pcm_reporting_high_memcache_sensitivity_routes( $range = '24h' ) {
  *
  * @return void
  */
-function pcm_ajax_reporting_trends() {
+function pcm_ajax_reporting_trends(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -583,7 +576,7 @@ add_action( 'wp_ajax_pcm_reporting_trends', 'pcm_ajax_reporting_trends' );
  *
  * @return void
  */
-function pcm_ajax_reporting_export() {
+function pcm_ajax_reporting_export(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_export_reports' );
     } else {
@@ -616,7 +609,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
          * ## EXAMPLES
          *     wp pcm-report rollup
          */
-        public function rollup() {
+        public function rollup(): void {
             pcm_reporting_daily_rollup();
             \WP_CLI::success( 'Daily rollup executed.' );
         }
@@ -631,7 +624,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
          * ## EXAMPLES
          *     wp pcm-report trends --range=7d
          */
-        public function trends( $args, $assoc_args ) {
+        public function trends( array $args, array $assoc_args ): void {
             unset( $args );
 
             $range = isset( $assoc_args['range'] ) ? sanitize_key( $assoc_args['range'] ) : '7d';
@@ -653,7 +646,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
          * ## EXAMPLES
          *     wp pcm-report export --format=csv --range=7d
          */
-        public function export( $args, $assoc_args ) {
+        public function export( array $args, array $assoc_args ): void {
             unset( $args );
 
             $format = isset( $assoc_args['format'] ) ? sanitize_key( $assoc_args['format'] ) : 'json';
@@ -663,7 +656,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
             $result  = $service->export( $format, $range );
 
             if ( empty( $result['success'] ) ) {
-                \WP_CLI::error( 'Export failed: ' . ( isset( $result['error'] ) ? $result['error'] : 'unknown' ) );
+                \WP_CLI::error( 'Export failed: ' . ( $result['error'] ?? 'unknown' ) );
                 return;
             }
 

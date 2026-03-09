@@ -20,7 +20,7 @@ class Batcache_Manager {
      *
      * @var array
      */
-    private $feeds = array( 'rss', 'rss2', 'rdf', 'atom' );
+    private array $feeds = array( 'rss', 'rss2', 'rdf', 'atom' );
 
     /**
      * List of links to process
@@ -29,7 +29,7 @@ class Batcache_Manager {
      *
      * @var array
      */
-    private $links = array();
+    private array $links = array();
 
     /**
      * Instance of this class.
@@ -38,7 +38,7 @@ class Batcache_Manager {
      *
      * @var      object
      */
-    protected static $instance = null;
+    protected static ?self $instance = null;
 
     /**
      *
@@ -89,7 +89,7 @@ class Batcache_Manager {
      *
      * @return    object    A single instance of this class.
      */
-    public static function get_instance() {
+    public static function get_instance(): self {
         // If the single instance hasn't been set, set it now.
         if ( null == self::$instance ) {
             self::$instance = new self;
@@ -109,7 +109,7 @@ class Batcache_Manager {
      *
      * @return bool Whether the post type should be considered viewable.
      */
-    public function is_post_type_viewable( $post_type ) {
+    public function is_post_type_viewable( string $post_type ): bool {
         $post_type_object = get_post_type_object( $post_type );
         if ( empty( $post_type_object ) ) {
             return false;
@@ -132,7 +132,7 @@ class Batcache_Manager {
      *
      * @return bool Whether the taxonomy is public.
      */
-    function is_taxonomy_viewable( $taxonomy ) {
+    public function is_taxonomy_viewable( string $taxonomy ): bool {
         if ( ! taxonomy_exists( $taxonomy ) ) {
             return false;
         }
@@ -147,7 +147,7 @@ class Batcache_Manager {
      *
      * @param $post_id
      */
-    public function action_clean_post_cache( $post_id ) {
+    public function action_clean_post_cache( int $post_id ): void {
 
         $post = get_post( $post_id );
         if ( $post && $post->post_type && ! $this->is_post_type_viewable( $post->post_type ) || ! in_array( get_post_status( $post_id ), array( 'publish', 'trash' ) ) ) {
@@ -173,7 +173,7 @@ class Batcache_Manager {
             self::clear_url( $product_url );
 
             // 2. Store the product URL in the option table
-            update_option( PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED, $product_url );
+            update_option( PCM_Options::EDGE_CACHE_SINGLE_PAGE_URL_PURGED->value, $product_url );
 
             // 3. Purge Edge Cache for the specific URL
             if (class_exists('Edge_Cache_Plugin')) {
@@ -184,7 +184,7 @@ class Batcache_Manager {
                 $result = $edge_cache->purge_uris_now($urls);
 
                 // Save time stamp to database if edge cache is purged for particular page
-                update_option( PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP, pcm_format_flush_timestamp() );
+                update_option( PCM_Options::SINGLE_PAGE_EDGE_CACHE_PURGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
             }
         }
 
@@ -199,7 +199,7 @@ class Batcache_Manager {
      * @param bool $clean_taxonomy Optional. Whether to clean taxonomy wide caches (true), or just individual
      * term object caches (false). Default true. Only support in WP 4.5
      */
-    public function action_clean_term_cache( $ids, $taxonomy, $clean_taxonomy = true ) {
+    public function action_clean_term_cache( array $ids, string $taxonomy, bool $clean_taxonomy = true ): void {
         // Clear taxonomy global caches. If false, lets not both.
         if ( ! $clean_taxonomy ) {
             return;
@@ -219,7 +219,7 @@ class Batcache_Manager {
      *
      * @param $comment_id
      */
-    public function action_update_comment( $comment_id ) {
+    public function action_update_comment( int|string $comment_id ): void {
         $comment = get_comment( $comment_id );
         $post_id = $comment->comment_post_ID;
         $this->setup_post_urls( $post_id );
@@ -231,11 +231,11 @@ class Batcache_Manager {
      *
      * @param $user_id
      */
-    public function action_update_user( $user_id ) {
+    public function action_update_user( int $user_id ): void {
         $this->setup_author_urls( $user_id );
     }
 
-    public function flush_all() {
+    public function flush_all(): void {
         if ( function_exists( 'batcache_flush_all' ) ) {
             batcache_flush_all();
         }
@@ -248,7 +248,7 @@ class Batcache_Manager {
      *
      * @return array $instance
      */
-    public function action_update_widget( $instance ) {
+    public function action_update_widget( array $instance ): array {
         $this->flush_all();
 
         return $instance;
@@ -260,7 +260,7 @@ class Batcache_Manager {
      * @param $term
      * @param $taxonomy
      */
-    public function setup_term_urls( $term, $taxonomy ) {
+    public function setup_term_urls( int|string $term, string $taxonomy ): void {
 
         $term_link = get_term_link( $term, $taxonomy );
         if ( ! is_wp_error( $term_link ) ) {
@@ -285,7 +285,7 @@ class Batcache_Manager {
     /**
      * Home page / blog page and feed links
      */
-    public function setup_site_urls() {
+    public function setup_site_urls(): void {
         if ( get_option( 'show_on_front' ) == 'page' ) {
             $this->links[] = get_permalink( get_option( 'page_for_posts' ) );
         }
@@ -302,7 +302,7 @@ class Batcache_Manager {
      *
      * @param $post
      */
-    public function setup_post_urls( $post ) {
+    public function setup_post_urls( int|\WP_Post $post ): void {
         $post = get_post( $post );
 
         $this->links[] = get_permalink( $post );
@@ -336,7 +336,7 @@ class Batcache_Manager {
      *
      * @param $author_id
      */
-    public function setup_author_urls( $author_id ) {
+    public function setup_author_urls( int $author_id ): void {
         $this->links[] = get_author_posts_url( $author_id );
         foreach ( $this->feeds as $feed ) {
             $this->links[] = get_author_feed_link( $author_id, $feed );
@@ -350,7 +350,7 @@ class Batcache_Manager {
      *
      * @param $post_id
      */
-    public function setup_post_comment_urls( $post_id, $comment_id = 0 ) {
+    public function setup_post_comment_urls( int $post_id, int $comment_id = 0 ): void {
         foreach ( $this->feeds as $feed ) {
             $this->links[] = get_post_comments_feed_link( $post_id, $feed );
         }
@@ -368,7 +368,7 @@ class Batcache_Manager {
      *
      * @param $links
      */
-    public function add_site_alias( $links ) {
+    public function add_site_alias( array $links ): array {
         $home = parse_url( home_url(), PHP_URL_HOST );
 
         $compare_urls = array(
@@ -392,7 +392,7 @@ class Batcache_Manager {
     /**
      * Loop around all urls and clear
      */
-    public function clear_urls() {
+    public function clear_urls(): void {
         if ( empty ( $this->get_links() ) ) {
             return;
         }
@@ -405,7 +405,7 @@ class Batcache_Manager {
 
         // --- START OF MODIFIED CODE ---
 
-        update_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP, pcm_format_flush_timestamp() );
+        update_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
 
         // --- END OF MODIFIED CODE ---
     }
@@ -416,7 +416,7 @@ class Batcache_Manager {
      *
      * @return bool|false|int
      */
-    public static function clear_url( $url ) {
+    public static function clear_url( string $url ): bool|int {
         global $batcache, $wp_object_cache;
 
         $url = apply_filters( 'batcache_manager_link', $url );
@@ -456,7 +456,7 @@ class Batcache_Manager {
      *
      * @return array
      */
-    public function get_links() {
+    public function get_links(): array {
         $this->links = apply_filters( 'batcache_manager_links', $this->links );
 
         return array_unique( $this->links );

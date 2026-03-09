@@ -7,7 +7,7 @@ Author:       Malcolm Peralty and Pressable Customer Support Team
 Version:      5.8.8
 Requires at least: 5.0
 Tested up to: 6.7
-Requires PHP: 7.4
+Requires PHP: 8.1
 Text Domain:  pressable_cache_management
 Domain Path:  /languages
 License:      GPL v2 or later
@@ -18,8 +18,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-function pcm_activate_plugin_defaults() {
-    add_option( PCM_Options::API_ADMIN_NOTICE_STATUS, 'OK' );
+function pcm_activate_plugin_defaults(): void {
+    add_option( PCM_Options::API_ADMIN_NOTICE_STATUS->value, 'OK' );
 }
 register_activation_hook( __FILE__, 'pcm_activate_plugin_defaults' );
 
@@ -31,7 +31,7 @@ register_activation_hook( __FILE__, 'pcm_activate_plugin_defaults' );
  * custom-functions files will re-create the MU-plugin files automatically
  * on the next admin page load after the plugin is reactivated.
  */
-function pcm_deactivate_cleanup() {
+function pcm_deactivate_cleanup(): void {
     global $wp_filesystem;
 
     if ( empty( $wp_filesystem ) ) {
@@ -95,11 +95,11 @@ if ( ! defined( 'IS_PRESSABLE' ) ) {
     add_action( 'admin_init',    'deactivate_plugin_if_not_pressable' );
 }
 
-function deactivate_plugin_if_not_pressable() {
+function deactivate_plugin_if_not_pressable(): void {
     deactivate_plugins( plugin_basename( __FILE__ ) );
 }
 
-function pcm_auto_deactivation_notice() {
+function pcm_auto_deactivation_notice(): void {
     $style = 'margin:50px 20px 20px 0;background:#fff;'
            . 'border-left:4px solid #dd3a03;border-radius:0 8px 8px 0;'
            . 'padding:18px 20px;box-shadow:0 2px 8px rgba(4,0,36,.07);font-family:sans-serif;';
@@ -112,7 +112,7 @@ function pcm_auto_deactivation_notice() {
 }
 
 // ─── i18n – load translations (en_US, es_ES, fr_FR, etc.) ───────────────────
-function pressable_cache_management_load_textdomain() {
+function pressable_cache_management_load_textdomain(): void {
     // Third parameter must be relative to WP_PLUGIN_DIR (no leading slash, no absolute path)
     load_plugin_textdomain(
         'pressable_cache_management',
@@ -167,12 +167,12 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/security-privacy/security-p
 require_once plugin_dir_path( __FILE__ ) . 'includes/observability-reporting/reporting.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/guided-remediation-playbooks/playbooks.php';
 
-if ( (bool) apply_filters( 'pcm_enable_durable_origin_microcache', (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE, false ) ) ) {
+if ( (bool) apply_filters( 'pcm_enable_durable_origin_microcache', (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false ) ) ) {
     require_once plugin_dir_path( __FILE__ ) . 'includes/durable-origin-microcache/microcache.php';
 }
 
 // ─── Settings link on plugin list page ──────────────────────────────────────
-function pcm_settings_link( $links ) {
+function pcm_settings_link( array $links ): array {
     $settings_link = '<a href="admin.php?page=pressable_cache_management">'
                    . esc_html__( 'Settings', 'pressable_cache_management' ) . '</a>';
     array_unshift( $links, $settings_link );

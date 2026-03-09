@@ -25,13 +25,13 @@ foreach ($targets as $rel) {
         continue;
     }
 
-    if (strpos($code, "add_action( 'wp_ajax_") !== false && strpos($code, 'pcm_ajax_enforce_permissions') === false) {
+    if (str_contains($code, "add_action( 'wp_ajax_") && !str_contains($code, 'pcm_ajax_enforce_permissions')) {
         $errors[] = "Expected centralized AJAX guard in {$rel}";
     }
 }
 
 $reporting = file_get_contents($root . '/includes/observability-reporting/reporting.php');
-if (strpos((string) $reporting, 'pcm_privacy_redact_value') === false) {
+if (!str_contains((string) $reporting, 'pcm_privacy_redact_value')) {
     $errors[] = 'Reporting export path is missing privacy redaction usage.';
 }
 

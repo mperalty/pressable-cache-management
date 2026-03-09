@@ -6,7 +6,7 @@ if (!defined("ABSPATH")) {
 }
 
 // Callback: validate main options
-function pressable_cache_management_callback_validate_options($input) {
+function pressable_cache_management_callback_validate_options( array $input ): array {
     if (empty($input)) {
         $input = [];
     }
@@ -66,7 +66,7 @@ function pressable_cache_management_callback_validate_options($input) {
 }
 
 // Callback: validate Edge Cache options
-function egde_cache_settings_tab_callback_validate_options($input) {
+function egde_cache_settings_tab_callback_validate_options( mixed $input ): array {
     if ( ! is_array( $input ) ) {
         return array();
     }
@@ -80,7 +80,7 @@ function egde_cache_settings_tab_callback_validate_options($input) {
 }
 
 // Callback: validate branding options
-function remove_pressable_branding_tab_callback_validate_options($input) {
+function remove_pressable_branding_tab_callback_validate_options( array $input ): array {
     // Turn On/Off Pressable branding option
     $radio_options = pressable_cache_management_options_radio_button();
 

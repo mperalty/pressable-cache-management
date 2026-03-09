@@ -16,8 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return bool
  */
-function pcm_redirect_assistant_is_enabled() {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, false );
+function pcm_redirect_assistant_is_enabled(): bool {
+    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
 
     return (bool) apply_filters( 'pcm_enable_redirect_assistant', $enabled );
 }
@@ -26,17 +26,14 @@ function pcm_redirect_assistant_is_enabled() {
  * Redirect rules repository.
  */
 class PCM_Redirect_Assistant_Repository {
-    /**
-     * @var string
-     */
-    protected $option_key = 'pcm_redirect_assistant_rules_v1';
+    protected string $option_key = 'pcm_redirect_assistant_rules_v1';
 
     /**
      * List all rules ordered by priority ASC, id ASC.
      *
      * @return array
      */
-    public function list_rules() {
+    public function list_rules(): array {
         $rules = get_option( $this->option_key, array() );
 
         if ( ! is_array( $rules ) ) {
@@ -45,7 +42,7 @@ class PCM_Redirect_Assistant_Repository {
 
         usort(
             $rules,
-            static function ( $a, $b ) {
+            static function ( array $a, array $b ): int {
                 $priority_a = isset( $a['priority'] ) ? absint( $a['priority'] ) : 999;
                 $priority_b = isset( $b['priority'] ) ? absint( $b['priority'] ) : 999;
 
@@ -67,7 +64,7 @@ class PCM_Redirect_Assistant_Repository {
      *
      * @return string Rule ID.
      */
-    public function upsert_rule( $rule ) {
+    public function upsert_rule( array $rule ): string {
         $sanitized = pcm_redirect_assistant_sanitize_rule( $rule );
         $rules     = $this->list_rules();
 
@@ -96,14 +93,14 @@ class PCM_Redirect_Assistant_Repository {
      *
      * @return bool
      */
-    public function delete_rule( $rule_id ) {
+    public function delete_rule( string $rule_id ): bool {
         $rule_id = sanitize_key( $rule_id );
         $rules   = $this->list_rules();
 
         $filtered = array_values(
             array_filter(
                 $rules,
-                static function ( $rule ) use ( $rule_id ) {
+                static function ( array $rule ) use ( $rule_id ): bool {
                     return ! isset( $rule['id'] ) || $rule['id'] !== $rule_id;
                 }
             )
@@ -126,10 +123,10 @@ class PCM_Redirect_Assistant_Candidate_Discovery {
      *
      * @return array
      */
-    public function discover( $observed_urls ) {
+    public function discover( array $observed_urls ): array {
         $candidates = array();
 
-        if ( ! is_array( $observed_urls ) || empty( $observed_urls ) ) {
+        if ( empty( $observed_urls ) ) {
             return $candidates;
         }
 
@@ -144,8 +141,8 @@ class PCM_Redirect_Assistant_Candidate_Discovery {
                 continue;
             }
 
-            $path  = isset( $parts['path'] ) ? $parts['path'] : '/';
-            $query = isset( $parts['query'] ) ? $parts['query'] : '';
+            $path  = $parts['path'] ?? '/';
+            $query = $parts['query'] ?? '';
 
             if ( '' !== $query ) {
                 parse_str( $query, $params );
@@ -225,7 +222,7 @@ class PCM_Redirect_Assistant_Simulation_Engine {
      *
      * @return array
      */
-    public function simulate_url( $input_url, $rules, $hop_cap = 10 ) {
+    public function simulate_url( string $input_url, array $rules, int $hop_cap = 10 ): array {
         $current  = esc_url_raw( $input_url );
         $visited  = array();
         $warnings = array();
@@ -274,10 +271,10 @@ class PCM_Redirect_Assistant_Simulation_Engine {
      *
      * @return array
      */
-    public function simulate_batch( $input_urls, $rules ) {
+    public function simulate_batch( array $input_urls, array $rules ): array {
         $results = array();
 
-        foreach ( (array) $input_urls as $url ) {
+        foreach ( $input_urls as $url ) {
             $results[] = $this->simulate_url( $url, $rules );
         }
 
@@ -291,7 +288,7 @@ class PCM_Redirect_Assistant_Simulation_Engine {
      *
      * @return array
      */
-    public function detect_conflicts( $rules ) {
+    public function detect_conflicts( array $rules ): array {
         $warnings = array();
 
         foreach ( $rules as $i => $left ) {
@@ -313,7 +310,7 @@ class PCM_Redirect_Assistant_Simulation_Engine {
                     );
                 }
 
-                if ( 'prefix' === $left['match_type'] && 0 === strpos( $right['source_pattern'], $left['source_pattern'] ) ) {
+                if ( 'prefix' === $left['match_type'] && str_starts_with( $right['source_pattern'], $left['source_pattern'] ) ) {
                     $warnings[] = array(
                         'type'        => 'overlap_prefix',
                         'left_rule'   => $left['id'],
@@ -333,7 +330,7 @@ class PCM_Redirect_Assistant_Simulation_Engine {
      *
      * @return array
      */
-    protected function match_first_rule( $url, $rules ) {
+    protected function match_first_rule( string $url, array $rules ): array {
         $path = wp_parse_url( $url, PHP_URL_PATH );
         $path = is_string( $path ) ? $path : '/';
 
@@ -342,14 +339,14 @@ class PCM_Redirect_Assistant_Simulation_Engine {
                 continue;
             }
 
-            $source = isset( $rule['source_pattern'] ) ? (string) $rule['source_pattern'] : '';
-            $type   = isset( $rule['match_type'] ) ? (string) $rule['match_type'] : 'exact';
+            $source = (string) ( $rule['source_pattern'] ?? '' );
+            $type   = (string) ( $rule['match_type'] ?? 'exact' );
 
             if ( 'exact' === $type && $source === $path ) {
                 return $rule;
             }
 
-            if ( 'prefix' === $type && '' !== $source && 0 === strpos( $path, $source ) ) {
+            if ( 'prefix' === $type && '' !== $source && str_starts_with( $path, $source ) ) {
                 return $rule;
             }
 
@@ -371,8 +368,8 @@ class PCM_Redirect_Assistant_Exporter {
      *
      * @return array
      */
-    public function build_export( $rules ) {
-        $rules    = array_values( array_map( 'pcm_redirect_assistant_sanitize_rule', (array) $rules ) );
+    public function build_export( array $rules ): array {
+        $rules    = array_values( array_map( 'pcm_redirect_assistant_sanitize_rule', $rules ) );
         $checksum = hash( 'sha256', wp_json_encode( $rules ) );
         $created  = gmdate( 'Y-m-d H:i:s' ) . ' UTC';
 
@@ -404,7 +401,7 @@ class PCM_Redirect_Assistant_Exporter {
      *
      * @return array
      */
-    protected function validate_syntax( $php_content ) {
+    protected function validate_syntax( string $php_content ): array {
         $result = array(
             'valid'   => false,
             'message' => 'Syntax validation unavailable.',
@@ -441,10 +438,10 @@ class PCM_Redirect_Assistant_Exporter {
  *
  * @return array
  */
-function pcm_redirect_assistant_unique_by_key( $rows, $key ) {
+function pcm_redirect_assistant_unique_by_key( array $rows, string $key ): array {
     $unique = array();
 
-    foreach ( (array) $rows as $row ) {
+    foreach ( $rows as $row ) {
         if ( ! is_array( $row ) || empty( $row[ $key ] ) ) {
             continue;
         }
@@ -456,11 +453,11 @@ function pcm_redirect_assistant_unique_by_key( $rows, $key ) {
 }
 
 /**
- * @param array $rule Rule payload.
+ * @param mixed $rule Rule payload.
  *
  * @return array
  */
-function pcm_redirect_assistant_sanitize_rule( $rule ) {
+function pcm_redirect_assistant_sanitize_rule( mixed $rule ): array {
     $rule = is_array( $rule ) ? $rule : array();
 
     $id = isset( $rule['id'] ) ? sanitize_key( $rule['id'] ) : 'rule_' . wp_generate_uuid4();
@@ -484,7 +481,7 @@ function pcm_redirect_assistant_sanitize_rule( $rule ) {
  *
  * @return bool
  */
-function pcm_redirect_assistant_can_manage() {
+function pcm_redirect_assistant_can_manage(): bool {
     if ( function_exists( 'pcm_current_user_can' ) ) {
         return pcm_current_user_can( 'pcm_manage_redirect_rules' );
     }
@@ -500,16 +497,16 @@ function pcm_redirect_assistant_can_manage() {
  *
  * @return array
  */
-function pcm_redirect_assistant_validate_rules( $rules, $wildcard_confirmed = false ) {
+function pcm_redirect_assistant_validate_rules( array $rules, bool $wildcard_confirmed = false ): array {
     $errors   = array();
     $warnings = array();
 
-    foreach ( (array) $rules as $index => $rule ) {
+    foreach ( $rules as $index => $rule ) {
         $rule   = pcm_redirect_assistant_sanitize_rule( $rule );
-        $id     = isset( $rule['id'] ) ? $rule['id'] : 'rule_' . $index;
-        $source = isset( $rule['source_pattern'] ) ? (string) $rule['source_pattern'] : '';
-        $target = isset( $rule['target_pattern'] ) ? (string) $rule['target_pattern'] : '';
-        $type   = isset( $rule['match_type'] ) ? (string) $rule['match_type'] : 'exact';
+        $id     = $rule['id'] ?? 'rule_' . $index;
+        $source = (string) ( $rule['source_pattern'] ?? '' );
+        $target = (string) ( $rule['target_pattern'] ?? '' );
+        $type   = (string) ( $rule['match_type'] ?? 'exact' );
 
         if ( '' === $target ) {
             $errors[] = array(
@@ -529,7 +526,7 @@ function pcm_redirect_assistant_validate_rules( $rules, $wildcard_confirmed = fa
                 );
             }
 
-            $looks_wild = false !== strpos( $source, '.*' ) || false !== strpos( $source, '.+' ) || false !== strpos( $source, '(.+)' );
+            $looks_wild = str_contains( $source, '.*' ) || str_contains( $source, '.+' ) || str_contains( $source, '(.+)' );
             if ( $looks_wild ) {
                 $warnings[] = array(
                     'rule_id' => $id,
@@ -568,7 +565,7 @@ function pcm_redirect_assistant_validate_rules( $rules, $wildcard_confirmed = fa
  *
  * @return void
  */
-function pcm_ajax_redirect_assistant_list_rules() {
+function pcm_ajax_redirect_assistant_list_rules(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
     } else {
@@ -590,7 +587,7 @@ add_action( 'wp_ajax_pcm_redirect_assistant_list_rules', 'pcm_ajax_redirect_assi
  *
  * @return void
  */
-function pcm_ajax_redirect_assistant_discover_candidates() {
+function pcm_ajax_redirect_assistant_discover_candidates(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
     } else {
@@ -628,7 +625,7 @@ add_action( 'wp_ajax_pcm_redirect_assistant_discover_candidates', 'pcm_ajax_redi
  *
  * @return void
  */
-function pcm_ajax_redirect_assistant_save_rules() {
+function pcm_ajax_redirect_assistant_save_rules(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
     } else {
@@ -681,7 +678,7 @@ add_action( 'wp_ajax_pcm_redirect_assistant_save_rules', 'pcm_ajax_redirect_assi
  *
  * @return void
  */
-function pcm_ajax_redirect_assistant_simulate() {
+function pcm_ajax_redirect_assistant_simulate(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
     } else {
@@ -728,7 +725,7 @@ add_action( 'wp_ajax_pcm_redirect_assistant_simulate', 'pcm_ajax_redirect_assist
  *
  * @return void
  */
-function pcm_ajax_redirect_assistant_export() {
+function pcm_ajax_redirect_assistant_export(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
     } else {
@@ -767,7 +764,7 @@ function pcm_ajax_redirect_assistant_export() {
     wp_send_json_success(
         array(
             'export' => $export,
-            'meta_json' => wp_json_encode( isset( $export['meta'] ) ? $export['meta'] : array() ),
+            'meta_json' => wp_json_encode( $export['meta'] ?? array() ),
             'conflicts'  => $conflicts,
             'validation' => $validation,
         )
@@ -780,7 +777,7 @@ add_action( 'wp_ajax_pcm_redirect_assistant_export', 'pcm_ajax_redirect_assistan
  *
  * @return void
  */
-function pcm_ajax_redirect_assistant_import() {
+function pcm_ajax_redirect_assistant_import(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
     } else {

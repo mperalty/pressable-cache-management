@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! function_exists( 'pcm_flush_all_caches' ) ) {
-    function pcm_flush_all_caches() {
+    function pcm_flush_all_caches(): bool {
         $success = (bool) wp_cache_flush();
 
         if ( function_exists( 'batcache_clear_cache' ) ) {
@@ -32,7 +32,7 @@ if ( ! function_exists( 'pcm_flush_all_caches' ) ) {
         delete_transient( 'pcm_batcache_status' );
 
         if ( $success ) {
-            update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP, pcm_format_flush_timestamp() );
+            update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, pcm_format_flush_timestamp() );
         }
 
         return $success;
@@ -40,7 +40,7 @@ if ( ! function_exists( 'pcm_flush_all_caches' ) ) {
 }
 
 if ( ! function_exists( 'pcm_ajax_flush_object_cache' ) ) {
-    function pcm_ajax_flush_object_cache() {
+    function pcm_ajax_flush_object_cache(): void {
         pcm_verify_ajax_request( 'flush_object_cache_nonce', 'flush_object_cache_nonce' );
 
         if ( ! pcm_flush_all_caches() ) {
@@ -49,7 +49,7 @@ if ( ! function_exists( 'pcm_ajax_flush_object_cache' ) ) {
 
         wp_send_json_success( array(
             'message'   => __( 'Object Cache Flushed Successfully.', 'pressable_cache_management' ),
-            'timestamp' => (string) get_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP, '' ),
+            'timestamp' => (string) get_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, '' ),
         ) );
     }
 }
@@ -57,7 +57,7 @@ add_action( 'wp_ajax_pcm_flush_object_cache', 'pcm_ajax_flush_object_cache' );
 
 if ( isset( $_POST['flush_object_cache_nonce'] ) ) {
     if ( pcm_verify_request( 'flush_object_cache_nonce', 'flush_object_cache_nonce' ) && pcm_flush_all_caches() ) {
-        function flush_cache_notice__success() {
+        function flush_cache_notice__success(): void {
             $pcm_nid = 'pcm-obj-notice-' . substr( md5( microtime() ), 0, 8 );
             $wrap = 'display:flex;align-items:center;justify-content:space-between;gap:12px;'
                   . 'border-left:4px solid #03fcc2;background:#fff;border-radius:0 8px 8px 0;'
@@ -68,7 +68,7 @@ if ( isset( $_POST['flush_object_cache_nonce'] ) ) {
             echo '<p style="margin:0;font-size:13px;color:#040024;">'
                . esc_html__( 'Object Cache Flushed Successfully.', 'pressable_cache_management' )
                . '</p>';
-            echo '<button type="button" onclick="document.getElementById(\'' . $pcm_nid . '\').remove();" style="' . $btn . '">&#x2297;</button>';
+            echo '<button type="button" onclick="document.getElementById(\'' . $pcm_nid . '\').remove();" style="' . $btn . '"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button>';
             echo '</div>';
         }
         add_action( 'admin_notices', 'flush_cache_notice__success' );

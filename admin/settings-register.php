@@ -7,26 +7,26 @@ if (!defined('ABSPATH')) {
 }
 
 // Register plugin settings
-function pressable_cache_management_register_settings()
+function pressable_cache_management_register_settings(): void
 {
     // Save options for object cache tab
     register_setting(
-        PCM_Options::MAIN_OPTIONS,
-        PCM_Options::MAIN_OPTIONS,
+        PCM_Options::MAIN_OPTIONS->value,
+        PCM_Options::MAIN_OPTIONS->value,
         'pressable_cache_management_callback_validate_options'
     );
 
     // Save options for edge cache tab
     register_setting(
         'edge_cache_tab_options',
-        PCM_Options::EDGE_CACHE_SETTINGS_OPTIONS,
+        PCM_Options::EDGE_CACHE_SETTINGS_OPTIONS->value,
         'edge_cache_settings_tab_callback_validate_options'
     );
 
     // Save options for branding tab
     register_setting(
-        PCM_Options::REMOVE_BRANDING_OPTIONS,
-        PCM_Options::REMOVE_BRANDING_OPTIONS,
+        PCM_Options::REMOVE_BRANDING_OPTIONS->value,
+        PCM_Options::REMOVE_BRANDING_OPTIONS->value,
         'remove_pressable_branding_tab_callback_validate_options'
     );
 
@@ -39,8 +39,8 @@ function pressable_cache_management_register_settings()
     );
 
     // Verify if the options exist
-    if (false == get_option( PCM_Options::MAIN_OPTIONS )) {
-        add_option( PCM_Options::MAIN_OPTIONS );
+    if (false == get_option( PCM_Options::MAIN_OPTIONS->value )) {
+        add_option( PCM_Options::MAIN_OPTIONS->value );
     }
 
     /*

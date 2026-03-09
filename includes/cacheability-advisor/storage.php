@@ -22,8 +22,8 @@ if ( ! defined( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION' ) ) {
  *
  * @return bool
  */
-function pcm_cacheability_advisor_is_enabled() {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES, false );
+function pcm_cacheability_advisor_is_enabled(): bool {
+    $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
 
     return (bool) apply_filters( 'pcm_enable_cacheability_advisor', $enabled );
 }
@@ -33,7 +33,7 @@ function pcm_cacheability_advisor_is_enabled() {
  *
  * @return void
  */
-function pcm_cacheability_advisor_maybe_migrate() {
+function pcm_cacheability_advisor_maybe_migrate(): void {
     if ( ! pcm_cacheability_advisor_is_enabled() ) {
         return;
     }
@@ -46,14 +46,14 @@ function pcm_cacheability_advisor_maybe_migrate() {
         return;
     }
 
-    $current_version = get_option( PCM_Options::CACHEABILITY_ADVISOR_DB_VERSION, '' );
+    $current_version = get_option( PCM_Options::CACHEABILITY_ADVISOR_DB_VERSION->value, '' );
 
     if ( PCM_CACHEABILITY_ADVISOR_DB_VERSION === $current_version ) {
         return;
     }
 
     pcm_cacheability_advisor_install_tables();
-    update_option( PCM_Options::CACHEABILITY_ADVISOR_DB_VERSION, PCM_CACHEABILITY_ADVISOR_DB_VERSION, false );
+    update_option( PCM_Options::CACHEABILITY_ADVISOR_DB_VERSION->value, PCM_CACHEABILITY_ADVISOR_DB_VERSION, false );
 }
 add_action( 'admin_init', 'pcm_cacheability_advisor_maybe_migrate' );
 
@@ -62,7 +62,7 @@ add_action( 'admin_init', 'pcm_cacheability_advisor_maybe_migrate' );
  *
  * @return void
  */
-function pcm_cacheability_advisor_install_tables() {
+function pcm_cacheability_advisor_install_tables(): void {
     global $wpdb;
 
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -148,7 +148,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return int|false Run ID or false on failure.
      */
-    public function create_run( $initiated_by = 0, $sample_count = 0 ) {
+    public function create_run( int $initiated_by = 0, int $sample_count = 0 ): int|false {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_runs';
@@ -181,7 +181,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return bool
      */
-    public function complete_run( $run_id, $status = 'completed' ) {
+    public function complete_run( int $run_id, string $status = 'completed' ): bool {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_runs';
@@ -212,7 +212,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return int|false
      */
-    public function add_url_result( $run_id, $url, $template_type, $status_code = 0, $score = 0, $diagnosis = array() ) {
+    public function add_url_result( int $run_id, string $url, string $template_type, int $status_code = 0, int $score = 0, array $diagnosis = array() ): int|false {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_urls';
@@ -251,7 +251,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return int|false
      */
-    public function add_finding( $run_id, $url, $rule_id, $severity, $evidence = array(), $recommendation_id = '' ) {
+    public function add_finding( int $run_id, string $url, string $rule_id, string $severity, array $evidence = array(), string $recommendation_id = '' ): int|false {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_findings';
@@ -288,7 +288,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return int|false
      */
-    public function add_template_score( $run_id, $template_type, $score, $url_count ) {
+    public function add_template_score( int $run_id, string $template_type, int $score, int $url_count ): int|false {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_template_scores';
@@ -320,7 +320,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return array|null
      */
-    public function get_run( $run_id ) {
+    public function get_run( int $run_id ): ?array {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_runs';
@@ -337,7 +337,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return array
      */
-    public function list_runs( $limit = 10 ) {
+    public function list_runs( int $limit = 10 ): array {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_runs';
@@ -355,7 +355,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return array
      */
-    public function list_url_results( $run_id ) {
+    public function list_url_results( int $run_id ): array {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_urls';
@@ -379,7 +379,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return array
      */
-    public function list_findings( $run_id ) {
+    public function list_findings( int $run_id ): array {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_findings';
@@ -403,7 +403,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return array
      */
-    public function list_template_trends( $range = '7d' ) {
+    public function list_template_trends( string $range = '7d' ): array {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_template_scores';
@@ -436,7 +436,7 @@ class PCM_Cacheability_Advisor_Repository {
      *
      * @return array|null
      */
-    public function get_url_diagnosis( $run_id, $url ) {
+    public function get_url_diagnosis( int $run_id, string $url ): ?array {
         global $wpdb;
 
         $table = $wpdb->prefix . 'pcm_scan_urls';
@@ -475,7 +475,7 @@ class PCM_Cacheability_Probe_Client {
      *
      * @return array
      */
-    public function probe( $url ) {
+    public function probe( string $url ): array {
         $url = esc_url_raw( $url );
 
         $args = array(
@@ -562,7 +562,7 @@ class PCM_Cacheability_Probe_Client {
      *
      * @return array|null
      */
-    protected function probe_with_curl( $url, $args ) {
+    protected function probe_with_curl( string $url, array $args ): ?array {
         $timeout = isset( $args['timeout'] ) ? max( 1, absint( $args['timeout'] ) ) : 8;
 
         $ch = curl_init();
@@ -593,7 +593,7 @@ class PCM_Cacheability_Probe_Client {
                 return strlen( $line );
             }
 
-            if ( 0 === stripos( $trimmed, 'HTTP/' ) ) {
+            if ( str_starts_with( strtoupper( $trimmed ), 'HTTP/' ) ) {
                 $status_line = sanitize_text_field( $trimmed );
                 return strlen( $line );
             }
@@ -710,7 +710,7 @@ class PCM_Cacheability_Probe_Client {
      *
      * @return int
      */
-    protected function resolve_response_size( $body, $headers, $curl_info = array() ) {
+    protected function resolve_response_size( string $body, array $headers, array $curl_info = array() ): int {
         $size = strlen( (string) $body );
 
         if ( $size > 0 ) {
@@ -740,7 +740,7 @@ class PCM_Cacheability_Probe_Client {
      *
      * @return array
      */
-    protected function collect_platform_headers( $headers ) {
+    protected function collect_platform_headers( array $headers ): array {
         $interesting = array(
             'x-cache',
             'x-cache-hits',
@@ -770,7 +770,7 @@ class PCM_Cacheability_Probe_Client {
      *
      * @return array
      */
-    protected function extract_redirect_chain( $response ) {
+    protected function extract_redirect_chain( array $response ): array {
         $chain = array();
         $http_response = isset( $response['http_response'] ) ? $response['http_response'] : null;
 
@@ -801,7 +801,7 @@ class PCM_Cacheability_Probe_Client {
      *
      * @return float
      */
-    protected function format_duration( $duration ) {
+    protected function format_duration( float $duration ): float {
         return round( (float) $duration, 4 );
     }
 
@@ -810,7 +810,7 @@ class PCM_Cacheability_Probe_Client {
      *
      * @return array
      */
-    protected function normalize_headers( $headers ) {
+    protected function normalize_headers( array|object $headers ): array {
         $output = array();
 
         if ( is_object( $headers ) && method_exists( $headers, 'getAll' ) ) {
@@ -841,7 +841,7 @@ class PCM_Cacheability_Rule_Engine {
      *
      * @return array{score:int,findings:array}
      */
-    public function evaluate( $response ) {
+    public function evaluate( array $response ): array {
         $score    = 100;
         $findings = array();
 
@@ -859,7 +859,7 @@ class PCM_Cacheability_Rule_Engine {
         }
 
         $cache_control = isset( $headers['cache-control'] ) ? strtolower( (string) $headers['cache-control'] ) : '';
-        if ( '' !== $cache_control && ( false !== strpos( $cache_control, 'no-store' ) || false !== strpos( $cache_control, 'private' ) || false !== strpos( $cache_control, 'max-age=0' ) ) ) {
+        if ( '' !== $cache_control && ( str_contains( $cache_control, 'no-store' ) || str_contains( $cache_control, 'private' ) || str_contains( $cache_control, 'max-age=0' ) ) ) {
             $score -= 30;
             $findings[] = array(
                 'rule_id'           => 'cache_control_not_public',
@@ -870,7 +870,7 @@ class PCM_Cacheability_Rule_Engine {
         }
 
         $vary = isset( $headers['vary'] ) ? strtolower( (string) $headers['vary'] ) : '';
-        if ( '' !== $vary && ( false !== strpos( $vary, 'cookie' ) || false !== strpos( $vary, 'user-agent' ) ) ) {
+        if ( '' !== $vary && ( str_contains( $vary, 'cookie' ) || str_contains( $vary, 'user-agent' ) ) ) {
             $score -= 20;
             $findings[] = array(
                 'rule_id'           => 'volatile_vary',
@@ -911,7 +911,7 @@ class PCM_Cacheability_Decision_Tracer {
      *
      * @return array
      */
-    public function trace( $url, $probe, $evaluation ) {
+    public function trace( string $url, array $probe, array $evaluation ): array {
         $headers = isset( $probe['headers'] ) && is_array( $probe['headers'] ) ? $probe['headers'] : array();
 
         $edge_bypass_reasons     = array();
@@ -920,7 +920,7 @@ class PCM_Cacheability_Decision_Tracer {
         $route_risk_labels       = array();
 
         $cache_control = strtolower( (string) $this->header_to_scalar( $headers, 'cache-control' ) );
-        if ( '' !== $cache_control && ( false !== strpos( $cache_control, 'no-store' ) || false !== strpos( $cache_control, 'private' ) ) ) {
+        if ( '' !== $cache_control && ( str_contains( $cache_control, 'no-store' ) || str_contains( $cache_control, 'private' ) ) ) {
             $edge_bypass_reasons[] = array(
                 'reason'   => 'cache_control_non_public',
                 'evidence' => $cache_control,
@@ -928,7 +928,7 @@ class PCM_Cacheability_Decision_Tracer {
         }
 
         $vary = strtolower( (string) $this->header_to_scalar( $headers, 'vary' ) );
-        if ( '' !== $vary && false !== strpos( $vary, 'cookie' ) ) {
+        if ( '' !== $vary && str_contains( $vary, 'cookie' ) ) {
             $edge_bypass_reasons[] = array(
                 'reason'   => 'vary_cookie',
                 'evidence' => $vary,
@@ -993,7 +993,7 @@ class PCM_Cacheability_Decision_Tracer {
                 'evidence' => 'Total response time ' . $probe['timing']['total_time'] . 's',
             );
         }
-        if ( ! empty( $probe['platform_headers']['x-cache'] ) && false !== stripos( (string) $this->header_to_scalar( $probe['platform_headers'], 'x-cache' ), 'miss' ) ) {
+        if ( ! empty( $probe['platform_headers']['x-cache'] ) && str_contains( strtolower( (string) $this->header_to_scalar( $probe['platform_headers'], 'x-cache' ) ), 'miss' ) ) {
             $route_risk_labels[] = array(
                 'label'    => 'cold',
                 'evidence' => 'x-cache indicates miss',
@@ -1014,7 +1014,7 @@ class PCM_Cacheability_Decision_Tracer {
      *
      * @return array
      */
-    protected function header_values( $headers, $key ) {
+    protected function header_values( array $headers, string $key ): array {
         if ( ! isset( $headers[ $key ] ) ) {
             return array();
         }
@@ -1028,7 +1028,7 @@ class PCM_Cacheability_Decision_Tracer {
      *
      * @return string
      */
-    protected function header_to_scalar( $headers, $key ) {
+    protected function header_to_scalar( array $headers, string $key ): string {
         if ( ! isset( $headers[ $key ] ) ) {
             return '';
         }
@@ -1044,7 +1044,7 @@ class PCM_Cacheability_URL_Sampler {
     /**
      * @return array[]
      */
-    public function sample() {
+    public function sample(): array {
         $samples = array();
 
         $samples[] = array(
@@ -1096,7 +1096,7 @@ class PCM_Cacheability_URL_Sampler {
      *
      * @return array
      */
-    protected function unique_samples( $samples ) {
+    protected function unique_samples( array $samples ): array {
         $seen   = array();
         $output = array();
 
@@ -1121,33 +1121,20 @@ class PCM_Cacheability_URL_Sampler {
  * Service wrapper for run status lifecycle.
  */
 class PCM_Cacheability_Advisor_Run_Service {
-    /** @var PCM_Cacheability_Advisor_Repository */
-    protected $repository;
-
-    /** @var PCM_Cacheability_Probe_Client */
-    protected $probe_client;
-
-    /** @var PCM_Cacheability_Rule_Engine */
-    protected $rule_engine;
-
-    /** @var PCM_Cacheability_URL_Sampler */
-    protected $sampler;
-
-    /** @var PCM_Cacheability_Decision_Tracer */
-    protected $decision_tracer;
-
     /**
-     * @param PCM_Cacheability_Advisor_Repository|null $repository Repository dependency.
-     * @param PCM_Cacheability_Probe_Client|null       $probe_client Probe client.
-     * @param PCM_Cacheability_Rule_Engine|null        $rule_engine Rule engine.
-     * @param PCM_Cacheability_URL_Sampler|null        $sampler Sampler.
+     * @param PCM_Cacheability_Advisor_Repository $repository Repository dependency.
+     * @param PCM_Cacheability_Probe_Client       $probe_client Probe client.
+     * @param PCM_Cacheability_Rule_Engine        $rule_engine Rule engine.
+     * @param PCM_Cacheability_URL_Sampler        $sampler Sampler.
+     * @param PCM_Cacheability_Decision_Tracer    $decision_tracer Decision tracer.
      */
-    public function __construct( $repository = null, $probe_client = null, $rule_engine = null, $sampler = null, $decision_tracer = null ) {
-        $this->repository   = $repository ? $repository : new PCM_Cacheability_Advisor_Repository();
-        $this->probe_client = $probe_client ? $probe_client : new PCM_Cacheability_Probe_Client();
-        $this->rule_engine  = $rule_engine ? $rule_engine : new PCM_Cacheability_Rule_Engine();
-        $this->sampler      = $sampler ? $sampler : new PCM_Cacheability_URL_Sampler();
-        $this->decision_tracer = $decision_tracer ? $decision_tracer : new PCM_Cacheability_Decision_Tracer();
+    public function __construct(
+        protected PCM_Cacheability_Advisor_Repository $repository = new PCM_Cacheability_Advisor_Repository(),
+        protected PCM_Cacheability_Probe_Client $probe_client = new PCM_Cacheability_Probe_Client(),
+        protected PCM_Cacheability_Rule_Engine $rule_engine = new PCM_Cacheability_Rule_Engine(),
+        protected PCM_Cacheability_URL_Sampler $sampler = new PCM_Cacheability_URL_Sampler(),
+        protected PCM_Cacheability_Decision_Tracer $decision_tracer = new PCM_Cacheability_Decision_Tracer(),
+    ) {
     }
 
     /**
@@ -1155,7 +1142,7 @@ class PCM_Cacheability_Advisor_Run_Service {
      *
      * @return int|false
      */
-    public function start_and_execute_scan() {
+    public function start_and_execute_scan(): int|false {
         $samples    = $this->sampler->sample();
         $sample_cnt = count( $samples );
         $run_id     = $this->repository->create_run( get_current_user_id(), $sample_cnt );
@@ -1236,7 +1223,7 @@ class PCM_Cacheability_Advisor_Run_Service {
      *
      * @return bool
      */
-    public function mark_failed( $run_id ) {
+    public function mark_failed( int $run_id ): bool {
         return $this->repository->complete_run( $run_id, 'failed' );
     }
 }
@@ -1246,7 +1233,7 @@ class PCM_Cacheability_Advisor_Run_Service {
  *
  * @return bool
  */
-function pcm_cacheability_advisor_ajax_can_manage() {
+function pcm_cacheability_advisor_ajax_can_manage(): bool {
     if ( function_exists( 'pcm_current_user_can' ) ) {
         return pcm_current_user_can( 'pcm_run_scans' );
     }
@@ -1259,7 +1246,7 @@ function pcm_cacheability_advisor_ajax_can_manage() {
  *
  * @return void
  */
-function pcm_ajax_cacheability_scan_start() {
+function pcm_ajax_cacheability_scan_start(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_run_scans' );
     } else {
@@ -1306,7 +1293,7 @@ add_action( 'wp_ajax_pcm_cacheability_scan_start', 'pcm_ajax_cacheability_scan_s
  *
  * @return void
  */
-function pcm_ajax_cacheability_scan_status() {
+function pcm_ajax_cacheability_scan_status(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1340,7 +1327,7 @@ add_action( 'wp_ajax_pcm_cacheability_scan_status', 'pcm_ajax_cacheability_scan_
  *
  * @return void
  */
-function pcm_ajax_cacheability_scan_findings() {
+function pcm_ajax_cacheability_scan_findings(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1400,7 +1387,7 @@ add_action( 'wp_ajax_pcm_cacheability_scan_findings', 'pcm_ajax_cacheability_sca
  *
  * @return void
  */
-function pcm_ajax_cacheability_scan_results() {
+function pcm_ajax_cacheability_scan_results(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1433,7 +1420,7 @@ add_action( 'wp_ajax_pcm_cacheability_scan_results', 'pcm_ajax_cacheability_scan
  *
  * @return void
  */
-function pcm_ajax_cacheability_template_trends() {
+function pcm_ajax_cacheability_template_trends(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1461,7 +1448,7 @@ add_action( 'wp_ajax_pcm_cacheability_template_trends', 'pcm_ajax_cacheability_t
  *
  * @return void
  */
-function pcm_ajax_cacheability_route_diagnosis() {
+function pcm_ajax_cacheability_route_diagnosis(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
         pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
     } else {
@@ -1515,7 +1502,7 @@ add_action( 'wp_ajax_pcm_cacheability_route_diagnosis', 'pcm_ajax_cacheability_r
  *
  * @return array
  */
-function pcm_cacheability_enrich_diagnosis_from_findings( $diagnosis, $findings ) {
+function pcm_cacheability_enrich_diagnosis_from_findings( array $diagnosis, array $findings ): array {
     $diagnosis = is_array( $diagnosis ) ? $diagnosis : array();
     $decoded   = isset( $diagnosis['diagnosis'] ) && is_array( $diagnosis['diagnosis'] ) ? $diagnosis['diagnosis'] : array();
     $trace     = isset( $decoded['decision_trace'] ) && is_array( $decoded['decision_trace'] ) ? $decoded['decision_trace'] : array();
@@ -1594,7 +1581,7 @@ function pcm_cacheability_enrich_diagnosis_from_findings( $diagnosis, $findings 
  *
  * @return bool
  */
-function pcm_cacheability_trace_has_reason( $reasons, $reason ) {
+function pcm_cacheability_trace_has_reason( array $reasons, string $reason ): bool {
     foreach ( (array) $reasons as $row ) {
         if ( isset( $row['reason'] ) && sanitize_key( (string) $row['reason'] ) === sanitize_key( $reason ) ) {
             return true;
@@ -1611,7 +1598,7 @@ function pcm_cacheability_trace_has_reason( $reasons, $reason ) {
  *
  * @return bool
  */
-function pcm_cacheability_trace_has_poison_signal( $signals, $type, $key ) {
+function pcm_cacheability_trace_has_poison_signal( array $signals, string $type, string $key ): bool {
     foreach ( (array) $signals as $signal ) {
         if ( isset( $signal['type'], $signal['key'] )
             && sanitize_key( (string) $signal['type'] ) === sanitize_key( $type )
@@ -1629,7 +1616,7 @@ function pcm_cacheability_trace_has_poison_signal( $signals, $type, $key ) {
  *
  * @return bool
  */
-function pcm_cacheability_trace_has_risk_label( $labels, $label ) {
+function pcm_cacheability_trace_has_risk_label( array $labels, string $label ): bool {
     foreach ( (array) $labels as $item ) {
         if ( isset( $item['label'] ) && sanitize_key( (string) $item['label'] ) === sanitize_key( $label ) ) {
             return true;

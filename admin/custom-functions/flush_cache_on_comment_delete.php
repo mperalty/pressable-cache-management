@@ -22,7 +22,7 @@ add_action( 'delete_comment', 'pcm_flush_cache_on_comment_removal', 10, 2 );
  *
  * @return void
  */
-function pcm_flush_cache_on_comment_removal( $comment_id, $comment ){
+function pcm_flush_cache_on_comment_removal( string $comment_id, \WP_Comment $comment ): void {
 
 	// Prevent duplicate flushes if both trash_comment and delete_comment
 	// fire for the same comment during a single request.
@@ -38,7 +38,7 @@ function pcm_flush_cache_on_comment_removal( $comment_id, $comment ){
 
 	// Save timestamp to database when cache is flushed on comment removal.
 	$object_cache_flush_time = pcm_format_flush_timestamp();
-	update_option( PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP, $object_cache_flush_time );
+	update_option( PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP->value, $object_cache_flush_time );
 }
 
 }
