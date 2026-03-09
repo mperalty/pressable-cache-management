@@ -32,37 +32,6 @@ function pressable_cache_management_callback_section_cache()
     }
 
     echo '<p>' . esc_html__('These settings enable you to manage the object cache.', 'pressable_cache_management') . '</p>';
-    
-// Check if the site uses Cloudflare
-$response = wp_remote_get( get_site_url(), array( 'timeout' => 120 ) );
-$headers = wp_remote_retrieve_headers( $response );
-
-if ( isset( $headers['server'] ) && stripos( $headers['server'], 'cloudflare' ) !== false ) {
-    //Cloudflare is present in the website header.
-
-    // Check Batcache status
-    $site_url = get_site_url();
-    $response = wp_remote_get( $site_url, array( 'timeout' => 120 ) );
-
-    if ( is_wp_error( $response ) || strpos( $response['body'], 'batcache' ) === false ) {
-        echo '<p style="text-align:right; font-weight:bold">Batcache Status: Broken &#128308;</p>';
-        echo '<p style="text-align:right; font-size: smaller;">Disable Cloudflare proxy and caching and try again &#x1F7E0</p></br>';
-    } else {
-        echo '<p style="text-align:right; font-weight:bold">Batcache Status: OK &#x1F7E2;</p>';     
-    }
-} else {
-    //Cloudflare is not present in the website header.
-    // Check for Batcache
-    $site_url = get_site_url();
-    $response = wp_remote_get( $site_url, array( 'timeout' => 120 ) );
-
-    if ( is_wp_error( $response ) || strpos( $response['body'], 'batcache' ) === false ) {
-        echo '<p style="text-align:right; font-weight:bold">Batcache Status: Broken &#128308;</p></br>';
-    } else {
-        echo '<p style="text-align:right; font-weight:bold">Batcache Status: OK &#x1F7E2;</p>';     
-    }
-}
-
 
 }
 
@@ -77,16 +46,6 @@ function pressable_cache_management_options_radio_button()
 
     );
 
-}
-
-// Removed redundant code related to CDN and old API flags
-$pcm_con_auth = 'pressable_api_admin_notice__status';
-
-// If the option already exists, update it to "OK"
-if ( get_option( $pcm_con_auth ) !== false ) {
-    update_option( $pcm_con_auth, 'OK' );
-} else {
-    add_option( $pcm_con_auth, 'OK' );
 }
 
 function pressable_cache_management_callback_section_edge_cache()

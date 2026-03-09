@@ -18,6 +18,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+function pcm_activate_plugin_defaults() {
+    add_option( 'pressable_api_admin_notice__status', 'OK' );
+}
+register_activation_hook( __FILE__, 'pcm_activate_plugin_defaults' );
+
 // ─── GitHub Auto-Updates via plugin-update-checker (YahnisElsts/plugin-update-checker) ──
 // Library lives at: includes/plugin-update-checker/plugin-update-checker.php
 // How updates are triggered: create a GitHub Release (or tag) on the repo and
