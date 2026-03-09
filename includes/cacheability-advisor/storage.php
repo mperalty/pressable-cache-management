@@ -546,7 +546,7 @@ class PCM_Cacheability_Probe_Client {
                 'connect_time'      => null,
                 'starttransfer_time'=> null,
             ),
-            'response_size'    => strlen( (string) $body ),
+            'response_size'    => $this->resolve_response_size( $body, $normalized_headers ),
             'platform_headers' => $this->collect_platform_headers( $normalized_headers ),
             'error_code'       => '',
             'error_message'    => '',
@@ -693,12 +693,46 @@ class PCM_Cacheability_Probe_Client {
                 'connect_time'      => isset( $info['connect_time'] ) ? $this->format_duration( $info['connect_time'] ) : null,
                 'starttransfer_time'=> isset( $info['starttransfer_time'] ) ? $this->format_duration( $info['starttransfer_time'] ) : null,
             ),
-            'response_size'    => strlen( (string) $body ),
+            'response_size'    => $this->resolve_response_size( $body, $normalized_headers, $info ),
             'platform_headers' => $this->collect_platform_headers( $normalized_headers ),
             'error_code'       => '',
             'error_message'    => '',
             'is_error'         => false,
         );
+    }
+
+    /**
+     * Resolve response size from body length with header/cURL fallbacks.
+     *
+     * @param string $body Response body.
+     * @param array  $headers Normalized response headers.
+     * @param array  $curl_info Optional cURL info array.
+     *
+     * @return int
+     */
+    protected function resolve_response_size( $body, $headers, $curl_info = array() ) {
+        $size = strlen( (string) $body );
+
+        if ( $size > 0 ) {
+            return absint( $size );
+        }
+
+        if ( isset( $headers['content-length'] ) ) {
+            $content_length = $headers['content-length'];
+            if ( is_array( $content_length ) ) {
+                $content_length = end( $content_length );
+            }
+
+            if ( is_numeric( $content_length ) && (float) $content_length > 0 ) {
+                return absint( $content_length );
+            }
+        }
+
+        if ( isset( $curl_info['size_download'] ) && (float) $curl_info['size_download'] > 0 ) {
+            return absint( round( (float) $curl_info['size_download'] ) );
+        }
+
+        return 0;
     }
 
     /**
