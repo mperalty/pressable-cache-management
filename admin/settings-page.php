@@ -863,7 +863,7 @@ https://example.com/OLD/"></textarea>
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Audit Log', 'pressable_cache_management' ); ?></h4>
                 <p><button type="button" class="button" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button></p>
-                <div id="pcm-audit-log" class="pcm-audit-panel pcm-skeleton" aria-live="polite"></div>
+                <div id="pcm-audit-log" class="pcm-audit-panel pcm-skeleton-panel" aria-live="polite"></div>
                 <p style="margin-top:8px;"><button type="button" class="button" id="pcm-audit-load-more" style="display:none;"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
             </div>
         </div>
@@ -1290,9 +1290,12 @@ https://example.com/OLD/"></textarea>
     .pcm-primary-btn:hover{background:#03fcc2 !important;border-color:#03fcc2 !important;color:#040024 !important}
     .pcm-audit-panel{max-height:260px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;border-radius:6px;font-size:12px}
     .pcm-audit-table{margin:0}
-    .pcm-skeleton{position:relative;min-height:180px}
-    .pcm-skeleton::before{content:'';display:block;height:12px;border-radius:4px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 37%,#e5e7eb 63%);background-size:400% 100%;animation:pcm-skeleton-pulse 1.2s ease infinite;box-shadow:0 28px 0 #e5e7eb,0 56px 0 #e5e7eb,0 84px 0 #e5e7eb,0 112px 0 #e5e7eb}
+    .pcm-skeleton-panel{position:relative;min-height:180px}
+    .pcm-skeleton-panel::before{content:'';display:block;height:12px;border-radius:4px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 37%,#e5e7eb 63%);background-size:400% 100%;animation:pcm-skeleton-pulse 1.2s ease infinite;box-shadow:0 28px 0 #e5e7eb,0 56px 0 #e5e7eb,0 84px 0 #e5e7eb,0 112px 0 #e5e7eb}
     @keyframes pcm-skeleton-pulse{0%{background-position:100% 0}100%{background-position:0 0}}
+    .pcm-skeleton-block{display:flex;flex-direction:column;gap:0}
+    .pcm-skeleton{background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:pcm-shimmer 1.5s infinite;border-radius:4px;height:16px;margin-bottom:8px}
+    @keyframes pcm-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
     .pcm-toast{position:fixed;right:18px;bottom:24px;z-index:100000;display:inline-flex;align-items:center;gap:8px;background:#040024;color:#fff;padding:10px 14px;border-left:4px solid #03fcc2;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.18);font-size:12.5px;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}
     .pcm-toast.is-visible{opacity:1;transform:translateY(0)}
     .pcm-advisor-grid{align-items:start}
