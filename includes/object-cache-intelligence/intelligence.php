@@ -82,6 +82,15 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             $limit     = $parsed['bytes_limit'];
         }
 
+        $client_stats = $this->get_client_stats( $wp_object_cache );
+        if ( ! empty( $client_stats ) ) {
+            $hits      = null !== $client_stats['hits'] ? $client_stats['hits'] : $hits;
+            $misses    = null !== $client_stats['misses'] ? $client_stats['misses'] : $misses;
+            $evictions = null !== $client_stats['evictions'] ? $client_stats['evictions'] : $evictions;
+            $bytes     = null !== $client_stats['bytes_used'] ? $client_stats['bytes_used'] : $bytes;
+            $limit     = null !== $client_stats['bytes_limit'] ? $client_stats['bytes_limit'] : $limit;
+        }
+
         return array(
             'provider'      => $this->get_provider_key(),
             'status'        => 'connected',
@@ -91,8 +100,115 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             'evictions'     => $evictions,
             'bytes_used'    => $bytes,
             'bytes_limit'   => $limit,
-            'meta'          => array(),
+            'meta'          => array(
+                'curr_items'       => isset( $client_stats['curr_items'] ) ? $client_stats['curr_items'] : null,
+                'total_items'      => isset( $client_stats['total_items'] ) ? $client_stats['total_items'] : null,
+                'curr_connections' => isset( $client_stats['curr_connections'] ) ? $client_stats['curr_connections'] : null,
+                'uptime_seconds'   => isset( $client_stats['uptime'] ) ? $client_stats['uptime'] : null,
+                'uptime_human'     => isset( $client_stats['uptime'] ) ? pcm_object_cache_format_uptime( $client_stats['uptime'] ) : null,
+                'nodes_reported'   => isset( $client_stats['nodes_reported'] ) ? $client_stats['nodes_reported'] : null,
+            ),
         );
+    }
+
+    /**
+     * Attempt to resolve low-level cache client from known drop-in properties.
+     *
+     * @param object $wp_object_cache Active object cache drop-in instance.
+     *
+     * @return object|null
+     */
+    protected function get_underlying_client( $wp_object_cache ) {
+        foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client' ) as $prop ) {
+            if ( ! isset( $wp_object_cache->{$prop} ) || ! is_object( $wp_object_cache->{$prop} ) ) {
+                continue;
+            }
+
+            if ( $wp_object_cache->{$prop} instanceof Memcached || $wp_object_cache->{$prop} instanceof Memcache ) {
+                return $wp_object_cache->{$prop};
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Read normalized stats from an active drop-in client connection.
+     *
+     * @param object $wp_object_cache Active object cache drop-in instance.
+     *
+     * @return array
+     */
+    protected function get_client_stats( $wp_object_cache ) {
+        $client = $this->get_underlying_client( $wp_object_cache );
+        if ( ! $client ) {
+            return array();
+        }
+
+        if ( $client instanceof Memcached ) {
+            $all_stats = $client->getStats();
+        } else {
+            $all_stats = $client->getExtendedStats();
+        }
+
+        if ( ! is_array( $all_stats ) || empty( $all_stats ) ) {
+            return array();
+        }
+
+        $totals = array(
+            'hits'             => 0,
+            'misses'           => 0,
+            'evictions'        => null,
+            'bytes_used'       => null,
+            'bytes_limit'      => null,
+            'curr_items'       => null,
+            'total_items'      => null,
+            'curr_connections' => null,
+            'uptime'           => 0,
+            'nodes_reported'   => 0,
+        );
+
+        foreach ( $all_stats as $server_stats ) {
+            if ( ! is_array( $server_stats ) || empty( $server_stats ) ) {
+                continue;
+            }
+
+            $totals['nodes_reported'] += 1;
+            $totals['hits']   += isset( $server_stats['get_hits'] ) ? absint( $server_stats['get_hits'] ) : 0;
+            $totals['misses'] += isset( $server_stats['get_misses'] ) ? absint( $server_stats['get_misses'] ) : 0;
+
+            if ( isset( $server_stats['evictions'] ) ) {
+                $totals['evictions'] = ( null === $totals['evictions'] ? 0 : $totals['evictions'] ) + absint( $server_stats['evictions'] );
+            }
+
+            if ( isset( $server_stats['bytes'] ) ) {
+                $totals['bytes_used'] = ( null === $totals['bytes_used'] ? 0 : $totals['bytes_used'] ) + absint( $server_stats['bytes'] );
+            }
+
+            if ( isset( $server_stats['limit_maxbytes'] ) ) {
+                $totals['bytes_limit'] = ( null === $totals['bytes_limit'] ? 0 : $totals['bytes_limit'] ) + absint( $server_stats['limit_maxbytes'] );
+            }
+
+            if ( isset( $server_stats['curr_items'] ) ) {
+                $totals['curr_items'] = ( null === $totals['curr_items'] ? 0 : $totals['curr_items'] ) + absint( $server_stats['curr_items'] );
+            }
+
+            if ( isset( $server_stats['total_items'] ) ) {
+                $totals['total_items'] = ( null === $totals['total_items'] ? 0 : $totals['total_items'] ) + absint( $server_stats['total_items'] );
+            }
+
+            if ( isset( $server_stats['curr_connections'] ) ) {
+                $totals['curr_connections'] = ( null === $totals['curr_connections'] ? 0 : $totals['curr_connections'] ) + absint( $server_stats['curr_connections'] );
+            }
+
+            $totals['uptime'] = max( $totals['uptime'], isset( $server_stats['uptime'] ) ? absint( $server_stats['uptime'] ) : 0 );
+        }
+
+        if ( 0 === $totals['nodes_reported'] ) {
+            return array();
+        }
+
+        return $totals;
     }
 
     /**
