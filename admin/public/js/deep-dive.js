@@ -47,11 +47,12 @@
         var runStatus = document.getElementById('pcm-advisor-run-status');
         var scoreWrap = document.getElementById('pcm-advisor-template-scores');
         var findingsWrap = document.getElementById('pcm-advisor-findings');
+        var sensitivityWrap = document.getElementById('pcm-advisor-sensitivity');
         var diagnosisWrap = document.getElementById('pcm-advisor-diagnosis');
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
         var section = document.getElementById('pcm-feature-cacheability-advisor');
         var currentRunId = 0;
-        if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !diagnosisWrap || !playbookWrap || !section) return;
+        if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !sensitivityWrap || !diagnosisWrap || !playbookWrap || !section) return;
 
         function showError(targetEl, retryAction, error, fallbackMessage) {
             window.pcmRenderDeepDiveDependencyError(targetEl, 'Cacheability Advisor', retryAction, error, fallbackMessage);
@@ -323,6 +324,7 @@
                 if (!sensitivityPayload || !sensitivityPayload.success) throw new Error(window.pcmPayloadErrorMessage(sensitivityPayload, 'Unable to load sensitivity endpoint.'));
                 renderScores(resultsPayload && resultsPayload.success ? resultsPayload.data.results : []);
                 renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
+                renderSensitivity(sensitivityPayload);
                 var firstResult = (resultsPayload && resultsPayload.success && resultsPayload.data && Array.isArray(resultsPayload.data.results)) ? resultsPayload.data.results[0] : null;
                 if (firstResult && firstResult.url) {
                     return loadRouteDiagnosis(runId, firstResult.url);

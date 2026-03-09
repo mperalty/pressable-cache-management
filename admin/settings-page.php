@@ -511,6 +511,10 @@ function pressable_cache_management_display_settings_page() {
             </div>
         </div>
         <div style="margin-top:14px;">
+            <h4 style="margin:8px 0;"><?php echo esc_html__( 'Route Sensitivity', 'pressable_cache_management' ); ?></h4>
+            <div id="pcm-advisor-sensitivity" style="font-size:13px;color:#111827;"></div>
+        </div>
+        <div style="margin-top:14px;">
             <h4 style="margin:8px 0;"><?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?></h4>
             <div id="pcm-advisor-diagnosis" class="pcm-advisor-diagnosis" style="font-size:13px;color:#111827;border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb;"><em><?php echo esc_html__( 'Select a route from findings to view diagnosis.', 'pressable_cache_management' ); ?></em></div>
         </div>
