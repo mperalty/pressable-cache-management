@@ -77,6 +77,10 @@ body.admin-color-modern {
 }
 
 /* ---- Unified Button System ---- */
+.pcm-wrap button,
+.pcm-wrap input[type="submit"],
+.pcm-wrap input[type="button"],
+.pcm-wrap .button,
 .pcm-btn-primary,
 .pcm-btn-secondary,
 .pcm-btn-text,
@@ -85,8 +89,8 @@ body.admin-color-modern {
   align-items: center !important;
   justify-content: center !important;
   gap: 8px !important;
-  border-radius: 8px !important;
-  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  border: 1px solid #dd3a03 !important;
   padding: 10px 18px !important;
   font-family: 'Inter', sans-serif !important;
   font-size: 13.5px !important;
@@ -94,14 +98,29 @@ body.admin-color-modern {
   line-height: 1.4 !important;
   cursor: pointer !important;
   text-decoration: none !important;
+  background: linear-gradient(180deg, #f24a12 0%, #dd3a03 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(221,58,3,0.26) !important;
   transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+.pcm-wrap button:hover,
+.pcm-wrap input[type="submit"]:hover,
+.pcm-wrap input[type="button"]:hover,
+.pcm-wrap .button:hover {
+  background: linear-gradient(180deg, #ea430a 0%, #c93402 100%) !important;
+  border-color: #c93402 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
 }
 
 .pcm-btn-primary {
-  background: #dd3a03 !important;
+  background: linear-gradient(180deg, #f24a12 0%, #dd3a03 100%) !important;
   color: #ffffff !important;
   border-color: #dd3a03 !important;
-  box-shadow: 0 2px 8px rgba(221,58,3,0.25) !important;
+  box-shadow: 0 8px 18px rgba(221,58,3,0.26) !important;
 }
 
 .pcm-btn-primary:hover,
