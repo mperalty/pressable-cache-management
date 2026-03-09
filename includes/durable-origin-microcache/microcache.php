@@ -735,7 +735,7 @@ function pcm_microcache_render_deep_dive_card() {
     $summary = pcm_microcache_get_health_summary();
     $stats   = $summary['stats'];
     ?>
-    <div class="pcm-card" id="pcm-feature-durable-origin-microcache" style="margin-bottom:20px;scroll-margin-top:20px;">
+    <div class="pcm-card pcm-card-hover" id="pcm-feature-durable-origin-microcache" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Durable Origin Microcache', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Anonymous-safe microcache hit/miss telemetry, stale-while-revalidate activity, and recent invalidation events.', 'pressable_cache_management' ); ?></p>
         <div style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-bottom:12px;">

@@ -476,7 +476,7 @@ function pressable_cache_management_display_settings_page() {
     ?>
     <div class="pcm-summary-grid" style="margin-bottom:16px;">
         <?php foreach ( $summary_cards as $card ) : ?>
-        <a class="pcm-card pcm-summary-card" href="<?php echo esc_attr( $card['target'] ); ?>">
+        <a class="pcm-card pcm-card-hover pcm-summary-card" href="<?php echo esc_attr( $card['target'] ); ?>">
             <span class="pcm-summary-heading"><span class="pcm-summary-icon"><?php echo esc_html( $card['icon'] ); ?></span><span class="pcm-summary-label"><?php echo esc_html( $card['label'] ); ?></span></span>
             <span class="pcm-status-dot <?php echo esc_attr( 'is-' . $card['status'] ); ?>" aria-hidden="true"></span>
             <strong class="pcm-summary-value"><?php echo esc_html( $card['value'] ); ?></strong>
@@ -493,7 +493,7 @@ function pressable_cache_management_display_settings_page() {
     <?php endif; ?>
 
     <?php if ( $is_deep_dive_tab && function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled() ) : ?>
-    <div class="pcm-card" id="pcm-feature-cacheability-advisor" style="margin-bottom:20px;scroll-margin-top:20px;">
+    <div class="pcm-card pcm-card-hover" id="pcm-feature-cacheability-advisor" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0; color:#4b5563;"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -517,7 +517,7 @@ function pressable_cache_management_display_settings_page() {
         <div id="pcm-advisor-playbook" style="margin-top:14px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;display:none;"></div>
     </div>
     <?php if ( $is_deep_dive_tab && function_exists( 'pcm_object_cache_intelligence_is_enabled' ) && pcm_object_cache_intelligence_is_enabled() ) : ?>
-    <div class="pcm-card" id="pcm-feature-object-cache-intelligence" style="margin-bottom:20px;scroll-margin-top:20px;">
+    <div class="pcm-card pcm-card-hover" id="pcm-feature-object-cache-intelligence" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">🧠 <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
         <p style="margin:0 0 10px;color:#6b7280;font-size:12px;"><?php echo esc_html__( 'Data source: we first read the active object-cache drop-in stats (global $wp_object_cache), then fall back to PHP Memcached extension stats when available. Evictions can show n/a when the provider does not expose that metric; memory pressure can show 0% when memory limit bytes are unavailable.', 'pressable_cache_management' ); ?></p>
@@ -539,7 +539,7 @@ function pressable_cache_management_display_settings_page() {
     <?php endif; ?>
 
     <?php if ( $is_deep_dive_tab && function_exists( 'pcm_opcache_awareness_is_enabled' ) && pcm_opcache_awareness_is_enabled() ) : ?>
-    <div class="pcm-card" id="pcm-feature-opcache-awareness" style="margin-bottom:20px;scroll-margin-top:20px;">
+    <div class="pcm-card pcm-card-hover" id="pcm-feature-opcache-awareness" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📦 <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review OPcache memory pressure, restart patterns, and recommendations.', 'pressable_cache_management' ); ?></p>
         <p>
@@ -820,7 +820,7 @@ https://example.com/OLD/"></textarea>
     <?php endif; ?>
 
     <?php if ( $is_settings_tab ) : ?>
-    <div class="pcm-card" id="pcm-feature-observability-reporting" style="margin-bottom:20px;scroll-margin-top:20px;">
+    <div class="pcm-card pcm-card-hover" id="pcm-feature-observability-reporting" style="margin-bottom:20px;scroll-margin-top:20px;">
         <h3 class="pcm-card-title">📊 <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
         <?php if ( ! function_exists( 'pcm_reporting_is_enabled' ) || ! pcm_reporting_is_enabled() ) : ?>
@@ -1265,8 +1265,9 @@ https://example.com/OLD/"></textarea>
     .pcm-anchor-nav a{display:inline-flex;white-space:nowrap;padding:6px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none;color:#374151;background:#fff;font-size:12px}
     .pcm-anchor-nav a.is-active{background:#03fcc2;color:#040024;border-color:#03fcc2}
     .pcm-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .pcm-card-hover{transition:box-shadow .2s}
+    .pcm-card-hover:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
     .pcm-summary-card{text-decoration:none;color:#111827;padding:12px;display:flex;flex-direction:column;gap:8px;position:relative}
-    .pcm-summary-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
     .pcm-summary-heading{display:flex;align-items:center;gap:8px;padding-right:16px}
     .pcm-summary-icon{font-size:16px;line-height:1}
     .pcm-status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;position:absolute;right:12px;top:12px}
