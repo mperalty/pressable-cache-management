@@ -15,11 +15,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_smart_purge_is_enabled(): bool {
-    return PCM_Option_Cache::get(
-        PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value,
-        false,
-        fn( $v ) => (bool) apply_filters( 'pcm_enable_smart_purge_strategy', (bool) $v ),
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+        $cached  = (bool) apply_filters( 'pcm_enable_smart_purge_strategy', $enabled );
+    }
+
+    return $cached;
 }
 
 /**
@@ -28,11 +30,13 @@ function pcm_smart_purge_is_enabled(): bool {
  * @return bool
  */
 function pcm_smart_purge_is_active_mode(): bool {
-    return PCM_Option_Cache::get(
-        PCM_Options::SMART_PURGE_ACTIVE_MODE->value,
-        false,
-        fn( $v ) => (bool) apply_filters( 'pcm_enable_smart_purge_active_mode', (bool) $v ),
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $active = (bool) get_option( PCM_Options::SMART_PURGE_ACTIVE_MODE->value, false );
+        $cached = (bool) apply_filters( 'pcm_enable_smart_purge_active_mode', $active );
+    }
+
+    return $cached;
 }
 
 /**
@@ -41,11 +45,13 @@ function pcm_smart_purge_is_active_mode(): bool {
  * @return int
  */
 function pcm_smart_purge_cooldown_window(): int {
-    return PCM_Option_Cache::get(
-        PCM_Options::SMART_PURGE_COOLDOWN_SECONDS->value,
-        120,
-        fn( $v ) => max( 15, min( 3600, (int) $v ) ),
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $seconds = (int) get_option( PCM_Options::SMART_PURGE_COOLDOWN_SECONDS->value, 120 );
+        $cached  = max( 15, min( 3600, $seconds ) );
+    }
+
+    return $cached;
 }
 
 /**
@@ -54,11 +60,13 @@ function pcm_smart_purge_cooldown_window(): int {
  * @return int
  */
 function pcm_smart_purge_defer_window(): int {
-    return PCM_Option_Cache::get(
-        PCM_Options::SMART_PURGE_DEFER_SECONDS->value,
-        60,
-        fn( $v ) => max( 0, min( 3600, (int) $v ) ),
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $seconds = (int) get_option( PCM_Options::SMART_PURGE_DEFER_SECONDS->value, 60 );
+        $cached  = max( 0, min( 3600, $seconds ) );
+    }
+
+    return $cached;
 }
 
 /**
@@ -67,11 +75,12 @@ function pcm_smart_purge_defer_window(): int {
  * @return bool
  */
 function pcm_smart_purge_is_prewarm_enabled(): bool {
-    return PCM_Option_Cache::get(
-        PCM_Options::SMART_PURGE_ENABLE_PREWARM->value,
-        false,
-        fn( $v ) => (bool) $v,
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $cached = (bool) get_option( PCM_Options::SMART_PURGE_ENABLE_PREWARM->value, false );
+    }
+
+    return $cached;
 }
 
 /**
@@ -80,11 +89,13 @@ function pcm_smart_purge_is_prewarm_enabled(): bool {
  * @return int
  */
 function pcm_smart_purge_prewarm_url_cap(): int {
-    return PCM_Option_Cache::get(
-        PCM_Options::SMART_PURGE_PREWARM_URL_CAP->value,
-        10,
-        fn( $v ) => max( 1, min( 100, (int) $v ) ),
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $cap    = (int) get_option( PCM_Options::SMART_PURGE_PREWARM_URL_CAP->value, 10 );
+        $cached = max( 1, min( 100, $cap ) );
+    }
+
+    return $cached;
 }
 
 /**
@@ -93,11 +104,13 @@ function pcm_smart_purge_prewarm_url_cap(): int {
  * @return int
  */
 function pcm_smart_purge_prewarm_batch_size(): int {
-    return PCM_Option_Cache::get(
-        PCM_Options::SMART_PURGE_PREWARM_BATCH_SIZE->value,
-        3,
-        fn( $v ) => max( 1, min( 20, (int) $v ) ),
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $size   = (int) get_option( PCM_Options::SMART_PURGE_PREWARM_BATCH_SIZE->value, 3 );
+        $cached = max( 1, min( 20, $size ) );
+    }
+
+    return $cached;
 }
 
 /**
@@ -106,11 +119,13 @@ function pcm_smart_purge_prewarm_batch_size(): int {
  * @return int
  */
 function pcm_smart_purge_prewarm_repeat_hits(): int {
-    return PCM_Option_Cache::get(
-        PCM_Options::SMART_PURGE_PREWARM_REPEAT_HITS->value,
-        2,
-        fn( $v ) => max( 1, min( 5, (int) $v ) ),
-    );
+    static $cached = null;
+    if ( $cached === null ) {
+        $hits   = (int) get_option( PCM_Options::SMART_PURGE_PREWARM_REPEAT_HITS->value, 2 );
+        $cached = max( 1, min( 5, $hits ) );
+    }
+
+    return $cached;
 }
 
 /**

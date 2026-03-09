@@ -38,21 +38,6 @@ function pcm_get_options(): array|false {
 }
 
 /**
- * Verify a nonce from a request and check user capability.
- *
- * Consolidates the repeated nonce-verification pattern used throughout the
- * plugin so that every check sanitises, unslashes, and validates the nonce
- * in exactly the same way.
- *
- * @param string $nonce_name  The key name in $_POST / $_GET that holds the nonce value.
- * @param string $action      The nonce action passed to wp_verify_nonce().
- * @param string $method      HTTP method to read from: 'POST' (default) or 'GET'.
- * @param string $capability  The capability to check. Default 'manage_options'.
- *
- * @return bool True when the nonce is present, valid, and the current user
- *              has the required capability; false otherwise.
- */
-/**
  * Ensure the MU-plugin infrastructure exists, then sync a single MU-plugin file.
  *
  * If the destination file already exists it is left in place. When the source
@@ -64,37 +49,6 @@ function pcm_get_options(): array|false {
  *
  * @return bool True if the file was already present or was successfully copied.
  */
-/**
- * Simple option cache with reset capability for test isolation.
- */
-class PCM_Option_Cache {
-    /** @var array<string, mixed> */
-    private static array $cache = array();
-
-    /**
-     * Get a cached option value.
-     *
-     * @param string        $key       Option name.
-     * @param mixed         $default   Default for get_option().
-     * @param callable|null $transform Optional transform on the raw value.
-     */
-    public static function get( string $key, mixed $default = false, ?callable $transform = null ): mixed {
-        if ( ! array_key_exists( $key, self::$cache ) ) {
-            $value = get_option( $key, $default );
-            self::$cache[ $key ] = $transform ? $transform( $value ) : $value;
-        }
-
-        return self::$cache[ $key ];
-    }
-
-    /**
-     * Reset all cached values (for test isolation).
-     */
-    public static function reset(): void {
-        self::$cache = array();
-    }
-}
-
 function pcm_sync_mu_plugin( string $source_file, string $dest_filename ): bool {
     $index_file = WP_CONTENT_DIR . '/mu-plugins/pressable-cache-management.php';
     if ( ! file_exists( $index_file ) ) {
@@ -138,6 +92,21 @@ function pcm_remove_mu_plugin( string $dest_filename ): void {
     }
 }
 
+/**
+ * Verify a nonce from a request and check user capability.
+ *
+ * Consolidates the repeated nonce-verification pattern used throughout the
+ * plugin so that every check sanitises, unslashes, and validates the nonce
+ * in exactly the same way.
+ *
+ * @param string $nonce_name  The key name in $_POST / $_GET that holds the nonce value.
+ * @param string $action      The nonce action passed to wp_verify_nonce().
+ * @param string $method      HTTP method to read from: 'POST' (default) or 'GET'.
+ * @param string $capability  The capability to check. Default 'manage_options'.
+ *
+ * @return bool True when the nonce is present, valid, and the current user
+ *              has the required capability; false otherwise.
+ */
 function pcm_verify_request( string $nonce_name, string $action, string $method = 'POST', string $capability = 'manage_options' ): bool {
     $input = ( 'GET' === strtoupper( $method ) ) ? $_GET : $_POST;
 
