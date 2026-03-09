@@ -398,7 +398,7 @@ function pressable_cache_management_display_settings_page() {
             </div>
 
             <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save Feature Flags', 'pressable_cache_management' ); ?></button>
+                <button type="submit" class="pcm-btn-primary"><?php echo esc_html__( 'Save Feature Flags', 'pressable_cache_management' ); ?></button>
                 <span style="color:#64748b;font-size:12px;"><?php echo esc_html__( 'Changes take effect immediately after save.', 'pressable_cache_management' ); ?></span>
             </div>
         </form>
@@ -497,7 +497,7 @@ function pressable_cache_management_display_settings_page() {
         <h3 class="pcm-card-title">⚡ <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0; color:#4b5563;"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
         <p>
-            <button type="button" class="button button-primary" id="pcm-advisor-run-btn"><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-primary" id="pcm-advisor-run-btn"><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
             <span id="pcm-advisor-run-status" style="margin-left:10px;color:#374151;"></span>
         </p>
         <div class="pcm-advisor-grid pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -522,7 +522,7 @@ function pressable_cache_management_display_settings_page() {
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
         <p style="margin:0 0 10px;color:#6b7280;font-size:12px;"><?php echo esc_html__( 'Data source: we first read the active object-cache drop-in stats (global $wp_object_cache), then fall back to PHP Memcached extension stats when available. Evictions can show n/a when the provider does not expose that metric; memory pressure can show 0% when memory limit bytes are unavailable.', 'pressable_cache_management' ); ?></p>
         <p>
-            <button type="button" class="button" id="pcm-oci-refresh-btn"><?php echo esc_html__( 'Refresh diagnostics', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-secondary" id="pcm-oci-refresh-btn"><?php echo esc_html__( 'Refresh diagnostics', 'pressable_cache_management' ); ?></button>
             <span id="pcm-oci-summary" style="margin-left:10px;color:#374151;"></span>
         </p>
         <div class="pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -543,7 +543,7 @@ function pressable_cache_management_display_settings_page() {
         <h3 class="pcm-card-title">📦 <?php echo esc_html__( 'PHP OPcache Awareness', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Review OPcache memory pressure, restart patterns, and recommendations.', 'pressable_cache_management' ); ?></p>
         <p>
-            <button type="button" class="button" id="pcm-opcache-refresh-btn"><?php echo esc_html__( 'Refresh OPcache', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-secondary" id="pcm-opcache-refresh-btn"><?php echo esc_html__( 'Refresh OPcache', 'pressable_cache_management' ); ?></button>
             <span id="pcm-opcache-summary" style="margin-left:10px;color:#374151;"></span>
         </p>
         <div class="pcm-responsive-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -577,13 +577,13 @@ function pressable_cache_management_display_settings_page() {
                 <textarea id="pcm-ra-urls" rows="4" style="width:100%;" placeholder="https://example.com/Page?utm_source=x
 https://example.com/page/"></textarea>
                 <p>
-                    <button type="button" class="button" id="pcm-ra-discover"><?php echo esc_html__( 'Discover Candidates', 'pressable_cache_management' ); ?></button>
-                    <button type="button" class="button" id="pcm-ra-load-rules"><?php echo esc_html__( 'Load Saved Rules', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-ra-discover"><?php echo esc_html__( 'Discover Candidates', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-ra-load-rules"><?php echo esc_html__( 'Load Saved Rules', 'pressable_cache_management' ); ?></button>
                 </p>
                 <div id="pcm-ra-rule-editor" style="border:1px solid #e2e8f0;border-radius:6px;padding:10px;background:#f8fafc;">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
                         <strong style="font-size:12px;"><?php echo esc_html__( 'Rule Builder', 'pressable_cache_management' ); ?></strong>
-                        <button type="button" class="button" id="pcm-ra-add-rule"><?php echo esc_html__( 'Add Rule', 'pressable_cache_management' ); ?></button>
+                        <button type="button" class="pcm-btn-text" id="pcm-ra-add-rule"><?php echo esc_html__( 'Add Rule', 'pressable_cache_management' ); ?></button>
                     </div>
                     <div style="overflow:auto;">
                         <table style="width:100%;border-collapse:collapse;font-size:12px;" id="pcm-ra-rules-table">
@@ -603,14 +603,14 @@ https://example.com/page/"></textarea>
                     <div id="pcm-ra-rule-errors" style="margin-top:8px;color:#b91c1c;font-size:12px;"></div>
                 </div>
                 <p style="margin:8px 0 4px;">
-                    <button type="button" class="button-link" id="pcm-ra-toggle-advanced" style="padding:0;height:auto;"><?php echo esc_html__( 'Show Advanced JSON', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-text" id="pcm-ra-toggle-advanced" style="padding:0;height:auto;"><?php echo esc_html__( 'Show Advanced JSON', 'pressable_cache_management' ); ?></button>
                 </p>
                 <textarea id="pcm-ra-rules-json" rows="10" style="width:100%;font-family:monospace;display:none;" placeholder='[ {"enabled":true,"match_type":"exact","source_pattern":"/old","target_pattern":"https://example.com/new"} ]'></textarea>
                 <p>
                     <label><input type="checkbox" id="pcm-ra-confirm-wildcards" /> <?php echo esc_html__( 'I confirm wildcard/regex rules have been reviewed.', 'pressable_cache_management' ); ?></label>
                 </p>
                 <p>
-                    <button type="button" class="button button-primary" id="pcm-ra-save"><?php echo esc_html__( 'Save Rules', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-primary" id="pcm-ra-save"><?php echo esc_html__( 'Save Rules', 'pressable_cache_management' ); ?></button>
                 </p>
             </div>
             <div>
@@ -618,14 +618,14 @@ https://example.com/page/"></textarea>
                 <textarea id="pcm-ra-sim-urls" rows="4" style="width:100%;" placeholder="https://example.com/old
 https://example.com/OLD/"></textarea>
                 <p>
-                    <button type="button" class="button" id="pcm-ra-simulate"><?php echo esc_html__( 'Dry-run Simulation', 'pressable_cache_management' ); ?></button>
-                    <button type="button" class="button" id="pcm-ra-export"><?php echo esc_html__( 'Build Export', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-ra-simulate"><?php echo esc_html__( 'Dry-run Simulation', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-ra-export"><?php echo esc_html__( 'Build Export', 'pressable_cache_management' ); ?></button>
                 </p>
                 <textarea id="pcm-ra-export-content" rows="8" style="width:100%;font-family:monospace;" placeholder="Exported custom-redirects.php content / JSON meta payload"></textarea>
                 <p>
-                    <button type="button" class="button" id="pcm-ra-copy"><?php echo esc_html__( 'Copy Export', 'pressable_cache_management' ); ?></button>
-                    <button type="button" class="button" id="pcm-ra-download"><?php echo esc_html__( 'Download custom-redirects.php', 'pressable_cache_management' ); ?></button>
-                    <button type="button" class="button" id="pcm-ra-import"><?php echo esc_html__( 'Import JSON Payload', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-text" id="pcm-ra-copy"><?php echo esc_html__( 'Copy Export', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-ra-download"><?php echo esc_html__( 'Download custom-redirects.php', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-ra-import"><?php echo esc_html__( 'Import JSON Payload', 'pressable_cache_management' ); ?></button>
                 </p>
                 <div id="pcm-ra-output" style="font-size:12px;color:#111827;max-height:220px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:8px;border-radius:6px;"></div>
             </div>
@@ -713,7 +713,7 @@ https://example.com/OLD/"></textarea>
                     <textarea name="pcm_smart_purge_important_urls" rows="4"><?php echo esc_textarea( (string) get_option( 'pcm_smart_purge_important_urls', '' ) ); ?></textarea>
                 </label>
             </div>
-            <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save Smart Purge Settings', 'pressable_cache_management' ); ?></button>
+            <button type="submit" class="pcm-btn-primary"><?php echo esc_html__( 'Save Smart Purge Settings', 'pressable_cache_management' ); ?></button>
         </form>
         <div class="pcm-sp-insights-grid">
             <div class="pcm-sp-insight-card">
@@ -835,9 +835,9 @@ https://example.com/OLD/"></textarea>
                 <option value="7d" selected>7d</option>
                 <option value="30d">30d</option>
             </select>
-            <button type="button" class="button" id="pcm-report-load"><?php echo esc_html__( 'Load Trends', 'pressable_cache_management' ); ?></button>
-            <button type="button" class="button" id="pcm-report-export-json"><?php echo esc_html__( 'Export JSON', 'pressable_cache_management' ); ?></button>
-            <button type="button" class="button" id="pcm-report-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-secondary" id="pcm-report-load"><?php echo esc_html__( 'Load Trends', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-secondary" id="pcm-report-export-json"><?php echo esc_html__( 'Export JSON', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-secondary" id="pcm-report-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
         </p>
         <div id="pcm-report-output" style="max-height:260px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;border-radius:6px;font-size:12px;"></div>
     </div>
@@ -857,14 +857,14 @@ https://example.com/OLD/"></textarea>
                 </label></p>
                 <p><label><input type="checkbox" id="pcm-privacy-advanced-scan" <?php checked( ! empty( $privacy_settings['advanced_scan_opt_in'] ) ); ?> /> <?php echo esc_html__( 'Allow advanced scanning workflows', 'pressable_cache_management' ); ?></label></p>
                 <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
-                <p><button type="button" class="button pcm-primary-btn" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
+                <p><button type="button" class="pcm-btn-primary" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
                 <span id="pcm-privacy-status" style="margin-left:8px;color:#374151;"></span></p>
             </div>
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Audit Log', 'pressable_cache_management' ); ?></h4>
-                <p><button type="button" class="button" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button></p>
+                <p><button type="button" class="pcm-btn-secondary" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button></p>
                 <div id="pcm-audit-log" class="pcm-audit-panel pcm-skeleton-panel" aria-live="polite"></div>
-                <p style="margin-top:8px;"><button type="button" class="button" id="pcm-audit-load-more" style="display:none;"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
+                <p style="margin-top:8px;"><button type="button" class="pcm-btn-secondary" id="pcm-audit-load-more" style="display:none;"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
             </div>
         </div>
     </div>
@@ -887,7 +887,7 @@ https://example.com/OLD/"></textarea>
                 <form method="post" id="pcm-flush-form">
                     <input type="hidden" name="flush_object_cache_nonce" value="<?php echo wp_create_nonce('flush_object_cache_nonce'); ?>">
                     <input type="submit" value="<?php esc_attr_e('Flush Cache for all Pages','pressable_cache_management'); ?>"
-                           class="flushcache" id="pcm-flush-btn">
+                           class="pcm-btn-primary pcm-btn-block" id="pcm-flush-btn">
                 </form>
                 <div id="pcm-flush-feedback" style="margin-top:12px;" aria-live="polite"></div>
                 <?php $ts = get_option('flush-obj-cache-time-stamp'); ?>
@@ -1070,7 +1070,7 @@ https://example.com/OLD/"></textarea>
 
     <!-- Save button -->
     <div style="display:flex;justify-content:center;margin-top:28px;">
-        <?php submit_button( __( '&#10003;&nbsp; Save Settings', 'pressable_cache_management' ), 'custom-class', 'submit', false, array('form'=>'pcm-main-settings-form') ); ?>
+        <button type="submit" name="submit" form="pcm-main-settings-form" class="pcm-btn-primary"><?php echo wp_kses_post( __( '&#10003;&nbsp; Save Settings', 'pressable_cache_management' ) ); ?></button>
     </div>
 
     <!-- Chip JS -->
@@ -1123,10 +1123,8 @@ https://example.com/OLD/"></textarea>
                            type="submit"
                            value="<?php echo esc_attr__( 'Purge Edge Cache', 'pressable_cache_management' ); ?>"
                            disabled
-                           class="purge-cache-btn disabled-button-style"
-                           style="padding:10px 28px;border:none;border-radius:8px;font-size:14px;font-weight:700;
-                                  color:#fff;background:#dd3a03;font-family:'Inter',sans-serif;
-                                  transition:background .2s,opacity .2s;">
+                           class="pcm-btn-danger disabled-button-style"
+                           >
                 </form>
             </div>
 
@@ -1174,7 +1172,7 @@ https://example.com/OLD/"></textarea>
         <?php
         settings_fields('remove_pressable_branding_tab_options');
         do_settings_sections('remove_pressable_branding_tab');
-        submit_button('Save Settings','custom-class');
+        echo '<button type="submit" class="pcm-btn-primary">' . esc_html__( 'Save Settings', 'pressable_cache_management' ) . '</button>'; 
         ?>
     </form>
 
@@ -1219,25 +1217,7 @@ https://example.com/OLD/"></textarea>
         font-size:11.5px;color:#475569;display:block;margin-top:4px;
         font-family:'Inter',sans-serif;font-weight:500;
     }
-    /* Flush button: red, hover green */
-    #pcm-flush-btn,
-    input.flushcache[type="submit"] {
-        background:#dd3a03 !important;
-        color:#fff !important;
-        display:block;
-        width:100%;
-        transition:background .2s,box-shadow .2s,transform .1s !important;
-    }
-    #pcm-flush-btn:hover,
-    input.flushcache[type="submit"]:hover {
-        background:#03fcc2 !important;
-        color:#040024 !important;
-        box-shadow:0 4px 14px rgba(3,252,194,.45) !important;
-        transform:translateY(-1px) !important;
-    }
-
-    #pcm-flush-btn.pcm-btn-loading,
-    input.flushcache[type="submit"].pcm-btn-loading {
+    #pcm-flush-btn.pcm-btn-loading {
         position:relative;
         color:transparent !important;
         cursor:not-allowed !important;
@@ -1245,8 +1225,7 @@ https://example.com/OLD/"></textarea>
         transform:none !important;
         box-shadow:none !important;
     }
-    #pcm-flush-btn.pcm-btn-loading::after,
-    input.flushcache[type="submit"].pcm-btn-loading::after {
+    #pcm-flush-btn.pcm-btn-loading::after {
         content:'';
         position:absolute;
         top:50%;
@@ -1286,8 +1265,6 @@ https://example.com/OLD/"></textarea>
     .pcm-trend-details summary{cursor:pointer;color:#374151;font-weight:600;margin-bottom:8px}
     .pcm-inline-error{border-left:4px solid #dd3a03;background:#fff1f2;padding:8px 10px;border-radius:4px;color:#7f1d1d}
     .pcm-inline-success{border-left:4px solid #03fcc2;background:#ecfeff;padding:8px 10px;border-radius:4px;color:#0f766e}
-    .pcm-primary-btn{background:#040024 !important;border-color:#040024 !important;color:#fff !important}
-    .pcm-primary-btn:hover{background:#03fcc2 !important;border-color:#03fcc2 !important;color:#040024 !important}
     .pcm-audit-panel{max-height:260px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;padding:10px;border-radius:6px;font-size:12px}
     .pcm-audit-table{margin:0}
     .pcm-skeleton-panel{position:relative;min-height:180px}

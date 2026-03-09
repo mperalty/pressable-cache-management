@@ -85,7 +85,7 @@ function pressable_cache_management_callback_field_button($args)
     echo '<form method="post" id="flush_object_cache_nonce">
 
          <span id="flush_cache_button">
-        <input id="pressable_cache_management_options_' . esc_attr( $id ) . '" name="pressable_cache_management_options[' . $id . ']" type="submit" size="40" value="' . __('Flush Cache', 'pressable_cache_management') . '" class="flushcache"/><input type="hidden" name="flush_object_cache_nonce" value="' . wp_create_nonce('flush_object_cache_nonce') . '" <br/><label class="rad-text for="pressable_cache_management_options_' . esc_attr( $id ) . '">' . $label . '</label>
+        <input id="pressable_cache_management_options_' . esc_attr( $id ) . '" name="pressable_cache_management_options[' . $id . ']" type="submit" size="40" value="' . __('Flush Cache', 'pressable_cache_management') . '" class="pcm-btn-primary pcm-btn-block"/><input type="hidden" name="flush_object_cache_nonce" value="' . wp_create_nonce('flush_object_cache_nonce') . '" <br/><label class="rad-text for="pressable_cache_management_options_' . esc_attr( $id ) . '">' . $label . '</label>
          </span>
 
     </form>';
@@ -415,7 +415,7 @@ function pressable_cache_management_generate_enable_disable_content($is_enabled)
   if ($is_enabled) {
     $id = 'disable_edge_cache_nonce';
     $value = __('Disable Edge Cache', 'pressable_cache_management');
-    $submit_class = 'purge-cache-btn';
+    $submit_class = 'pcm-btn-secondary';
 
     echo '</form>';
     echo '<form method="post" id="' . esc_attr($id) . '">';
@@ -427,7 +427,7 @@ function pressable_cache_management_generate_enable_disable_content($is_enabled)
 } else {
     $id = 'enable_edge_cache_nonce';
     $value = __('Enable Edge Cache', 'pressable_cache_management');
-    $submit_class = 'purge-cache-btn';
+    $submit_class = 'pcm-btn-secondary';
 
     echo '</form>';
     echo '<form method="post" id="' . esc_attr($id) . '">';
@@ -514,7 +514,7 @@ function pressable_edge_cache_flush_management_callback_field_button($args)
     // Disabled attribute and class for initial state
     $disabled_attr = ' disabled="disabled"';
     $disabled_class = ' disabled-button-style';
-    $submit_class = 'purge-cache-btn' . $disabled_class;
+    $submit_class = 'pcm-btn-danger' . $disabled_class;
 
     echo '</form>';
 

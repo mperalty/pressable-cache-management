@@ -21,7 +21,7 @@
             var detail = error && error.message ? error.message : (fallbackMessage || 'Unexpected AJAX response.');
             targetEl.innerHTML = '<div class="pcm-inline-error" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
                 + '<span>This feature requires ' + escapeHtml(dependencyLabel) + ' to be enabled. ' + escapeHtml(detail) + '</span>'
-                + (retryAction ? '<button type="button" class="button button-small" data-action="pcm-retry" data-retry-action="' + escapeHtml(retryAction) + '">Retry</button>' : '')
+                + (retryAction ? '<button type="button" class="pcm-btn-text" data-action="pcm-retry" data-retry-action="' + escapeHtml(retryAction) + '">Retry</button>' : '')
                 + '</div>';
         };
 
@@ -86,7 +86,7 @@
             html += '<div style="margin-top:8px;font-size:12px;color:#6b7280;">Sampled routes:</div><ul style="margin:4px 0 0;padding-left:18px;max-height:120px;overflow:auto;">';
             results.slice(0, 20).forEach(function(row){
                 var routeUrl = row.url || '';
-                html += '<li><button type="button" class="button-link" style="padding:0;height:auto;line-height:1.4;" data-action="open-diagnosis" data-url="' + escapeHtml(routeUrl) + '">' + escapeHtml(routeUrl) + '</button></li>';
+                html += '<li><button type="button" class="pcm-btn-text" style="padding:0;height:auto;line-height:1.4;" data-action="open-diagnosis" data-url="' + escapeHtml(routeUrl) + '">' + escapeHtml(routeUrl) + '</button></li>';
             });
             html += '</ul>';
             scoreWrap.innerHTML = html;
@@ -201,7 +201,7 @@
             playbookWrap.innerHTML = [
                 '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">',
                     '<h4 style="margin:0;">Playbook: ' + escapeHtml(playbook.meta.title || playbook.meta.playbook_id) + '</h4>',
-                    '<button type="button" class="button button-small" data-action="close-playbook">Close</button>',
+                    '<button type="button" class="pcm-btn-text" data-action="close-playbook">Close</button>',
                 '</div>',
                 '<p style="margin:6px 0 8px;color:#4b5563;"><strong>Severity:</strong> ' + escapeHtml(playbook.meta.severity || 'warning') + '</p>',
                 '<div class="pcm-playbook-body" style="font-size:13px;line-height:1.5;">' + (playbook.html_body || '') + '</div>',
@@ -212,8 +212,8 @@
                     '<label><input type="checkbox" data-check="verify" ' + checkedThree + '> Verification complete</label>',
                 '</div>',
                 '<p style="margin-top:10px;display:flex;gap:8px;align-items:center;">',
-                    '<button type="button" class="button" data-action="save-progress" data-playbook-id="' + escapeHtml(playbook.meta.playbook_id) + '">Save progress</button>',
-                    '<button type="button" class="button button-secondary" data-action="verify" data-playbook-id="' + escapeHtml(playbook.meta.playbook_id) + '" data-rule-id="' + escapeHtml(ruleId) + '">Run post-fix verification</button>',
+                    '<button type="button" class="pcm-btn-primary" data-action="save-progress" data-playbook-id="' + escapeHtml(playbook.meta.playbook_id) + '">Save progress</button>',
+                    '<button type="button" class="pcm-btn-secondary" data-action="verify" data-playbook-id="' + escapeHtml(playbook.meta.playbook_id) + '" data-rule-id="' + escapeHtml(ruleId) + '">Run post-fix verification</button>',
                     '<span data-role="verify-status" style="color:#374151;">Last verification: ' + escapeHtml(verificationSummary) + '</span>',
                 '</p>'
             ].join('');
@@ -265,12 +265,12 @@
                 if (uniqueUrls.length) {
                     html += '<div class="pcm-finding-urls">';
                     uniqueUrls.forEach(function(url){
-                        html += '<div><button type="button" class="button-link" style="padding:0;height:auto;line-height:1.4;font-size:12px;" data-action="open-diagnosis" data-url="' + escapeHtml(url) + '">' + escapeHtml(url) + '</button></div>';
+                        html += '<div><button type="button" class="pcm-btn-text" style="padding:0;height:auto;line-height:1.4;font-size:12px;" data-action="open-diagnosis" data-url="' + escapeHtml(url) + '">' + escapeHtml(url) + '</button></div>';
                     });
                     html += '</div>';
                 }
                 if (group.playbook.available) {
-                    html += '<button type="button" class="button button-small" data-action="open-playbook" data-rule-id="' + escapeHtml(group.rule) + '">Open playbook</button>';
+                    html += '<button type="button" class="pcm-btn-text" data-action="open-playbook" data-rule-id="' + escapeHtml(group.rule) + '">Open playbook</button>';
                 }
                 html += '</div>';
             });

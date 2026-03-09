@@ -483,9 +483,9 @@ function pcm_render_playbook_panel( $playbook ) {
             <?php echo esc_html( isset( $playbook['meta']['version'] ) ? $playbook['meta']['version'] : '1.0.0' ); ?>
         </p>
         <div class="pcm-playbook-tabs" style="margin:12px 0;">
-            <button type="button" class="button" onclick="pcmPlaybookSwitchTab('<?php echo esc_js( $panel_id ); ?>','quick')"><?php esc_html_e( 'Quick Fix', 'pressable_cache_management' ); ?></button>
-            <button type="button" class="button" onclick="pcmPlaybookSwitchTab('<?php echo esc_js( $panel_id ); ?>','technical')"><?php esc_html_e( 'Technical', 'pressable_cache_management' ); ?></button>
-            <button type="button" class="button" onclick="pcmPlaybookSwitchTab('<?php echo esc_js( $panel_id ); ?>','verify')"><?php esc_html_e( 'Verify', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-text" onclick="pcmPlaybookSwitchTab('<?php echo esc_js( $panel_id ); ?>','quick')"><?php esc_html_e( 'Quick Fix', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-text" onclick="pcmPlaybookSwitchTab('<?php echo esc_js( $panel_id ); ?>','technical')"><?php esc_html_e( 'Technical', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-text" onclick="pcmPlaybookSwitchTab('<?php echo esc_js( $panel_id ); ?>','verify')"><?php esc_html_e( 'Verify', 'pressable_cache_management' ); ?></button>
         </div>
         <div class="pcm-playbook-content"><?php echo wp_kses_post( $content ); ?></div>
         <hr />
@@ -495,7 +495,7 @@ function pcm_render_playbook_panel( $playbook ) {
             <label><input type="checkbox" data-pcm-check="3" /> <?php esc_html_e( 'Verification complete', 'pressable_cache_management' ); ?></label>
         </div>
         <p style="margin-top:10px;">
-            <button type="button" class="button button-secondary" onclick="pcmPlaybookTriggerRescan()"><?php esc_html_e( 'Re-scan now', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-secondary" onclick="pcmPlaybookTriggerRescan()"><?php esc_html_e( 'Re-scan now', 'pressable_cache_management' ); ?></button>
         </p>
     </div>
     <script>
