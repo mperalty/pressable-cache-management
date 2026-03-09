@@ -181,12 +181,16 @@ add_action( 'pcm_after_edge_cache_purge',   'pcm_clear_batcache_status_transient
 function pressable_cache_management_display_settings_page() {
     if ( ! current_user_can('manage_options') ) return;
 
-    if ( isset( $_POST['pcm_caching_suite_toggle_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pcm_caching_suite_toggle_nonce'] ) ), 'pcm_toggle_caching_suite_features' ) ) {
-        $enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
-        update_option( 'pcm_enable_caching_suite_features', $enabled, false );
+    if ( isset( $_POST['pcm_feature_flags_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pcm_feature_flags_nonce'] ) ), 'pcm_save_feature_flags' ) ) {
+        $caching_suite_enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
+        $microcache_enabled    = isset( $_POST['pcm_enable_durable_origin_microcache'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_durable_origin_microcache'] );
+
+        update_option( 'pcm_enable_caching_suite_features', $caching_suite_enabled, false );
+        update_option( 'pcm_enable_durable_origin_microcache', $microcache_enabled, false );
 
         if ( function_exists( 'pcm_audit_log' ) ) {
-            pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $enabled ) );
+            pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $caching_suite_enabled ) );
+            pcm_audit_log( 'durable_microcache_toggled', 'settings', array( 'enabled' => $microcache_enabled ) );
         }
     }
 
@@ -284,42 +288,47 @@ function pressable_cache_management_display_settings_page() {
     ?>
 
     <?php if ( $is_settings_tab ) : ?>
+    <?php $microcache_enabled = (bool) get_option( 'pcm_enable_durable_origin_microcache', false ); ?>
     <div class="pcm-card" style="margin-bottom:20px;">
-        <h3 class="pcm-card-title">🧩 <?php echo esc_html__( 'Caching Suite Features', 'pressable_cache_management' ); ?></h3>
-        <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Enable or disable all advanced Caching Suite diagnostics and remediation modules from one place.', 'pressable_cache_management' ); ?></p>
-        <form method="post" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <input type="hidden" name="pcm_caching_suite_toggle_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_toggle_caching_suite_features' ) ); ?>" />
-            <label>
-                <input type="checkbox" name="pcm_enable_caching_suite_features" value="1" <?php checked( $caching_suite_enabled ); ?> />
-                <?php echo esc_html__( 'Enable Caching Suite features', 'pressable_cache_management' ); ?>
-            </label>
-            <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save', 'pressable_cache_management' ); ?></button>
-            <span style="color:#374151;font-size:12px;">
-                <?php echo $caching_suite_enabled ? esc_html__( 'Currently enabled', 'pressable_cache_management' ) : esc_html__( 'Currently disabled', 'pressable_cache_management' ); ?>
-            </span>
-        </form>
-        <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;" />
-        <?php
-        if ( isset( $_POST['pcm_microcache_toggle_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pcm_microcache_toggle_nonce'] ) ), 'pcm_toggle_durable_microcache' ) ) {
-            $enabled = isset( $_POST['pcm_enable_durable_origin_microcache'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_durable_origin_microcache'] );
-            update_option( 'pcm_enable_durable_origin_microcache', $enabled, false );
-            if ( function_exists( 'pcm_audit_log' ) ) {
-                pcm_audit_log( 'durable_microcache_toggled', 'settings', array( 'enabled' => $enabled ) );
-            }
-        }
-        $microcache_enabled = (bool) get_option( 'pcm_enable_durable_origin_microcache', false );
-        ?>
-        <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Enable Durable Origin Microcache for anonymous-safe JSON/HTML artifact caching with tag-based invalidation.', 'pressable_cache_management' ); ?></p>
-        <form method="post" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <input type="hidden" name="pcm_microcache_toggle_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_toggle_durable_microcache' ) ); ?>" />
-            <label>
-                <input type="checkbox" name="pcm_enable_durable_origin_microcache" value="1" <?php checked( $microcache_enabled ); ?> />
-                <?php echo esc_html__( 'Enable Durable Origin Microcache', 'pressable_cache_management' ); ?>
-            </label>
-            <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save', 'pressable_cache_management' ); ?></button>
-            <span style="color:#374151;font-size:12px;">
-                <?php echo $microcache_enabled ? esc_html__( 'Currently enabled', 'pressable_cache_management' ) : esc_html__( 'Currently disabled', 'pressable_cache_management' ); ?>
-            </span>
+        <h3 class="pcm-card-title">🚩 <?php echo esc_html__( 'Feature Flags', 'pressable_cache_management' ); ?></h3>
+        <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Control which major Caching Suite modules are active for diagnostics, automation, and deep-dive insights.', 'pressable_cache_management' ); ?></p>
+        <form method="post">
+            <input type="hidden" name="pcm_feature_flags_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_save_feature_flags' ) ); ?>" />
+
+            <div class="pcm-toggle-row">
+                <label class="switch" style="flex-shrink:0;margin-top:2px;">
+                    <input type="checkbox" name="pcm_enable_caching_suite_features" value="1" <?php checked( $caching_suite_enabled ); ?> />
+                    <span class="slider round"></span>
+                </label>
+                <div>
+                    <div class="pcm-toggle-title"><?php echo esc_html__( 'Caching Suite', 'pressable_cache_management' ); ?></div>
+                    <div class="pcm-toggle-desc"><?php echo esc_html__( 'Turns on the full diagnostics and remediation toolset used across Deep Dive analysis.', 'pressable_cache_management' ); ?></div>
+                    <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;font-size:11.5px;color:#475569;">
+                        <span title="Analyzes headers and cache directives to highlight uncached opportunities."><?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?> ⓘ</span>
+                        <span title="Surfaces noisy query strings and cookie patterns that break cache hit rates."><?php echo esc_html__( 'Cache-Busting Detector', 'pressable_cache_management' ); ?> ⓘ</span>
+                        <span title="Tracks trend telemetry, reports, and exports for cache health visibility."><?php echo esc_html__( 'Observability Reporting', 'pressable_cache_management' ); ?> ⓘ</span>
+                        <span title="Generates recommended next actions when anti-patterns are detected."><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> ⓘ</span>
+                    </div>
+                    <span class="pcm-ts-inline" style="margin-top:6px;"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $caching_suite_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
+                </div>
+            </div>
+
+            <div class="pcm-toggle-row" style="border-bottom:none;">
+                <label class="switch" style="flex-shrink:0;margin-top:2px;">
+                    <input type="checkbox" name="pcm_enable_durable_origin_microcache" value="1" <?php checked( $microcache_enabled ); ?> />
+                    <span class="slider round"></span>
+                </label>
+                <div>
+                    <div class="pcm-toggle-title"><?php echo esc_html__( 'Durable Origin Microcache', 'pressable_cache_management' ); ?></div>
+                    <div class="pcm-toggle-desc"><?php echo esc_html__( 'Caches anonymous-safe JSON/HTML artifacts at origin with tag-based invalidation and fast regeneration.', 'pressable_cache_management' ); ?></div>
+                    <span class="pcm-ts-inline" style="margin-top:6px;"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $microcache_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
+                </div>
+            </div>
+
+            <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Save Feature Flags', 'pressable_cache_management' ); ?></button>
+                <span style="color:#64748b;font-size:12px;"><?php echo esc_html__( 'Changes take effect immediately after save.', 'pressable_cache_management' ); ?></span>
+            </div>
         </form>
     </div>
     <?php endif; ?>
@@ -2153,7 +2162,7 @@ https://example.com/OLD/"></textarea>
 
     <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card" id="pcm-feature-security-privacy" style="margin-bottom:20px;scroll-margin-top:20px;">
-        <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Permissions, Safety & Privacy', 'pressable_cache_management' ); ?></h3>
+        <h3 class="pcm-card-title">🔐 <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
         <p style="margin-top:0;color:#4b5563;"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
