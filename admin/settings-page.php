@@ -512,7 +512,7 @@ function pressable_cache_management_display_settings_page() {
             </div>
             <div>
                 <h4 style="margin:8px 0;"><?php echo esc_html__( 'Latest Findings', 'pressable_cache_management' ); ?></h4>
-                <div id="pcm-advisor-findings" style="font-size:13px;color:#111827;max-height:220px;overflow:auto;"></div>
+                <div id="pcm-advisor-findings" style="font-size:13px;color:#111827;"></div>
             </div>
         </div>
         <div style="margin-top:14px;">
