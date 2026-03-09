@@ -802,25 +802,144 @@ function pcm_smart_purge_handle_settings_post() {
 
     check_admin_referer( 'pcm_smart_purge_settings_action', 'pcm_smart_purge_settings_nonce' );
 
-    $active   = ! empty( $_POST['pcm_smart_purge_active_mode'] );
+    $active         = ! empty( $_POST['pcm_smart_purge_active_mode'] );
     $enable_prewarm = ! empty( $_POST['pcm_smart_purge_enable_prewarm'] );
-    $cooldown = isset( $_POST['pcm_smart_purge_cooldown_seconds'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_cooldown_seconds'] ) ) : 120;
-    $defer    = isset( $_POST['pcm_smart_purge_defer_seconds'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_defer_seconds'] ) ) : 60;
-    $prewarm_cap = isset( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ) : 10;
-    $prewarm_batch_size = isset( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ) : 3;
-    $prewarm_repeat_hits = isset( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ) : 2;
-    $important_urls = isset( $_POST['pcm_smart_purge_important_urls'] ) ? sanitize_textarea_field( wp_unslash( $_POST['pcm_smart_purge_important_urls'] ) ) : '';
+
+    $raw_cooldown = isset( $_POST['pcm_smart_purge_cooldown_seconds'] ) ? intval( wp_unslash( $_POST['pcm_smart_purge_cooldown_seconds'] ) ) : 120;
+    $raw_defer    = isset( $_POST['pcm_smart_purge_defer_seconds'] ) ? intval( wp_unslash( $_POST['pcm_smart_purge_defer_seconds'] ) ) : 60;
+    $raw_prewarm_cap = isset( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ? intval( wp_unslash( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ) : 10;
+    $raw_prewarm_batch_size = isset( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ? intval( wp_unslash( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ) : 3;
+    $raw_prewarm_repeat_hits = isset( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ? intval( wp_unslash( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ) : 2;
+    $raw_important_urls = isset( $_POST['pcm_smart_purge_important_urls'] ) ? wp_unslash( $_POST['pcm_smart_purge_important_urls'] ) : '';
+
+    $notices = array();
+
+    $cooldown = max( 15, min( 3600, $raw_cooldown ) );
+    if ( $cooldown !== $raw_cooldown ) {
+        $notices[] = $raw_cooldown < 15
+            ? __( 'Cooldown was adjusted to 15 seconds (minimum allowed).', 'pressable_cache_management' )
+            : __( 'Cooldown was adjusted to 3600 seconds (maximum allowed).', 'pressable_cache_management' );
+    }
+
+    $defer = max( 0, min( 3600, $raw_defer ) );
+    if ( $defer !== $raw_defer ) {
+        $notices[] = $raw_defer < 0
+            ? __( 'Deferred execution was adjusted to 0 seconds (minimum allowed).', 'pressable_cache_management' )
+            : __( 'Deferred execution was adjusted to 3600 seconds (maximum allowed).', 'pressable_cache_management' );
+    }
+
+    $prewarm_cap = max( 1, min( 100, $raw_prewarm_cap ) );
+    if ( $prewarm_cap !== $raw_prewarm_cap ) {
+        $notices[] = $raw_prewarm_cap < 1
+            ? __( 'Prewarm URL cap was adjusted to 1 (minimum allowed).', 'pressable_cache_management' )
+            : __( 'Prewarm URL cap was adjusted to 100 (maximum allowed).', 'pressable_cache_management' );
+    }
+
+    $prewarm_batch_size = max( 1, min( 20, $raw_prewarm_batch_size ) );
+    if ( $prewarm_batch_size !== $raw_prewarm_batch_size ) {
+        $notices[] = $raw_prewarm_batch_size < 1
+            ? __( 'Prewarm batch size was adjusted to 1 (minimum allowed).', 'pressable_cache_management' )
+            : __( 'Prewarm batch size was adjusted to 20 (maximum allowed).', 'pressable_cache_management' );
+    }
+
+    $prewarm_repeat_hits = max( 1, min( 5, $raw_prewarm_repeat_hits ) );
+    if ( $prewarm_repeat_hits !== $raw_prewarm_repeat_hits ) {
+        $notices[] = $raw_prewarm_repeat_hits < 1
+            ? __( 'Prewarm repeat hits was adjusted to 1 (minimum allowed).', 'pressable_cache_management' )
+            : __( 'Prewarm repeat hits was adjusted to 5 (maximum allowed).', 'pressable_cache_management' );
+    }
+
+    $important_urls_result = pcm_smart_purge_validate_important_urls( $raw_important_urls );
+    if ( ! empty( $important_urls_result['invalid_entries'] ) ) {
+        $invalid_count = count( $important_urls_result['invalid_entries'] );
+        /* translators: %d: number of malformed URL entries removed from settings */
+        $notices[] = sprintf( __( 'Important URLs: %d malformed entries were removed.', 'pressable_cache_management' ), $invalid_count );
+    }
 
     update_option( 'pcm_smart_purge_active_mode', $active ? 1 : 0, false );
     update_option( 'pcm_smart_purge_enable_prewarm', $enable_prewarm ? 1 : 0, false );
-    update_option( 'pcm_smart_purge_cooldown_seconds', max( 15, min( 3600, $cooldown ) ), false );
-    update_option( 'pcm_smart_purge_defer_seconds', max( 0, min( 3600, $defer ) ), false );
-    update_option( 'pcm_smart_purge_prewarm_url_cap', max( 1, min( 100, $prewarm_cap ) ), false );
-    update_option( 'pcm_smart_purge_prewarm_batch_size', max( 1, min( 20, $prewarm_batch_size ) ), false );
-    update_option( 'pcm_smart_purge_prewarm_repeat_hits', max( 1, min( 5, $prewarm_repeat_hits ) ), false );
-    update_option( 'pcm_smart_purge_important_urls', $important_urls, false );
+    update_option( 'pcm_smart_purge_cooldown_seconds', $cooldown, false );
+    update_option( 'pcm_smart_purge_defer_seconds', $defer, false );
+    update_option( 'pcm_smart_purge_prewarm_url_cap', $prewarm_cap, false );
+    update_option( 'pcm_smart_purge_prewarm_batch_size', $prewarm_batch_size, false );
+    update_option( 'pcm_smart_purge_prewarm_repeat_hits', $prewarm_repeat_hits, false );
+    update_option( 'pcm_smart_purge_important_urls', $important_urls_result['clean_urls'], false );
+
+    if ( ! empty( $notices ) ) {
+        set_transient( 'pcm_smart_purge_settings_notices', $notices, 120 );
+    }
 }
 add_action( 'admin_init', 'pcm_smart_purge_handle_settings_post' );
+
+/**
+ * Validate and sanitize smart purge important URLs.
+ *
+ * @param string $raw_urls Raw textarea value.
+ * @return array{clean_urls:string,invalid_entries:array<int,string>}
+ */
+function pcm_smart_purge_validate_important_urls( $raw_urls ) {
+    $raw_urls = sanitize_textarea_field( (string) $raw_urls );
+    $entries  = preg_split( '/[\r\n,]+/', $raw_urls );
+
+    if ( ! is_array( $entries ) ) {
+        return array(
+            'clean_urls'      => '',
+            'invalid_entries' => array(),
+        );
+    }
+
+    $valid_urls      = array();
+    $invalid_entries = array();
+
+    foreach ( $entries as $entry ) {
+        $entry = trim( wp_strip_all_tags( (string) $entry ) );
+        if ( '' === $entry ) {
+            continue;
+        }
+
+        $url = esc_url_raw( $entry, array( 'http', 'https' ) );
+        if ( '' === $url || ! wp_http_validate_url( $url ) ) {
+            $invalid_entries[] = $entry;
+            continue;
+        }
+
+        $valid_urls[] = $url;
+    }
+
+    $valid_urls = array_values( array_unique( $valid_urls ) );
+
+    return array(
+        'clean_urls'      => implode( "\n", $valid_urls ),
+        'invalid_entries' => $invalid_entries,
+    );
+}
+
+/**
+ * Render branded notices after smart purge settings are adjusted.
+ *
+ * @return void
+ */
+function pcm_smart_purge_render_settings_notices() {
+    if ( ! is_admin() || ! isset( $_GET['page'] ) || 'pressable_cache_management' !== sanitize_key( $_GET['page'] ) ) {
+        return;
+    }
+
+    $notices = get_transient( 'pcm_smart_purge_settings_notices' );
+    if ( ! is_array( $notices ) || empty( $notices ) ) {
+        return;
+    }
+
+    delete_transient( 'pcm_smart_purge_settings_notices' );
+
+    foreach ( $notices as $notice ) {
+        if ( function_exists( 'pcm_branded_notice' ) ) {
+            pcm_branded_notice( (string) $notice, '#f59e0b' );
+        } else {
+            printf( '<div class="notice notice-warning is-dismissible"><p>%s</p></div>', esc_html( (string) $notice ) );
+        }
+    }
+}
+add_action( 'admin_notices', 'pcm_smart_purge_render_settings_notices' );
 
 /**
  * Run queued jobs.
