@@ -459,14 +459,14 @@ function pressable_cache_management_display_settings_page() {
         array(
             'icon' => '⚡',
             'label' => __( 'Cacheability Score', 'pressable_cache_management' ),
-            'value' => (string) get_option( 'pcm_latest_cacheability_score', '—' ),
+            'value' => (string) get_option( 'pcm_latest_cacheability_score', '0' ),
             'target' => '#pcm-feature-cacheability-advisor',
             'status' => (float) get_option( 'pcm_latest_cacheability_score', 0 ) >= 80 ? 'good' : 'warn',
         ),
         array(
             'icon' => '🧹',
             'label' => __( 'Purge Activity', 'pressable_cache_management' ),
-            'value' => (string) get_option( 'pcm_latest_purge_activity', '—' ),
+            'value' => (string) get_option( 'pcm_latest_purge_activity', 'N/A' ),
             'target' => '#pcm-feature-smart-purge-strategy',
             'status' => is_numeric( get_option( 'pcm_latest_purge_activity', null ) )
                 ? ( (float) get_option( 'pcm_latest_purge_activity', 0 ) > 50 ? 'bad' : ( (float) get_option( 'pcm_latest_purge_activity', 0 ) > 20 ? 'warn' : 'good' ) )
