@@ -639,12 +639,35 @@ function pcm_ajax_cache_insights() {
 			} elseif ( $class !== 'WP_Object_Cache' ) {
 				$oc_type = $class;
 			} else {
-				// Default WP_Object_Cache — check if a persistent backend is
-				// available even though no drop-in is active.
-				if ( class_exists( 'Memcached' ) || class_exists( 'Memcache' ) ) {
-					$oc_type = 'Default (Memcached extension available but no drop-in)';
+				// Class is WP_Object_Cache — could be the Automattic/Pressable
+				// Memcached drop-in which overrides the default class name.
+				// Check for known Memcached client properties.
+				$has_mc_client = false;
+				foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client' ) as $prop ) {
+					if ( ! isset( $wp_object_cache->{$prop} ) ) {
+						continue;
+					}
+					$val = $wp_object_cache->{$prop};
+					if ( $val instanceof Memcached || $val instanceof Memcache ) {
+						$has_mc_client = true;
+						break;
+					}
+					if ( is_array( $val ) ) {
+						foreach ( $val as $v ) {
+							if ( $v instanceof Memcached || $v instanceof Memcache ) {
+								$has_mc_client = true;
+								break 2;
+							}
+						}
+					}
+				}
+
+				if ( $has_mc_client ) {
+					$oc_type = 'Memcached';
+				} elseif ( class_exists( 'Memcached' ) || class_exists( 'Memcache' ) ) {
+					$oc_type = 'Memcached (extension available)';
 				} elseif ( class_exists( 'Redis' ) ) {
-					$oc_type = 'Default (Redis extension available but no drop-in)';
+					$oc_type = 'Redis (extension available)';
 				} else {
 					$oc_type = 'Default (none)';
 				}

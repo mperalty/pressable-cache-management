@@ -107,13 +107,26 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
      * @return object|null
      */
     protected function get_underlying_client( object $wp_object_cache ): ?object {
-        foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client' ) as $prop ) {
-            if ( ! isset( $wp_object_cache->{$prop} ) || ! is_object( $wp_object_cache->{$prop} ) ) {
+        foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client', 'daemon', 'connection' ) as $prop ) {
+            if ( ! isset( $wp_object_cache->{$prop} ) ) {
                 continue;
             }
 
-            if ( $wp_object_cache->{$prop} instanceof Memcached || $wp_object_cache->{$prop} instanceof Memcache ) {
-                return $wp_object_cache->{$prop};
+            $value = $wp_object_cache->{$prop};
+
+            // Direct instance (e.g. $this->m = new Memcached()).
+            if ( $value instanceof Memcached || $value instanceof Memcache ) {
+                return $value;
+            }
+
+            // Automattic/Pressable drop-in stores an array of clients keyed
+            // by server group: $this->mc = ['default' => Memcached, ...].
+            if ( is_array( $value ) ) {
+                foreach ( $value as $group_client ) {
+                    if ( $group_client instanceof Memcached || $group_client instanceof Memcache ) {
+                        return $group_client;
+                    }
+                }
             }
         }
 
