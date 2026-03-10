@@ -587,8 +587,13 @@ add_action( 'pcm_opcache_collect_snapshot', 'pcm_opcache_collect_snapshot' );
  * Cache Insights AJAX endpoint — returns a compact overview of the caching stack.
  */
 function pcm_ajax_cache_insights() {
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_send_json_error( 'Unauthorized', 403 );
+	if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+		pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
+	} else {
+		check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
 	}
 
 	try {

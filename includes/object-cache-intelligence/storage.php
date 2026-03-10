@@ -646,8 +646,9 @@ function pcm_ajax_object_cache_snapshot(): void {
     }
 
     wp_send_json_success( array(
-        'snapshot' => $snapshot,
-        'stale'    => $is_stale,
+        'snapshot'         => $snapshot,
+        'stale'            => $is_stale,
+        'feature_disabled' => ! pcm_object_cache_intelligence_is_enabled(),
     ) );
 }
 add_action( 'wp_ajax_pcm_object_cache_snapshot', 'pcm_ajax_object_cache_snapshot' );

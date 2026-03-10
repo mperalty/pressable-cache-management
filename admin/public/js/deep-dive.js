@@ -825,6 +825,11 @@ window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
                         throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load object cache snapshot endpoint.'));
                     }
                     ociRetryCount = 0;
+                    if (payload.data && payload.data.feature_disabled) {
+                        summaryEl.textContent = 'Caching Suite is disabled. Enable it in Feature Flags to collect diagnostics.';
+                        latestEl.innerHTML = '<em>Enable the Caching Suite feature flag, then click Refresh to collect a snapshot.</em>';
+                        return;
+                    }
                     var isStale = payload.data && payload.data.stale;
                     renderLatest(payload.data ? payload.data.snapshot : null, isStale);
                 });
@@ -895,10 +900,11 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
 
     function loadInsights() {
         if (statusEl) statusEl.textContent = 'Loading\u2026';
-        window.pcmPost({ action: 'pcm_cache_insights' }, { timeout: 10000 })
+        window.pcmPost({ action: 'pcm_cache_insights', nonce: window.pcmGetCacheabilityNonce() }, { timeout: 10000 })
             .then(function(res) {
                 if (!res || !res.success || !res.data) {
-                    container.innerHTML = '<p>Unable to load cache insights.</p>';
+                    var detail = (res && res.data && res.data.message) ? res.data.message : 'Unable to load cache insights.';
+                    container.innerHTML = '<p>' + escapeHtml(detail) + '</p>';
                     if (statusEl) statusEl.textContent = '';
                     return;
                 }
@@ -935,11 +941,18 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
                 if (statusEl) statusEl.textContent = '';
             })
             .catch(function(err) {
-                var msg = (err && (err.isTimeout || err.message === 'timeout'))
-                    ? 'Cache insights request timed out. Click Refresh to try again.'
-                    : (err && err.status >= 500)
-                        ? 'Server error loading cache insights (HTTP ' + err.status + ').'
-                        : 'Error loading cache insights. Click Refresh to try again.';
+                var msg;
+                if (err && (err.isTimeout || err.message === 'timeout')) {
+                    msg = 'Cache insights request timed out. Click Refresh to try again.';
+                } else if (err && err.status >= 500) {
+                    msg = 'Server error loading cache insights (HTTP ' + err.status + '). Check PHP error logs.';
+                } else if (err && err.status === 403) {
+                    msg = 'Permission denied (HTTP 403). Try reloading the page to refresh your session.';
+                } else if (err && err.status > 0) {
+                    msg = 'Error loading cache insights (HTTP ' + err.status + '). Click Refresh to try again.';
+                } else {
+                    msg = 'Error loading cache insights: ' + (err && err.message ? err.message : 'unknown error') + '. Click Refresh to try again.';
+                }
                 container.innerHTML = '<p>' + msg + '</p>';
                 if (statusEl) statusEl.textContent = '';
             });
