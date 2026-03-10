@@ -619,6 +619,7 @@ function pcm_ajax_object_cache_snapshot(): void {
     $debug_info = array();
 
     if ( $force_collect ) {
+        $debug_info[] = 'path:refresh_click';
         // Attempt a live collection with a 5 s time budget; fall back to
         // cached data on failure so the AJAX response stays within the client
         // timeout (15 s).
@@ -645,15 +646,27 @@ function pcm_ajax_object_cache_snapshot(): void {
             }
         }
     } else {
-        // Non-refresh: read cached data only (transient / stored option).
-        // Never attempt live collection on initial page load — it can block
-        // for 10+ seconds if the Memcached server is slow or unreachable,
-        // tying up a PHP worker and cascading into timeouts for other AJAX
-        // requests.  The hourly cron or an explicit Refresh click will
-        // populate the snapshot.
+        $debug_info[] = 'path:initial_load';
+        // Non-refresh: prefer cached data to avoid blocking a PHP worker.
         $snapshot = pcm_object_cache_get_cached_snapshot();
-        if ( empty( $snapshot ) ) {
-            $debug_info[] = 'no_cached_snapshot';
+        if ( ! empty( $snapshot ) ) {
+            $debug_info[] = 'cached_snapshot_found';
+        } else {
+            // No cached snapshot at all (first visit or cron hasn't run).
+            // With socket-level timeouts (2 s receive) the blocking risk is
+            // bounded, so collect live rather than leaving the UI empty.
+            $debug_info[] = 'no_cached_snapshot_collecting_live';
+            try {
+                $snapshot = pcm_object_cache_collect_and_store_snapshot( 5.0 );
+                if ( empty( $snapshot ) ) {
+                    $debug_info[] = 'live_collect_returned_empty';
+                } else {
+                    $debug_info[] = 'live_collect_ok';
+                }
+            } catch ( \Throwable $e ) {
+                $snapshot     = array();
+                $debug_info[] = 'live_collect_threw:' . $e->getMessage();
+            }
         }
     }
 
@@ -667,16 +680,27 @@ function pcm_ajax_object_cache_snapshot(): void {
     $debug_info[] = 'dropin_class:' . ( is_object( $wp_object_cache ) ? get_class( $wp_object_cache ) : 'none' );
 
     if ( is_object( $wp_object_cache ) ) {
-        // Report which known client properties exist and their types.
-        foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client', 'daemon', 'connection' ) as $p ) {
-            if ( property_exists( $wp_object_cache, $p ) ) {
+        // Report which known client properties exist and their types,
+        // using Reflection to access protected/private properties.
+        try {
+            $ref = new ReflectionClass( $wp_object_cache );
+            foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client', 'daemon', 'connection' ) as $p ) {
+                if ( ! $ref->hasProperty( $p ) ) {
+                    continue;
+                }
+                $rp = $ref->getProperty( $p );
+                $vis = $rp->isPublic() ? 'pub' : ( $rp->isProtected() ? 'prot' : 'priv' );
                 try {
-                    $val = $wp_object_cache->{$p};
-                    $debug_info[] = 'prop_' . $p . ':' . ( is_object( $val ) ? get_class( $val ) : ( is_array( $val ) ? 'array(' . count( $val ) . ')' : gettype( $val ) ) );
+                    $rp->setAccessible( true );
+                    $val = $rp->getValue( $wp_object_cache );
+                    $type_label = is_object( $val ) ? get_class( $val ) : ( is_array( $val ) ? 'array(' . count( $val ) . ')' : gettype( $val ) );
+                    $debug_info[] = 'prop_' . $p . '(' . $vis . '):' . $type_label;
                 } catch ( \Throwable $e ) {
-                    $debug_info[] = 'prop_' . $p . ':inaccessible';
+                    $debug_info[] = 'prop_' . $p . '(' . $vis . '):inaccessible';
                 }
             }
+        } catch ( \Throwable $e ) {
+            $debug_info[] = 'reflection_failed:' . $e->getMessage();
         }
         // Check if stats() method exists.
         if ( method_exists( $wp_object_cache, 'stats' ) ) {

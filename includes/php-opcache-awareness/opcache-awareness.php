@@ -643,23 +643,34 @@ function pcm_ajax_cache_insights() {
 				// Memcached drop-in which overrides the default class name.
 				// Check for known Memcached client properties.
 				$has_mc_client = false;
-				foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client' ) as $prop ) {
-					if ( ! isset( $wp_object_cache->{$prop} ) ) {
-						continue;
-					}
-					$val = $wp_object_cache->{$prop};
-					if ( $val instanceof Memcached || $val instanceof Memcache ) {
-						$has_mc_client = true;
-						break;
-					}
-					if ( is_array( $val ) ) {
-						foreach ( $val as $v ) {
-							if ( $v instanceof Memcached || $v instanceof Memcache ) {
-								$has_mc_client = true;
-								break 2;
+				$mc_props = array( 'm', 'mc', 'memcache', 'memcached', 'client' );
+
+				// Use Reflection to access protected/private properties
+				// (Automattic/Pressable drop-in declares $mc as protected).
+				try {
+					$ref = new ReflectionClass( $wp_object_cache );
+					foreach ( $mc_props as $prop ) {
+						if ( ! $ref->hasProperty( $prop ) ) {
+							continue;
+						}
+						$rp = $ref->getProperty( $prop );
+						$rp->setAccessible( true );
+						$val = $rp->getValue( $wp_object_cache );
+						if ( $val instanceof Memcached || $val instanceof Memcache ) {
+							$has_mc_client = true;
+							break;
+						}
+						if ( is_array( $val ) ) {
+							foreach ( $val as $v ) {
+								if ( $v instanceof Memcached || $v instanceof Memcache ) {
+									$has_mc_client = true;
+									break 2;
+								}
 							}
 						}
 					}
+				} catch ( \Throwable $e ) {
+					// Reflection failed — fall through to extension check.
 				}
 
 				if ( $has_mc_client ) {

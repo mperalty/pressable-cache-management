@@ -107,25 +107,64 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
      * @return object|null
      */
     protected function get_underlying_client( object $wp_object_cache ): ?object {
-        foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client', 'daemon', 'connection' ) as $prop ) {
+        $props_to_check = array( 'm', 'mc', 'memcache', 'memcached', 'client', 'daemon', 'connection' );
+
+        // First pass: try direct property access (works for public props).
+        foreach ( $props_to_check as $prop ) {
             if ( ! isset( $wp_object_cache->{$prop} ) ) {
                 continue;
             }
 
-            $value = $wp_object_cache->{$prop};
-
-            // Direct instance (e.g. $this->m = new Memcached()).
-            if ( $value instanceof Memcached || $value instanceof Memcache ) {
-                return $value;
+            $found = $this->extract_client_from_value( $wp_object_cache->{$prop} );
+            if ( $found ) {
+                return $found;
             }
+        }
 
-            // Automattic/Pressable drop-in stores an array of clients keyed
-            // by server group: $this->mc = ['default' => Memcached, ...].
-            if ( is_array( $value ) ) {
-                foreach ( $value as $group_client ) {
-                    if ( $group_client instanceof Memcached || $group_client instanceof Memcache ) {
-                        return $group_client;
-                    }
+        // Second pass: use Reflection to reach protected/private properties.
+        // The Automattic/Pressable drop-in declares $mc as protected, so
+        // isset() returns false from outside the class.
+        try {
+            $ref = new ReflectionClass( $wp_object_cache );
+            foreach ( $props_to_check as $prop ) {
+                if ( ! $ref->hasProperty( $prop ) ) {
+                    continue;
+                }
+
+                $rp = $ref->getProperty( $prop );
+                $rp->setAccessible( true );
+                $value = $rp->getValue( $wp_object_cache );
+
+                $found = $this->extract_client_from_value( $value );
+                if ( $found ) {
+                    return $found;
+                }
+            }
+        } catch ( \Throwable $e ) {
+            // Reflection failed — nothing more we can do.
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract a Memcached/Memcache client from a property value.
+     *
+     * @param mixed $value Property value.
+     *
+     * @return object|null
+     */
+    protected function extract_client_from_value( mixed $value ): ?object {
+        if ( $value instanceof Memcached || $value instanceof Memcache ) {
+            return $value;
+        }
+
+        // Automattic/Pressable drop-in stores an array of clients keyed
+        // by server group: $this->mc = ['default' => Memcached, ...].
+        if ( is_array( $value ) ) {
+            foreach ( $value as $group_client ) {
+                if ( $group_client instanceof Memcached || $group_client instanceof Memcache ) {
+                    return $group_client;
                 }
             }
         }
