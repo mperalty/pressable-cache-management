@@ -191,7 +191,6 @@
 
         function renderAuditRows(rows) {
             if (!rows.length) {
-                auditLogEl.classList.remove('pcm-skeleton');
                 auditLogEl.innerHTML = '<em>No audit entries yet.</em>';
                 return;
             }
@@ -206,7 +205,6 @@
                     '</tr>';
             });
             html += '</tbody></table>';
-            auditLogEl.classList.remove('pcm-skeleton');
             auditLogEl.innerHTML = html;
         }
 
@@ -214,7 +212,7 @@
             if (reset) {
                 currentOffset = 0;
                 allRows = [];
-                auditLogEl.classList.add('pcm-skeleton');
+                auditLogEl.innerHTML = '<em>Loading…</em>';
                 loadMoreEl.style.display = 'none';
             }
 
@@ -225,7 +223,6 @@
                 renderAuditRows(allRows);
                 loadMoreEl.style.display = res.data.has_more ? 'inline-block' : 'none';
             }).catch(function(error){
-                auditLogEl.classList.remove('pcm-skeleton');
                 window.pcmHandleError('Load Audit Log', error, auditLogEl);
             });
         }

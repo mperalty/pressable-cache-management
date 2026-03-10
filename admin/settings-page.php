@@ -731,32 +731,31 @@ function pressable_cache_management_display_settings_page() {
     <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-security-privacy">
         <h3 class="pcm-card-title"><span class="dashicons dashicons-shield pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
-        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
+        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Configure retention policy for diagnostics data and audit logs.', 'pressable_cache_management' ); ?></p>
         <?php if ( function_exists( 'pcm_security_privacy_is_enabled' ) && ! pcm_security_privacy_is_enabled() ) : ?>
         <div class="pcm-warning-banner">
             <span aria-hidden="true" class="pcm-warning-banner-icon"><span class="dashicons dashicons-warning"></span></span>
             <span><?php echo esc_html__( 'Privacy & Security is currently disabled by feature filter. Enable pcm_enable_security_privacy to use retention controls and audit logs.', 'pressable_cache_management' ); ?></span>
         </div>
         <?php else : ?>
-        <div class="pcm-responsive-two-col pcm-grid-2col">
-            <div>
-                <h4 class="pcm-section-subhead"><?php echo esc_html__( 'Privacy Settings', 'pressable_cache_management' ); ?></h4>
                 <p><label><?php echo esc_html__( 'Retention Days', 'pressable_cache_management' ); ?> <input type="number" id="pcm-privacy-retention" min="7" max="365" value="<?php echo esc_attr( isset( $privacy_settings['retention_days'] ) ? (int) $privacy_settings['retention_days'] : 90 ); ?>" /></label></p>
                 <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
                 <p><button type="button" class="pcm-btn-primary" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
                 <span id="pcm-privacy-status" class="pcm-privacy-status" aria-live="polite" role="status"></span></p>
-            </div>
-            <div>
-                <h4 class="pcm-section-subhead"><?php echo esc_html__( 'Audit Log', 'pressable_cache_management' ); ?></h4>
-                <p>
-                    <button type="button" class="pcm-btn-secondary" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button>
-                    <button type="button" class="pcm-btn-secondary" id="pcm-audit-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
-                </p>
-                <div id="pcm-audit-log" class="pcm-audit-panel pcm-skeleton-panel" aria-live="polite"></div>
-                <p class="pcm-mt-8"><button type="button" class="pcm-btn-secondary pcm-hidden" id="pcm-audit-load-more"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
-            </div>
-        </div>
         <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ( $is_settings_tab && ( ! function_exists( 'pcm_security_privacy_is_enabled' ) || pcm_security_privacy_is_enabled() ) ) : ?>
+    <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-audit-log">
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-list-view pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Audit Log', 'pressable_cache_management' ); ?></h3>
+        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Review privileged actions performed within the plugin.', 'pressable_cache_management' ); ?></p>
+        <p>
+            <button type="button" class="pcm-btn-secondary" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button>
+            <button type="button" class="pcm-btn-secondary" id="pcm-audit-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
+        </p>
+        <div id="pcm-audit-log" class="pcm-audit-panel" aria-live="polite"></div>
+        <p class="pcm-mt-8"><button type="button" class="pcm-btn-secondary pcm-hidden" id="pcm-audit-load-more"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
     </div>
     <?php endif; ?>
 

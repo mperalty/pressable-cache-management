@@ -935,7 +935,7 @@ div.notice.pcm-branded.pcm-warning {
 
 /* ---- Audit Panel ---- */
 .pcm-wrap .pcm-audit-panel {
-  max-height: 260px;
+  max-height: 480px;
   overflow: auto;
   background: #f8fafc;
   border: 1px solid var(--pcm-border, #e2e8f0);
