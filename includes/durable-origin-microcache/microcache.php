@@ -628,6 +628,455 @@ function pcm_microcache_get_adjacent_links_metadata( int $post_id, int $ttl = 18
     );
 }
 
+// ─── WooCommerce Builders ─────────────────────────────────────────────────────
+
+/**
+ * Cache related posts for a given post.
+ *
+ * Returns an array of related post cards based on shared categories/tags.
+ * Falls back gracefully when no related posts exist.
+ *
+ * @param int $post_id The post to find related content for.
+ * @param int $limit   Maximum related posts to return. Default 4.
+ * @param int $ttl     Cache lifetime in seconds. Default 300 (5 min).
+ */
+function pcm_microcache_get_related_posts( int $post_id, int $limit = 4, int $ttl = 300 ): mixed {
+    $post_id = absint( $post_id );
+    $limit   = max( 1, min( 20, $limit ) );
+
+    return pcm_microcache_get_or_build(
+        'related_posts_' . $post_id . '_' . $limit,
+        static function () use ( $post_id, $limit ): array {
+            $post = get_post( $post_id );
+            if ( ! $post || 'publish' !== $post->post_status ) {
+                return array();
+            }
+
+            // Collect category and tag IDs for the current post
+            $cat_ids = wp_get_post_categories( $post_id, array( 'fields' => 'ids' ) );
+            $tag_ids = wp_get_post_tags( $post_id, array( 'fields' => 'ids' ) );
+
+            if ( empty( $cat_ids ) && empty( $tag_ids ) ) {
+                return array();
+            }
+
+            $tax_query = array( 'relation' => 'OR' );
+            if ( ! empty( $cat_ids ) ) {
+                $tax_query[] = array(
+                    'taxonomy' => 'category',
+                    'field'    => 'term_id',
+                    'terms'    => $cat_ids,
+                );
+            }
+            if ( ! empty( $tag_ids ) ) {
+                $tax_query[] = array(
+                    'taxonomy' => 'post_tag',
+                    'field'    => 'term_id',
+                    'terms'    => $tag_ids,
+                );
+            }
+
+            $query = new WP_Query( array(
+                'post_type'      => $post->post_type,
+                'post_status'    => 'publish',
+                'posts_per_page' => $limit,
+                'post__not_in'   => array( $post_id ),
+                'tax_query'      => $tax_query,
+                'no_found_rows'  => true,
+            ) );
+
+            if ( ! $query->have_posts() ) {
+                return array();
+            }
+
+            $cards = array();
+            foreach ( (array) $query->posts as $related ) {
+                $cards[] = array(
+                    'id'        => (int) $related->ID,
+                    'title'     => get_the_title( $related ),
+                    'permalink' => get_permalink( $related ),
+                    'excerpt'   => get_the_excerpt( $related ),
+                    'date'      => get_post_time( 'c', true, $related ),
+                    'thumbnail' => get_the_post_thumbnail_url( $related, 'medium' ) ?: '',
+                );
+            }
+
+            return $cards;
+        },
+        $ttl,
+        array( 'related_posts', 'post_' . $post_id, 'post_type_' . get_post_type( $post_id ) )
+    );
+}
+
+/**
+ * Cache WooCommerce related products for a given product.
+ *
+ * Leverages WooCommerce's own related product algorithm (shared categories/tags,
+ * upsells, cross-sells) and caches the result as lightweight product cards.
+ *
+ * @param int $product_id The product to find related products for.
+ * @param int $limit      Maximum related products to return. Default 4.
+ * @param int $ttl        Cache lifetime in seconds. Default 300 (5 min).
+ */
+function pcm_microcache_get_related_products( int $product_id, int $limit = 4, int $ttl = 300 ): mixed {
+    $product_id = absint( $product_id );
+    $limit      = max( 1, min( 20, $limit ) );
+
+    return pcm_microcache_get_or_build(
+        'related_products_' . $product_id . '_' . $limit,
+        static function () use ( $product_id, $limit ): array {
+            if ( ! function_exists( 'wc_get_product' ) ) {
+                return array();
+            }
+
+            $product = wc_get_product( $product_id );
+            if ( ! $product || 'publish' !== get_post_status( $product_id ) ) {
+                return array();
+            }
+
+            // WooCommerce's related product IDs (respects upsells/cross-sells + shared cats/tags)
+            $related_ids = wc_get_related_products( $product_id, $limit );
+            if ( empty( $related_ids ) ) {
+                return array();
+            }
+
+            $cards = array();
+            foreach ( $related_ids as $rid ) {
+                $related = wc_get_product( $rid );
+                if ( ! $related ) {
+                    continue;
+                }
+
+                $cards[] = array(
+                    'id'            => (int) $rid,
+                    'title'         => $related->get_name(),
+                    'permalink'     => get_permalink( $rid ),
+                    'price_html'    => wp_strip_all_tags( $related->get_price_html() ),
+                    'regular_price' => $related->get_regular_price(),
+                    'sale_price'    => $related->get_sale_price(),
+                    'on_sale'       => $related->is_on_sale(),
+                    'in_stock'      => $related->is_in_stock(),
+                    'thumbnail'     => get_the_post_thumbnail_url( $rid, 'woocommerce_thumbnail' ) ?: '',
+                    'average_rating'=> (float) $related->get_average_rating(),
+                );
+            }
+
+            return $cards;
+        },
+        $ttl,
+        array( 'related_products', 'woo_product', 'product_' . $product_id )
+    );
+}
+
+/**
+ * Cache WooCommerce product image gallery for a given product.
+ *
+ * Returns the featured image plus all gallery images with multiple sizes
+ * pre-resolved, avoiding repeated attachment queries on every page load.
+ *
+ * @param int $product_id The product whose gallery to cache.
+ * @param int $ttl        Cache lifetime in seconds. Default 600 (10 min).
+ */
+function pcm_microcache_get_product_gallery( int $product_id, int $ttl = 600 ): mixed {
+    $product_id = absint( $product_id );
+
+    return pcm_microcache_get_or_build(
+        'product_gallery_' . $product_id,
+        static function () use ( $product_id ): array {
+            if ( ! function_exists( 'wc_get_product' ) ) {
+                return array();
+            }
+
+            $product = wc_get_product( $product_id );
+            if ( ! $product || 'publish' !== get_post_status( $product_id ) ) {
+                return array();
+            }
+
+            $images     = array();
+            $featured   = $product->get_image_id();
+            $gallery    = $product->get_gallery_image_ids();
+
+            // Build ordered list: featured image first, then gallery
+            $all_ids = array();
+            if ( $featured ) {
+                $all_ids[] = absint( $featured );
+            }
+            foreach ( $gallery as $gid ) {
+                $gid = absint( $gid );
+                if ( $gid > 0 && ! in_array( $gid, $all_ids, true ) ) {
+                    $all_ids[] = $gid;
+                }
+            }
+
+            if ( empty( $all_ids ) ) {
+                return array();
+            }
+
+            foreach ( $all_ids as $index => $attachment_id ) {
+                $full   = wp_get_attachment_image_url( $attachment_id, 'full' );
+                $large  = wp_get_attachment_image_url( $attachment_id, 'woocommerce_single' );
+                $thumb  = wp_get_attachment_image_url( $attachment_id, 'woocommerce_thumbnail' );
+                $alt    = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
+
+                if ( ! $full ) {
+                    continue;
+                }
+
+                $images[] = array(
+                    'id'          => $attachment_id,
+                    'is_featured' => ( $index === 0 && $attachment_id === $featured ),
+                    'full'        => esc_url( $full ),
+                    'large'       => esc_url( $large ?: $full ),
+                    'thumbnail'   => esc_url( $thumb ?: $full ),
+                    'alt'         => wp_strip_all_tags( (string) $alt ),
+                    'srcset'      => (string) wp_get_attachment_image_srcset( $attachment_id, 'woocommerce_single' ),
+                    'sizes'       => (string) wp_get_attachment_image_sizes( $attachment_id, 'woocommerce_single' ),
+                );
+            }
+
+            return $images;
+        },
+        $ttl,
+        array( 'product_gallery', 'woo_product', 'product_' . $product_id )
+    );
+}
+
+// ─── WooCommerce Invalidation Hooks ───────────────────────────────────────────
+
+/**
+ * Invalidate WooCommerce product caches when a product is saved.
+ *
+ * Clears related products, product gallery, and related posts caches
+ * for the specific product, plus the shared woo_product tag so that
+ * any "related products" lists containing this product also refresh.
+ */
+function pcm_microcache_invalidate_woo_product( int $product_id ): void {
+    $product_id = absint( $product_id );
+    if ( $product_id <= 0 ) {
+        return;
+    }
+
+    $post_type = get_post_type( $product_id );
+    if ( 'product' !== $post_type && 'product_variation' !== $post_type ) {
+        return;
+    }
+
+    // For variations, also invalidate the parent product
+    $parent_id = wp_get_post_parent_id( $product_id );
+    $tags      = array(
+        'product_' . $product_id,
+        'product_gallery',
+        'related_products',
+        'woo_product',
+    );
+
+    if ( $parent_id > 0 ) {
+        $tags[] = 'product_' . $parent_id;
+    }
+
+    pcm_microcache_invalidate_tags( $tags, 'woo_product_save' );
+}
+add_action( 'woocommerce_update_product', 'pcm_microcache_invalidate_woo_product', 20, 1 );
+add_action( 'woocommerce_new_product', 'pcm_microcache_invalidate_woo_product', 20, 1 );
+
+/**
+ * Invalidate product gallery cache when product images are updated.
+ */
+function pcm_microcache_invalidate_woo_gallery_on_meta( int $meta_id, int $post_id, string $meta_key ): void {
+    if ( '_product_image_gallery' !== $meta_key && '_thumbnail_id' !== $meta_key ) {
+        return;
+    }
+
+    if ( 'product' !== get_post_type( $post_id ) ) {
+        return;
+    }
+
+    pcm_microcache_invalidate_tags(
+        array( 'product_gallery', 'product_' . absint( $post_id ) ),
+        'woo_gallery_meta_update'
+    );
+}
+add_action( 'updated_post_meta', 'pcm_microcache_invalidate_woo_gallery_on_meta', 20, 3 );
+add_action( 'added_post_meta', 'pcm_microcache_invalidate_woo_gallery_on_meta', 20, 3 );
+
+/**
+ * Invalidate related products when WooCommerce stock status changes.
+ *
+ * If a product goes out of stock or comes back in stock, the related
+ * products cache should refresh so in_stock flags are accurate.
+ */
+function pcm_microcache_invalidate_woo_stock_change( \WC_Product $product ): void {
+    $product_id = $product->get_id();
+    if ( $product_id <= 0 ) {
+        return;
+    }
+
+    pcm_microcache_invalidate_tags(
+        array( 'product_' . absint( $product_id ), 'related_products', 'woo_product' ),
+        'woo_stock_change'
+    );
+}
+add_action( 'woocommerce_product_set_stock_status', 'pcm_microcache_invalidate_woo_stock_change', 20, 1 );
+
+// ─── Automatic Pre-warming ────────────────────────────────────────────────────
+// These hooks fire on template_redirect so the microcache is warm BEFORE
+// WooCommerce / WordPress renders templates. On the first anonymous hit the
+// builder runs and caches. On subsequent hits the cached artifact is returned
+// instantly, AND we prime WordPress's internal object/metadata caches so
+// WooCommerce's own template code hits warm memory instead of the database.
+
+/**
+ * Auto pre-warm product gallery + related products on WooCommerce single product pages.
+ *
+ * Hooks template_redirect at priority 5 (before WC templates render at 10+).
+ * Only fires for anonymous visitors — logged-in users are excluded by the
+ * microcache guard anyway, so we skip them to avoid wasted work.
+ */
+function pcm_microcache_auto_prewarm_product_page(): void {
+    if ( ! pcm_durable_origin_microcache_is_enabled() ) {
+        return;
+    }
+    if ( is_user_logged_in() ) {
+        return;
+    }
+    if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+        return;
+    }
+
+    $product_id = get_the_ID();
+    if ( ! $product_id || $product_id <= 0 ) {
+        return;
+    }
+
+    // ── Product gallery: pre-warm artifact + prime attachment metadata cache ──
+    $gallery = pcm_microcache_get_product_gallery( $product_id );
+
+    if ( is_array( $gallery ) && ! empty( $gallery ) ) {
+        // Batch-load all attachment post meta in one query so that
+        // WooCommerce's wp_get_attachment_image() / wp_get_attachment_image_srcset()
+        // calls hit warm object cache instead of N individual DB queries.
+        $attachment_ids = array_column( $gallery, 'id' );
+        if ( ! empty( $attachment_ids ) ) {
+            update_meta_cache( 'post', $attachment_ids );
+        }
+    }
+
+    // ── Related products: pre-warm artifact + prime post object caches ──
+    $related = pcm_microcache_get_related_products( $product_id );
+
+    if ( is_array( $related ) && ! empty( $related ) ) {
+        // Batch-prime post + postmeta + term caches for all related products.
+        // When WooCommerce renders the related-products grid, every
+        // get_permalink(), get_the_title(), get_price_html() call will
+        // hit warm cache instead of running individual queries.
+        $related_ids = array_column( $related, 'id' );
+        if ( ! empty( $related_ids ) ) {
+            _prime_post_caches( $related_ids, true, true );
+        }
+    }
+}
+add_action( 'template_redirect', 'pcm_microcache_auto_prewarm_product_page', 5 );
+
+/**
+ * Auto pre-warm related posts on single blog/CPT post pages.
+ *
+ * Skips WooCommerce products (handled by the product-specific hook above).
+ */
+function pcm_microcache_auto_prewarm_single_post(): void {
+    if ( ! pcm_durable_origin_microcache_is_enabled() ) {
+        return;
+    }
+    if ( is_user_logged_in() ) {
+        return;
+    }
+    if ( ! is_singular() || is_singular( 'product' ) ) {
+        return;
+    }
+
+    $post_id = get_the_ID();
+    if ( ! $post_id || $post_id <= 0 ) {
+        return;
+    }
+
+    $related = pcm_microcache_get_related_posts( $post_id );
+
+    if ( is_array( $related ) && ! empty( $related ) ) {
+        $related_ids = array_column( $related, 'id' );
+        if ( ! empty( $related_ids ) ) {
+            _prime_post_caches( $related_ids, true, true );
+        }
+    }
+}
+add_action( 'template_redirect', 'pcm_microcache_auto_prewarm_single_post', 5 );
+
+/**
+ * Auto pre-warm archive cards on WooCommerce shop/category pages.
+ *
+ * On the shop page, product category pages, and product tag pages,
+ * pre-warm the archive cards cache so post metadata is already in memory
+ * when WooCommerce renders the product grid loop.
+ */
+function pcm_microcache_auto_prewarm_woo_archive(): void {
+    if ( ! pcm_durable_origin_microcache_is_enabled() ) {
+        return;
+    }
+    if ( is_user_logged_in() ) {
+        return;
+    }
+    if ( ! function_exists( 'is_shop' ) ) {
+        return;
+    }
+    if ( ! is_shop() && ! is_product_category() && ! is_product_tag() ) {
+        return;
+    }
+
+    // Cache product archive cards using WooCommerce's default ordering
+    $paged = max( 1, absint( get_query_var( 'paged', 1 ) ) );
+    $cards = pcm_microcache_get_archive_cards(
+        array(
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => absint( get_option( 'posts_per_page', 12 ) ),
+            'paged'          => $paged,
+        ),
+        120
+    );
+
+    if ( is_array( $cards ) && ! empty( $cards ) ) {
+        $product_ids = array_column( $cards, 'id' );
+        if ( ! empty( $product_ids ) ) {
+            _prime_post_caches( $product_ids, true, true );
+        }
+    }
+}
+add_action( 'template_redirect', 'pcm_microcache_auto_prewarm_woo_archive', 5 );
+
+/**
+ * Auto pre-warm navigation menus on every frontend page load.
+ *
+ * Identifies registered menu locations and warms each one. This runs
+ * once per request — subsequent calls to pcm_microcache_get_menu_tree_payload()
+ * from themes get instant cache hits.
+ */
+function pcm_microcache_auto_prewarm_menus(): void {
+    if ( ! pcm_durable_origin_microcache_is_enabled() ) {
+        return;
+    }
+    if ( is_user_logged_in() || is_admin() ) {
+        return;
+    }
+
+    $locations = get_nav_menu_locations();
+    if ( empty( $locations ) ) {
+        return;
+    }
+
+    foreach ( array_keys( $locations ) as $location ) {
+        pcm_microcache_get_menu_tree_payload( (string) $location );
+    }
+}
+add_action( 'template_redirect', 'pcm_microcache_auto_prewarm_menus', 5 );
+
 function pcm_microcache_public_health_endpoint(): void {
     // Rate-limit unauthenticated requests: max 1 per 10 seconds per IP
     if ( ! is_user_logged_in() ) {
@@ -668,10 +1117,19 @@ function pcm_microcache_invalidate_post_tags( int $post_id ): void {
     }
 
     $post = get_post( $post_id );
-    $tags = array( 'post_' . $post_id, 'archive_cards', 'adjacent_links' );
+    $tags = array( 'post_' . $post_id, 'archive_cards', 'adjacent_links', 'related_posts' );
 
     if ( $post ) {
-        $tags[] = 'post_type_' . sanitize_key( $post->post_type );
+        $post_type = sanitize_key( $post->post_type );
+        $tags[]    = 'post_type_' . $post_type;
+
+        // When a WooCommerce product is saved via core save_post, also bust product caches
+        if ( 'product' === $post_type || 'product_variation' === $post_type ) {
+            $tags[] = 'product_' . $post_id;
+            $tags[] = 'product_gallery';
+            $tags[] = 'related_products';
+            $tags[] = 'woo_product';
+        }
     }
 
     pcm_microcache_invalidate_tags( $tags, 'save_post' );

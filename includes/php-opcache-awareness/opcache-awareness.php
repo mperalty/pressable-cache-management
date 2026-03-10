@@ -629,10 +629,14 @@ function pcm_ajax_cache_insights() {
 	}
 	$insights['object_cache_type'] = $oc_type;
 
-	// Object cache hit ratio (if intelligence module available).
-	if ( function_exists( 'pcm_object_cache_get_latest_snapshot' ) ) {
-		$snap = pcm_object_cache_get_latest_snapshot();
-		if ( $snap && isset( $snap['hit_ratio'] ) ) {
+	// Object cache hit ratio — read cached value only (never trigger live collection).
+	$cached_hit_ratio = (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, 0 );
+	if ( $cached_hit_ratio > 0 ) {
+		$insights['object_cache_hit_ratio'] = round( $cached_hit_ratio, 1 );
+	} elseif ( function_exists( 'pcm_object_cache_get_latest_snapshot' ) ) {
+		// Fall back to transient/stored snapshot without triggering slow collection.
+		$snap = get_transient( 'pcm_oci_latest_snapshot' );
+		if ( is_array( $snap ) && isset( $snap['hit_ratio'] ) ) {
 			$insights['object_cache_hit_ratio'] = round( (float) $snap['hit_ratio'], 1 );
 		}
 	}

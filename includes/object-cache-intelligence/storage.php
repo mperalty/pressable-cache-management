@@ -144,15 +144,15 @@ function pcm_object_cache_collect_and_store_snapshot(): array {
 }
 
 /**
- * Fetch latest stored snapshot, collecting one if missing.
+ * Fetch latest stored snapshot without triggering live collection.
  *
- * Uses a short-lived transient to avoid repeatedly deserializing the full
- * snapshot history option on every admin page load.  When the transient is
- * warm the response is near-instant regardless of how many rows are stored.
+ * Reads from transient or stored option only. Returns empty array when no
+ * cached data exists — callers that need a live collection should call
+ * pcm_object_cache_collect_and_store_snapshot() explicitly.
  *
  * @return array<string, mixed>
  */
-function pcm_object_cache_get_latest_snapshot(): array {
+function pcm_object_cache_get_cached_snapshot(): array {
     // Fast path: transient holds the latest snapshot for quick reads.
     $cached = get_transient( PCM_OCI_LATEST_SNAPSHOT_TRANSIENT );
     if ( is_array( $cached ) && ! empty( $cached ) ) {
@@ -171,6 +171,24 @@ function pcm_object_cache_get_latest_snapshot(): array {
 
             return $latest;
         }
+    }
+
+    return array();
+}
+
+/**
+ * Fetch latest stored snapshot, collecting one if missing.
+ *
+ * Uses a short-lived transient to avoid repeatedly deserializing the full
+ * snapshot history option on every admin page load.  When the transient is
+ * warm the response is near-instant regardless of how many rows are stored.
+ *
+ * @return array<string, mixed>
+ */
+function pcm_object_cache_get_latest_snapshot(): array {
+    $snapshot = pcm_object_cache_get_cached_snapshot();
+    if ( ! empty( $snapshot ) ) {
+        return $snapshot;
     }
 
     // Slow path: no stored data at all — collect now.
@@ -316,7 +334,7 @@ class PCM_Object_Cache_Route_Correlation_Service {
     public function correlate_latest( int $run_id = 0 ): array {
         global $wpdb;
 
-        $snapshot = pcm_object_cache_get_latest_snapshot();
+        $snapshot = pcm_object_cache_get_cached_snapshot();
 
         $runs_table = $wpdb->prefix . 'pcm_scan_runs';
         $urls_table = $wpdb->prefix . 'pcm_scan_urls';
@@ -609,11 +627,30 @@ function pcm_ajax_object_cache_snapshot(): void {
 
         if ( empty( $snapshot ) ) {
             // Fall back to last-known-good snapshot so the UI isn't blank.
-            $snapshot = pcm_object_cache_get_latest_snapshot();
+            $snapshot = pcm_object_cache_get_cached_snapshot();
             $is_stale = ! empty( $snapshot );
         }
     } else {
-        $snapshot = pcm_object_cache_get_latest_snapshot();
+        // Non-refresh: read cached data only (transient / stored option).
+        // Avoids triggering a slow live collection on initial page load.
+        $snapshot = pcm_object_cache_get_cached_snapshot();
+
+        // If no cached data exists, attempt a quick live collection with a
+        // reduced time budget so the request doesn't block for 8+ seconds.
+        if ( empty( $snapshot ) ) {
+            try {
+                $resolver = new PCM_Object_Cache_Stats_Provider_Resolver( 3.0 );
+                $service  = new PCM_Object_Cache_Intelligence_Service( $resolver );
+                $snapshot = $service->collect_snapshot();
+                if ( ! empty( $snapshot ) ) {
+                    $storage = new PCM_Object_Cache_Snapshot_Storage();
+                    $storage->append( $snapshot );
+                    set_transient( PCM_OCI_LATEST_SNAPSHOT_TRANSIENT, $snapshot, PCM_OCI_SNAPSHOT_TRANSIENT_TTL );
+                }
+            } catch ( \Throwable $e ) {
+                $snapshot = array();
+            }
+        }
     }
 
     wp_send_json_success( array(
