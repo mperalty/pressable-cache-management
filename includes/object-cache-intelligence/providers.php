@@ -26,8 +26,19 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     public function get_metrics(): array {
         global $wp_object_cache;
 
+        $log = defined( 'WP_DEBUG' ) && WP_DEBUG;
+
         if ( ! is_object( $wp_object_cache ) ) {
+            if ( $log ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( '[PCM OCI dropin] $wp_object_cache is not an object.' );
+            }
             return array();
+        }
+
+        if ( $log ) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log( '[PCM OCI dropin] Starting metrics collection. Class: ' . get_class( $wp_object_cache ) );
         }
 
         $hits   = $this->read_metric_from_dropin( $wp_object_cache, array( 'cache_hits', 'get_hits', 'hits' ) );
@@ -37,11 +48,24 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
         $bytes     = $this->read_metric_from_dropin( $wp_object_cache, array( 'bytes', 'bytes_used', 'used_bytes' ) );
         $limit     = $this->read_metric_from_dropin( $wp_object_cache, array( 'limit_maxbytes', 'maxbytes', 'bytes_limit' ) );
 
+        if ( $log ) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log( sprintf( '[PCM OCI dropin] Property reads: hits=%s, misses=%s, evictions=%s, bytes=%s, limit=%s',
+                var_export( $hits, true ), var_export( $misses, true ),
+                var_export( $evictions, true ), var_export( $bytes, true ), var_export( $limit, true )
+            ) );
+        }
+
         // Only call the potentially-blocking stats() method when we couldn't
         // read basic metrics from the drop-in properties above.
         $have_basics = ( null !== $hits && null !== $misses );
 
         if ( ! $have_basics && method_exists( $wp_object_cache, 'stats' ) ) {
+            if ( $log ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( '[PCM OCI dropin] No basics from properties, calling $wp_object_cache->stats()...' );
+            }
+
             try {
                 ob_start();
                 $stats_result = $wp_object_cache->stats();
@@ -53,6 +77,11 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
                 }
                 $stats_text   = '';
                 $stats_result = null;
+
+                if ( $log ) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log( '[PCM OCI dropin] stats() threw: ' . $e->getMessage() );
+                }
             }
 
             $parsed_text   = $this->parse_dropin_stats_text( $stats_text );
@@ -70,7 +99,18 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             $limit     = $parsed_struct['bytes_limit'] ?? $limit;
         }
 
+        if ( $log ) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log( '[PCM OCI dropin] Before client stats: have_basics=' . ( $have_basics ? 'yes' : 'no' ) . '. Calling get_client_stats()...' );
+        }
+
         $client_stats = $this->get_client_stats( $wp_object_cache );
+
+        if ( $log ) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log( '[PCM OCI dropin] get_client_stats() returned ' . ( empty( $client_stats ) ? 'empty' : 'nodes=' . ( $client_stats['nodes_reported'] ?? '?' ) ) );
+        }
+
         if ( ! empty( $client_stats ) ) {
             $hits      = $client_stats['hits'] ?? $hits;
             $misses    = $client_stats['misses'] ?? $misses;
@@ -173,7 +213,18 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     }
 
     /**
-     * Read normalized stats from an active drop-in client connection.
+     * Read normalized stats via a FRESH Memcached connection.
+     *
+     * IMPORTANT: We must NOT call getStats() on the drop-in's existing
+     * Memcached client because it uses persistent connections.  Socket-level
+     * timeouts set via setOption() only apply when a NEW connection is
+     * established, not to already-open persistent sockets.  Calling
+     * getStats() on the existing client can block PHP indefinitely.
+     *
+     * Instead we: (1) read the server list from the existing client
+     * (non-blocking), (2) create a fresh non-persistent Memcached instance
+     * with timeouts applied BEFORE connecting, (3) call getStats() on the
+     * fresh instance where the timeouts are actually honoured.
      *
      * @param object $wp_object_cache Active object cache drop-in instance.
      *
@@ -181,31 +232,102 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
      */
     protected function get_client_stats( object $wp_object_cache ): array {
         $client = $this->get_underlying_client( $wp_object_cache );
-        if ( ! $client ) {
+
+        // Build a server list: prefer extracting from the existing client,
+        // fall back to the WP_MEMCACHED_SERVERS constant.
+        $servers = array();
+
+        if ( $client instanceof Memcached ) {
+            try {
+                $server_list = $client->getServerList();
+                if ( is_array( $server_list ) ) {
+                    foreach ( $server_list as $srv ) {
+                        $host = $srv['host'] ?? '';
+                        $port = $srv['port'] ?? 11211;
+                        if ( '' !== $host ) {
+                            $servers[] = array( 'host' => $host, 'port' => (int) $port );
+                        }
+                    }
+                }
+            } catch ( \Throwable $e ) {
+                // getServerList() should never throw, but guard anyway.
+            }
+        } elseif ( $client instanceof Memcache ) {
+            // Legacy Memcache extension — no reliable getServerList().
+            // Fall through to constant-based servers below.
+        }
+
+        // Fallback: read server definitions from the constant.
+        if ( empty( $servers ) ) {
+            $servers = pcm_object_cache_memcached_servers_from_constant();
+        }
+
+        if ( empty( $servers ) ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( '[PCM OCI] get_client_stats: no servers found from client or constant.' );
+            }
             return array();
         }
 
-        // Enforce socket-level timeouts so getStats() can't block indefinitely.
-        if ( $client instanceof Memcached ) {
-            $client->setOption( Memcached::OPT_CONNECT_TIMEOUT, 1000 );   // 1 s connect.
-            $client->setOption( Memcached::OPT_SEND_TIMEOUT, 1000000 );   // 1 s send (μs).
-            $client->setOption( Memcached::OPT_RECV_TIMEOUT, 2000000 );   // 2 s receive (μs).
+        // Create a fresh, non-persistent Memcached instance with timeouts
+        // applied BEFORE adding servers so they govern the new connections.
+        if ( ! class_exists( 'Memcached' ) ) {
+            return array();
+        }
+
+        $fresh = new Memcached(); // No persistent_id → non-persistent.
+        $fresh->setOption( Memcached::OPT_CONNECT_TIMEOUT, 2000 );    // 2 s connect.
+        $fresh->setOption( Memcached::OPT_SEND_TIMEOUT, 1000000 );    // 1 s send (μs).
+        $fresh->setOption( Memcached::OPT_RECV_TIMEOUT, 2000000 );    // 2 s receive (μs).
+        $fresh->setOption( Memcached::OPT_DISTRIBUTION, Memcached::DISTRIBUTION_CONSISTENT );
+        $fresh->setOption( Memcached::OPT_BINARY_PROTOCOL, true );
+
+        foreach ( $servers as $srv ) {
+            $fresh->addServer( $srv['host'], (int) ( $srv['port'] ?? 11211 ) );
+        }
+
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log( sprintf( '[PCM OCI] get_client_stats: querying %d server(s) via fresh connection.', count( $servers ) ) );
         }
 
         try {
-            if ( $client instanceof Memcached ) {
-                $all_stats = $client->getStats();
-            } else {
-                $all_stats = $client->getExtendedStats();
-            }
+            $all_stats = $fresh->getStats();
         } catch ( \Throwable $e ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( '[PCM OCI] get_client_stats: getStats() threw: ' . $e->getMessage() );
+            }
             return array();
+        }
+
+        $result_code = $fresh->getResultCode();
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log( sprintf(
+                '[PCM OCI] get_client_stats: getStats() returned %s, result_code=%d (%s).',
+                ( is_array( $all_stats ) ? 'array(' . count( $all_stats ) . ')' : gettype( $all_stats ) ),
+                $result_code,
+                $fresh->getResultMessage()
+            ) );
         }
 
         if ( ! is_array( $all_stats ) || empty( $all_stats ) ) {
             return array();
         }
 
+        return $this->aggregate_server_stats( $all_stats );
+    }
+
+    /**
+     * Aggregate per-server stats into totals.
+     *
+     * @param array<string, array<string, mixed>> $all_stats Per-server stats.
+     *
+     * @return array<string, int|null>
+     */
+    protected function aggregate_server_stats( array $all_stats ): array {
         $totals = array(
             'hits'             => 0,
             'misses'           => 0,
@@ -676,27 +798,50 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
             new PCM_Object_Cache_Memcache_Extension_Stats_Provider(),
         );
 
+        $log = defined( 'WP_DEBUG' ) && WP_DEBUG;
+
         foreach ( $providers as $provider ) {
             $elapsed = microtime( true ) - $start_time;
             if ( $elapsed >= $this->time_budget ) {
+                if ( $log ) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log( sprintf( '[PCM OCI] Time budget exhausted (%.2fs/%.2fs) before trying %s.', $elapsed, $this->time_budget, $provider->get_provider_key() ) );
+                }
                 break;
+            }
+
+            $provider_start = microtime( true );
+
+            if ( $log ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( sprintf( '[PCM OCI] Trying provider: %s (elapsed: %.2fs)', $provider->get_provider_key(), $elapsed ) );
             }
 
             try {
                 $metrics = $provider->get_metrics();
             } catch ( \Throwable $e ) {
-                // Provider threw an exception — log and skip.
-                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                if ( $log ) {
                     // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-                    error_log( sprintf( '[PCM OCI] Provider %s threw %s: %s', $provider->get_provider_key(), get_class( $e ), $e->getMessage() ) );
+                    error_log( sprintf( '[PCM OCI] Provider %s threw %s: %s (took %.2fs)', $provider->get_provider_key(), get_class( $e ), $e->getMessage(), microtime( true ) - $provider_start ) );
                 }
                 continue;
             }
 
+            $provider_elapsed = microtime( true ) - $provider_start;
+
             if ( ! empty( $metrics ) ) {
+                if ( $log ) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log( sprintf( '[PCM OCI] Provider %s succeeded in %.2fs. Status: %s, hits: %s', $provider->get_provider_key(), $provider_elapsed, $metrics['status'] ?? '?', $metrics['hits'] ?? 'null' ) );
+                }
                 $this->cached = array( $provider, $metrics );
 
                 return $this->cached;
+            }
+
+            if ( $log ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( sprintf( '[PCM OCI] Provider %s returned empty in %.2fs.', $provider->get_provider_key(), $provider_elapsed ) );
             }
         }
 

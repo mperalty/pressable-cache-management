@@ -613,6 +613,7 @@ function pcm_ajax_object_cache_snapshot(): void {
         }
     }
 
+    $ajax_start    = microtime( true );
     $force_collect = isset( $_REQUEST['refresh'] ) && '1' === (string) wp_unslash( $_REQUEST['refresh'] );
     $is_stale      = false;
 
@@ -620,17 +621,17 @@ function pcm_ajax_object_cache_snapshot(): void {
 
     if ( $force_collect ) {
         $debug_info[] = 'path:refresh_click';
-        // Attempt a live collection with a 5 s time budget; fall back to
-        // cached data on failure so the AJAX response stays within the client
-        // timeout (15 s).
         try {
-            $snapshot = pcm_object_cache_collect_and_store_snapshot( 5.0 );
+            $collect_start = microtime( true );
+            $snapshot      = pcm_object_cache_collect_and_store_snapshot( 5.0 );
+            $collect_ms    = round( ( microtime( true ) - $collect_start ) * 1000 );
+            $debug_info[]  = 'collect_ms:' . $collect_ms;
             if ( empty( $snapshot ) ) {
                 $debug_info[] = 'collect_returned_empty';
             }
         } catch ( \Throwable $e ) {
             $snapshot     = array();
-            $debug_info[] = 'collect_threw: ' . $e->getMessage();
+            $debug_info[] = 'collect_threw:' . $e->getMessage();
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log( '[PCM OCI] Live collection failed: ' . $e->getMessage() );
@@ -638,7 +639,6 @@ function pcm_ajax_object_cache_snapshot(): void {
         }
 
         if ( empty( $snapshot ) ) {
-            // Fall back to last-known-good snapshot so the UI isn't blank.
             $snapshot = pcm_object_cache_get_cached_snapshot();
             $is_stale = ! empty( $snapshot );
             if ( empty( $snapshot ) ) {
@@ -647,17 +647,16 @@ function pcm_ajax_object_cache_snapshot(): void {
         }
     } else {
         $debug_info[] = 'path:initial_load';
-        // Non-refresh: prefer cached data to avoid blocking a PHP worker.
         $snapshot = pcm_object_cache_get_cached_snapshot();
         if ( ! empty( $snapshot ) ) {
             $debug_info[] = 'cached_snapshot_found';
         } else {
-            // No cached snapshot at all (first visit or cron hasn't run).
-            // With socket-level timeouts (2 s receive) the blocking risk is
-            // bounded, so collect live rather than leaving the UI empty.
-            $debug_info[] = 'no_cached_snapshot_collecting_live';
+            $debug_info[] = 'no_cache_collecting_live';
             try {
-                $snapshot = pcm_object_cache_collect_and_store_snapshot( 5.0 );
+                $collect_start = microtime( true );
+                $snapshot      = pcm_object_cache_collect_and_store_snapshot( 5.0 );
+                $collect_ms    = round( ( microtime( true ) - $collect_start ) * 1000 );
+                $debug_info[]  = 'collect_ms:' . $collect_ms;
                 if ( empty( $snapshot ) ) {
                     $debug_info[] = 'live_collect_returned_empty';
                 } else {
@@ -717,6 +716,8 @@ function pcm_ajax_object_cache_snapshot(): void {
     if ( defined( 'MEMCACHED_SERVERS' ) ) {
         $debug_info[] = 'MEMCACHED_SERVERS:defined';
     }
+
+    $debug_info[] = 'total_ms:' . round( ( microtime( true ) - $ajax_start ) * 1000 );
 
     wp_send_json_success( array(
         'snapshot'         => $snapshot,
