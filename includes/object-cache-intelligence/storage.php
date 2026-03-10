@@ -666,6 +666,34 @@ function pcm_ajax_object_cache_snapshot(): void {
     global $wp_object_cache;
     $debug_info[] = 'dropin_class:' . ( is_object( $wp_object_cache ) ? get_class( $wp_object_cache ) : 'none' );
 
+    if ( is_object( $wp_object_cache ) ) {
+        // Report which known client properties exist and their types.
+        foreach ( array( 'm', 'mc', 'memcache', 'memcached', 'client', 'daemon', 'connection' ) as $p ) {
+            if ( property_exists( $wp_object_cache, $p ) ) {
+                try {
+                    $val = $wp_object_cache->{$p};
+                    $debug_info[] = 'prop_' . $p . ':' . ( is_object( $val ) ? get_class( $val ) : ( is_array( $val ) ? 'array(' . count( $val ) . ')' : gettype( $val ) ) );
+                } catch ( \Throwable $e ) {
+                    $debug_info[] = 'prop_' . $p . ':inaccessible';
+                }
+            }
+        }
+        // Check if stats() method exists.
+        if ( method_exists( $wp_object_cache, 'stats' ) ) {
+            $debug_info[] = 'has_stats_method';
+        }
+    }
+
+    $debug_info[] = 'ext_memcached:' . ( class_exists( 'Memcached' ) ? 'yes' : 'no' );
+    $debug_info[] = 'ext_memcache:' . ( class_exists( 'Memcache' ) ? 'yes' : 'no' );
+
+    if ( defined( 'WP_MEMCACHED_SERVERS' ) ) {
+        $debug_info[] = 'WP_MEMCACHED_SERVERS:defined';
+    }
+    if ( defined( 'MEMCACHED_SERVERS' ) ) {
+        $debug_info[] = 'MEMCACHED_SERVERS:defined';
+    }
+
     wp_send_json_success( array(
         'snapshot'         => $snapshot,
         'stale'            => $is_stale,
