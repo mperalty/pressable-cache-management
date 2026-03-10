@@ -334,8 +334,6 @@ class PCM_Telemetry_Retention_Manager {
         $days     = $settings['retention_days'];
 
         $this->prune_option_rows( 'pcm_metric_rollups_v1', 'bucket_start', $days );
-        $this->prune_option_rows( 'pcm_smart_purge_events_v1', 'timestamp', $days );
-        $this->prune_option_rows( 'pcm_smart_purge_outcomes_v1', 'timestamp', $days );
         $this->prune_option_rows( 'pcm_audit_log_v1', 'created_at', $days );
     }
 

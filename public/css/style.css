@@ -1238,131 +1238,6 @@ div.notice.pcm-branded.pcm-warning {
   margin-bottom: 4px;
 }
 
-/* ---- Smart Purge Settings ---- */
-.pcm-wrap .pcm-sp-settings-form {
-  margin-bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.pcm-wrap .pcm-sp-settings-section {
-  border-top: 1px solid var(--pcm-border, #e5e7eb);
-  padding-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.pcm-wrap .pcm-sp-settings-section:first-of-type {
-  border-top: none;
-  padding-top: 0;
-}
-
-.pcm-wrap .pcm-sp-settings-section h4 {
-  margin: 0;
-  font-size: 13px;
-  color: var(--pcm-text, #111827);
-}
-
-.pcm-wrap .pcm-sp-checkbox-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  color: var(--pcm-text, #111827);
-}
-
-.pcm-wrap .pcm-sp-checkbox-row input {
-  margin-top: 2px;
-}
-
-.pcm-wrap .pcm-sp-checkbox-row span {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.pcm-wrap .pcm-sp-checkbox-row small,
-.pcm-wrap .pcm-sp-field-label small {
-  color: var(--pcm-muted, #6b7280);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.pcm-wrap .pcm-sp-two-col-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.pcm-wrap .pcm-sp-field-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--pcm-text, #111827);
-}
-
-.pcm-wrap .pcm-sp-number-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 320px;
-}
-
-.pcm-wrap .pcm-sp-number-wrap input[type='number'] {
-  width: 120px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 6px 8px;
-  background: var(--pcm-card-bg, #fff);
-  color: var(--pcm-text, #111827);
-}
-
-.pcm-wrap .pcm-sp-number-wrap input[type='number']::-webkit-outer-spin-button,
-.pcm-wrap .pcm-sp-number-wrap input[type='number']::-webkit-inner-spin-button {
-  opacity: 1;
-  height: 22px;
-}
-
-.pcm-wrap .pcm-sp-unit {
-  font-size: 12px;
-  color: var(--pcm-muted, #6b7280);
-  font-weight: 600;
-}
-
-.pcm-wrap .pcm-sp-field-label textarea {
-  width: 100%;
-  max-width: 620px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 8px 10px;
-  line-height: 1.4;
-}
-
-.pcm-wrap .pcm-sp-insights-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.pcm-wrap .pcm-sp-insight-card {
-  border: 1px solid var(--pcm-border, #e2e8f0);
-  border-radius: 10px;
-  padding: 12px;
-  background: #f8fafc;
-}
-
-.pcm-wrap .pcm-sp-insight-card h4 {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--pcm-text, #111827);
-}
-
-.pcm-wrap .pcm-sp-insight-card-full {
-  grid-column: 1 / -1;
-}
-
 /* ---- Timing Components ---- */
 .pcm-wrap .pcm-timing-grid {
   display: grid;
@@ -1450,15 +1325,6 @@ div.notice.pcm-branded.pcm-warning {
 
   .pcm-wrap .pcm-diagnosis-grid {
     grid-template-columns: 1fr;
-  }
-
-  .pcm-wrap .pcm-sp-two-col-grid,
-  .pcm-wrap .pcm-sp-insights-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .pcm-wrap .pcm-sp-number-wrap {
-    max-width: 100%;
   }
 
   .pcm-wrap .pcm-edge-cache-card-wrap {
@@ -1887,12 +1753,6 @@ div.notice.pcm-branded.pcm-warning {
   border: 1px solid #e2e8f0;
   padding: 8px;
   border-radius: 6px;
-}
-
-/* ---- Smart purge summary list ---- */
-.pcm-sp-summary-list {
-  margin: 0;
-  padding-left: 18px;
 }
 
 /* ---- Scrollable panel ---- */

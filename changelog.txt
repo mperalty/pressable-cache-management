@@ -33,7 +33,6 @@
 * Add instance-level row caching to all storage classes (snapshots, sensitivity, purge events, rollups)
 * Batch rollup writes in daily cron (10 DB writes reduced to 1)
 * Add microcache index instance cache to avoid repeated get_option() reads
-* Settings page now uses cached accessor functions for Smart Purge settings
 * Fix OPcache feature flag: remove current_user_can() gate that blocked cron scheduling
 * Optimize route sensitivity endpoint: single-pass 24h/7d summary instead of double storage load
 * Remove summary grid from Deep Dive tab

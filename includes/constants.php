@@ -61,17 +61,6 @@ enum PCM_Options: string {
     case ENABLE_CACHING_SUITE_FEATURES             = 'pcm_enable_caching_suite_features';
     case ENABLE_DURABLE_ORIGIN_MICROCACHE          = 'pcm_enable_durable_origin_microcache';
 
-    // ── Smart Purge Strategy ──────────────────────────────────────────────────
-    case SMART_PURGE_ACTIVE_MODE                   = 'pcm_smart_purge_active_mode';
-    case SMART_PURGE_COOLDOWN_SECONDS              = 'pcm_smart_purge_cooldown_seconds';
-    case SMART_PURGE_DEFER_SECONDS                 = 'pcm_smart_purge_defer_seconds';
-    case SMART_PURGE_ENABLE_PREWARM                = 'pcm_smart_purge_enable_prewarm';
-    case SMART_PURGE_PREWARM_URL_CAP               = 'pcm_smart_purge_prewarm_url_cap';
-    case SMART_PURGE_PREWARM_BATCH_SIZE            = 'pcm_smart_purge_prewarm_batch_size';
-    case SMART_PURGE_PREWARM_REPEAT_HITS           = 'pcm_smart_purge_prewarm_repeat_hits';
-    case SMART_PURGE_IMPORTANT_URLS                = 'pcm_smart_purge_important_urls';
-    case SMART_PURGE_JOBS_V1                       = 'pcm_smart_purge_jobs_v1';
-
     // ── Observability / Reporting metrics ─────────────────────────────────────
     case LATEST_OBJECT_CACHE_HIT_RATIO             = 'pcm_latest_object_cache_hit_ratio';
     case LATEST_OBJECT_CACHE_EVICTIONS             = 'pcm_latest_object_cache_evictions';

@@ -9,8 +9,8 @@
  *   - flush_cache_on_comment_delete.php (full flush on comment trash/delete)
  *
  * The Batcache_Manager class still handles its own `clean_post_cache` /
- * `clean_comment_cache` hooks for URL-level invalidation. Smart Purge and
- * Microcache modules hook independently at priority 20.
+ * `clean_comment_cache` hooks for URL-level invalidation. Microcache
+ * module hooks independently at priority 20.
  *
  * @package PressableCacheManagement
  */

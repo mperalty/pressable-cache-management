@@ -58,6 +58,26 @@ function pcm_deactivate_cleanup(): void {
     if ( $wp_filesystem->exists( $legacy_file ) ) {
         $wp_filesystem->delete( $legacy_file );
     }
+
+    // ── 4. Clean up orphaned Smart Purge Strategy options & cron ─────────────
+    $smart_purge_options = array(
+        'pcm_smart_purge_active_mode',
+        'pcm_smart_purge_cooldown_seconds',
+        'pcm_smart_purge_defer_seconds',
+        'pcm_smart_purge_enable_prewarm',
+        'pcm_smart_purge_prewarm_url_cap',
+        'pcm_smart_purge_prewarm_batch_size',
+        'pcm_smart_purge_prewarm_repeat_hits',
+        'pcm_smart_purge_important_urls',
+        'pcm_smart_purge_jobs_v1',
+        'pcm_smart_purge_events_v1',
+        'pcm_smart_purge_outcomes_v1',
+    );
+    foreach ( $smart_purge_options as $opt ) {
+        delete_option( $opt );
+    }
+    delete_transient( 'pcm_smart_purge_settings_notices' );
+    wp_clear_scheduled_hook( 'pcm_smart_purge_run_queue' );
 }
 register_deactivation_hook( __FILE__, 'pcm_deactivate_cleanup' );
 
@@ -153,9 +173,6 @@ if ( is_admin() ) {
 require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_cache_on_theme_plugin_update.php';
 require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/cache-flush-dispatcher.php';
 require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_single_page_toolbar.php';
-
-// ─── Smart purge must load early (hooks into save_post at priority 20) ────────
-require_once plugin_dir_path( __FILE__ ) . 'includes/smart-purge-strategy/strategy.php';
 
 // ─── Microcache hooks into save_post at priority 20, must load early ─────────
 if ( (bool) apply_filters( 'pcm_enable_durable_origin_microcache', (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false ) ) ) {

@@ -853,7 +853,7 @@ window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
                     // Exponential backoff: 2s, 4s.
                     var delay = Math.pow(2, ociRetryCount) * 1000;
                     return new Promise(function(resolve){ setTimeout(resolve, delay); })
-                        .then(function(){ return loadAll(false); });
+                        .then(function(){ return loadWithRetry(false); });
                 }
                 throw error;
             });
@@ -895,7 +895,7 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
 
     function loadInsights() {
         if (statusEl) statusEl.textContent = 'Loading\u2026';
-        window.pcmPost({ action: 'pcm_cache_insights' })
+        window.pcmPost({ action: 'pcm_cache_insights' }, { timeout: 10000 })
             .then(function(res) {
                 if (!res || !res.success || !res.data) {
                     container.innerHTML = '<p>Unable to load cache insights.</p>';
@@ -934,8 +934,13 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
                 container.innerHTML = cards.join('');
                 if (statusEl) statusEl.textContent = '';
             })
-            .catch(function() {
-                container.innerHTML = '<p>Error loading cache insights.</p>';
+            .catch(function(err) {
+                var msg = (err && (err.isTimeout || err.message === 'timeout'))
+                    ? 'Cache insights request timed out. Click Refresh to try again.'
+                    : (err && err.status >= 500)
+                        ? 'Server error loading cache insights (HTTP ' + err.status + ').'
+                        : 'Error loading cache insights. Click Refresh to try again.';
+                container.innerHTML = '<p>' + msg + '</p>';
                 if (statusEl) statusEl.textContent = '';
             });
     }
@@ -990,7 +995,6 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
             var map = {
                 cacheability_score: 'Cacheability Score',
                 cache_buster_incidence: 'Cache Buster Incidence',
-                purge_frequency_by_scope: 'Purge Frequency (By Scope)',
                 object_cache_hit_ratio: 'Object Cache Hit Ratio',
                 object_cache_evictions: 'Object Cache Evictions',
                 opcache_memory_pressure: 'OPcache Memory Pressure',
@@ -1093,7 +1097,7 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
                 action: 'pcm_reporting_trends',
                 nonce: window.pcmGetCacheabilityNonce(),
                 range: rangeEl.value,
-                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
+                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(function(res){ render(requireSuccess(res, 'Unable to load reporting trends endpoint.')); }).catch(function(error){ showError(error); });
         });
 
@@ -1103,7 +1107,7 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
                 nonce: window.pcmGetCacheabilityNonce(),
                 format: format,
                 range: rangeEl.value,
-                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','purge_frequency_by_scope','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
+                metric_keys: ['cacheability_score','cache_buster_incidence','object_cache_hit_ratio','object_cache_evictions','opcache_memory_pressure','opcache_restarts','high_memcache_sensitivity_routes_24h','high_memcache_sensitivity_routes_7d']
             }).then(function(res){
                 requireSuccess(res, 'Unable to export reporting endpoint.');
                 if (res && res.success && res.data && res.data.content) {

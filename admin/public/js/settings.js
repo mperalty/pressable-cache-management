@@ -635,7 +635,7 @@ jQuery(document).ready(function($){
         pcmEdgeCacheToggle
     );
 
-    // Disable "Save Feature Flags" and "Save Smart Purge Settings" buttons on form submit
+    // Disable submit buttons on form submit
     // to prevent duplicate submissions during page navigation.
     document.querySelectorAll('form').forEach(function(form) {
         form.addEventListener('submit', function() {

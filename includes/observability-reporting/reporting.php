@@ -31,7 +31,6 @@ class PCM_Metric_Registry {
         return array(
             'cacheability_score'        => array( 'unit' => 'score', 'source' => 'cacheability_advisor' ),
             'cache_buster_incidence'    => array( 'unit' => 'count', 'source' => 'cache_busters' ),
-            'purge_frequency_by_scope'  => array( 'unit' => 'count', 'source' => 'smart_purge' ),
             'object_cache_hit_ratio'    => array( 'unit' => 'percent', 'source' => 'object_cache_intelligence' ),
             'object_cache_evictions'    => array( 'unit' => 'count', 'source' => 'object_cache_intelligence' ),
             'opcache_memory_pressure'   => array( 'unit' => 'percent', 'source' => 'opcache_awareness' ),
@@ -474,9 +473,6 @@ function pcm_reporting_daily_rollup(): void {
     $cache_buster_incidence = function_exists( 'pcm_cache_busters_get_total_incidence' ) ? (float) pcm_cache_busters_get_total_incidence( '7d' ) : 0.0;
     $rollups->write_rollup( 'cache_buster_incidence', $cache_buster_incidence );
 
-    $purge_frequency = pcm_reporting_latest_purge_frequency();
-    $rollups->write_rollup( 'purge_frequency_by_scope', $purge_frequency );
-
     $object_snapshot = function_exists( 'pcm_object_cache_collect_and_store_snapshot' ) ? pcm_object_cache_collect_and_store_snapshot() : array();
     $object_hit_ratio = isset( $object_snapshot['hit_ratio'] ) ? (float) $object_snapshot['hit_ratio'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, 0 );
     $object_evictions = isset( $object_snapshot['evictions'] ) ? (float) $object_snapshot['evictions'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_EVICTIONS->value, 0 );
@@ -537,28 +533,6 @@ function pcm_reporting_latest_cacheability_score(): float {
     $avg = $wpdb->get_var( $wpdb->prepare( "SELECT AVG(score) FROM {$urls_table} WHERE run_id = %d", $run_id ) );
 
     return null !== $avg ? (float) round( (float) $avg, 2 ) : 0.0;
-}
-
-/**
- * @return float
- */
-function pcm_reporting_latest_purge_frequency(): float {
-    $rows = get_option( PCM_Options::SMART_PURGE_JOBS_V1->value, array() );
-    if ( ! is_array( $rows ) ) {
-        return 0.0;
-    }
-
-    $cutoff = time() - DAY_IN_SECONDS;
-    $count  = 0;
-
-    foreach ( $rows as $job ) {
-        $scheduled = isset( $job['scheduled_at'] ) ? strtotime( (string) $job['scheduled_at'] ) : 0;
-        if ( $scheduled >= $cutoff ) {
-            $count++;
-        }
-    }
-
-    return (float) $count;
 }
 
 /**
