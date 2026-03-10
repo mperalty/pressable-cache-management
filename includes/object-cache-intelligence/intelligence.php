@@ -364,9 +364,9 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
         }
 
         $memcached = new Memcached();
-        $memcached->setOption( Memcached::OPT_CONNECT_TIMEOUT, 2000 );
-        $memcached->setOption( Memcached::OPT_SEND_TIMEOUT, 2000000 );
-        $memcached->setOption( Memcached::OPT_RECV_TIMEOUT, 2000000 );
+        $memcached->setOption( Memcached::OPT_CONNECT_TIMEOUT, 1000 );
+        $memcached->setOption( Memcached::OPT_SEND_TIMEOUT, 1000000 );
+        $memcached->setOption( Memcached::OPT_RECV_TIMEOUT, 1000000 );
         $servers   = pcm_object_cache_memcached_servers_from_constant();
         $server_ok = false;
 
@@ -475,7 +475,7 @@ class PCM_Object_Cache_Memcache_Extension_Stats_Provider implements PCM_Object_C
             }
 
             $client = new Memcache();
-            $connected = @$client->connect( $host, $port, 2 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- 2s timeout
+            $connected = @$client->connect( $host, $port, 1 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- 1s timeout
             if ( ! $connected ) {
                 continue;
             }
@@ -584,6 +584,20 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
     protected ?array $cached = null;
 
     /**
+     * Maximum seconds allowed for the entire provider resolution.
+     *
+     * @var float
+     */
+    protected float $time_budget;
+
+    /**
+     * @param float $time_budget Maximum seconds for provider resolution (default 8s).
+     */
+    public function __construct( float $time_budget = 8.0 ) {
+        $this->time_budget = $time_budget;
+    }
+
+    /**
      * @return PCM_Object_Cache_Stats_Provider_Interface
      */
     public function resolve(): PCM_Object_Cache_Stats_Provider_Interface {
@@ -596,7 +610,8 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
      * Resolve the best provider and return both provider and its metrics.
      *
      * Avoids the cost of calling get_metrics() twice (once during resolution,
-     * once from the caller).
+     * once from the caller).  Each provider is given a time budget; if a
+     * provider exceeds it the resolver moves on to the next one.
      *
      * @return array{0: PCM_Object_Cache_Stats_Provider_Interface, 1: array<string, mixed>}
      */
@@ -605,6 +620,8 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
             return $this->cached;
         }
 
+        $start_time = microtime( true );
+
         $providers = array(
             new PCM_Object_Cache_Dropin_Stats_Provider(),
             new PCM_Object_Cache_Memcached_Extension_Stats_Provider(),
@@ -612,7 +629,22 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
         );
 
         foreach ( $providers as $provider ) {
-            $metrics = $provider->get_metrics();
+            $elapsed = microtime( true ) - $start_time;
+            if ( $elapsed >= $this->time_budget ) {
+                break;
+            }
+
+            try {
+                $metrics = $provider->get_metrics();
+            } catch ( \Throwable $e ) {
+                // Provider threw an exception — log and skip.
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log( sprintf( '[PCM OCI] Provider %s threw %s: %s', $provider->get_provider_key(), get_class( $e ), $e->getMessage() ) );
+                }
+                continue;
+            }
+
             if ( ! empty( $metrics ) ) {
                 $this->cached = array( $provider, $metrics );
 
@@ -954,6 +986,17 @@ class PCM_Object_Cache_Snapshot_Storage {
 }
 
 /**
+ * Transient key for the latest snapshot quick-access cache.
+ */
+define( 'PCM_OCI_LATEST_SNAPSHOT_TRANSIENT', 'pcm_oci_latest_snapshot' );
+
+/**
+ * Transient TTL: how long the quick-access snapshot stays fresh (5 minutes).
+ * After expiry the next request will trigger a background-style refresh.
+ */
+define( 'PCM_OCI_SNAPSHOT_TRANSIENT_TTL', 5 * MINUTE_IN_SECONDS );
+
+/**
  * Persist one snapshot and return it.
  *
  * @return array<string, mixed>
@@ -977,25 +1020,44 @@ function pcm_object_cache_collect_and_store_snapshot(): array {
     update_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, isset( $snapshot['hit_ratio'] ) ? (float) $snapshot['hit_ratio'] : 0, false );
     update_option( PCM_Options::LATEST_OBJECT_CACHE_EVICTIONS->value, isset( $snapshot['evictions'] ) ? (float) $snapshot['evictions'] : 0, false );
 
+    // Update the quick-access transient so subsequent reads are instant.
+    set_transient( PCM_OCI_LATEST_SNAPSHOT_TRANSIENT, $snapshot, PCM_OCI_SNAPSHOT_TRANSIENT_TTL );
+
     return $snapshot;
 }
 
 /**
  * Fetch latest stored snapshot, collecting one if missing.
  *
+ * Uses a short-lived transient to avoid repeatedly deserializing the full
+ * snapshot history option on every admin page load.  When the transient is
+ * warm the response is near-instant regardless of how many rows are stored.
+ *
  * @return array<string, mixed>
  */
 function pcm_object_cache_get_latest_snapshot(): array {
+    // Fast path: transient holds the latest snapshot for quick reads.
+    $cached = get_transient( PCM_OCI_LATEST_SNAPSHOT_TRANSIENT );
+    if ( is_array( $cached ) && ! empty( $cached ) ) {
+        return $cached;
+    }
+
+    // Medium path: read from the full storage option.
     $storage = new PCM_Object_Cache_Snapshot_Storage();
     $rows    = $storage->all();
 
-    if ( empty( $rows ) ) {
-        return pcm_object_cache_collect_and_store_snapshot();
+    if ( ! empty( $rows ) ) {
+        $latest = end( $rows );
+        if ( is_array( $latest ) && ! empty( $latest ) ) {
+            // Re-seed the transient so the next request is fast.
+            set_transient( PCM_OCI_LATEST_SNAPSHOT_TRANSIENT, $latest, PCM_OCI_SNAPSHOT_TRANSIENT_TTL );
+
+            return $latest;
+        }
     }
 
-    $latest = end( $rows );
-
-    return is_array( $latest ) ? $latest : array();
+    // Slow path: no stored data at all — collect now.
+    return pcm_object_cache_collect_and_store_snapshot();
 }
 
 /**
@@ -1390,6 +1452,10 @@ function pcm_object_cache_memcache_sensitivity_summary( string $range = '24h' ):
 /**
  * AJAX: latest object cache diagnostics snapshot.
  *
+ * When refresh=1 is requested, we attempt a live collection but fall back to
+ * the last-known-good snapshot if the collection fails or times out.  This
+ * ensures the UI always has *something* useful to display.
+ *
  * @return void
  */
 function pcm_ajax_object_cache_snapshot(): void {
@@ -1410,9 +1476,33 @@ function pcm_ajax_object_cache_snapshot(): void {
     }
 
     $force_collect = isset( $_REQUEST['refresh'] ) && '1' === (string) wp_unslash( $_REQUEST['refresh'] );
-    $snapshot      = $force_collect ? pcm_object_cache_collect_and_store_snapshot() : pcm_object_cache_get_latest_snapshot();
+    $is_stale      = false;
 
-    wp_send_json_success( array( 'snapshot' => $snapshot ) );
+    if ( $force_collect ) {
+        // Attempt a live collection; fall back to cached data on failure.
+        try {
+            $snapshot = pcm_object_cache_collect_and_store_snapshot();
+        } catch ( \Throwable $e ) {
+            $snapshot = array();
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( '[PCM OCI] Live collection failed: ' . $e->getMessage() );
+            }
+        }
+
+        if ( empty( $snapshot ) ) {
+            // Fall back to last-known-good snapshot so the UI isn't blank.
+            $snapshot = pcm_object_cache_get_latest_snapshot();
+            $is_stale = ! empty( $snapshot );
+        }
+    } else {
+        $snapshot = pcm_object_cache_get_latest_snapshot();
+    }
+
+    wp_send_json_success( array(
+        'snapshot' => $snapshot,
+        'stale'    => $is_stale,
+    ) );
 }
 add_action( 'wp_ajax_pcm_object_cache_snapshot', 'pcm_ajax_object_cache_snapshot' );
 

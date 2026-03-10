@@ -2430,3 +2430,187 @@ div.notice.pcm-branded.pcm-warning {
   width: 32px;
   height: 32px;
 }
+
+/* ---- Insight Panels (diagnosis runbooks) ---- */
+.pcm-wrap .pcm-insight-panel {
+    margin: 8px 0 4px;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border-left: 3px solid #6366f1;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #374151;
+}
+
+body.admin-color-modern .pcm-wrap .pcm-insight-panel {
+    background: #2c3338;
+    color: #c3c4c7;
+}
+
+.pcm-wrap .pcm-insight-panel strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #6366f1;
+}
+
+.pcm-wrap .pcm-insight-panel ul {
+    margin: 4px 0 0 16px;
+    padding: 0;
+    list-style: disc;
+}
+
+.pcm-wrap .pcm-insight-panel li {
+    margin-bottom: 4px;
+}
+
+.pcm-wrap .pcm-insight-panel code {
+    background: #eef2ff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+body.admin-color-modern .pcm-wrap .pcm-insight-panel code {
+    background: #3c434a;
+}
+
+/* ---- Cache Insights Grid ---- */
+.pcm-wrap .pcm-cache-insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.pcm-wrap .pcm-cache-insight-card {
+    padding: 14px 16px;
+    border: 1px solid var(--pcm-border, #e5e7eb);
+    border-radius: 8px;
+    background: var(--pcm-card-bg, #fff);
+}
+
+.pcm-wrap .pcm-cache-insight-card .pcm-ci-label {
+    font-size: 12px;
+    color: var(--pcm-muted, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
+}
+
+.pcm-wrap .pcm-cache-insight-card .pcm-ci-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--pcm-text, #111827);
+}
+
+.pcm-wrap .pcm-ci-status-ok { color: #059669 !important; }
+.pcm-wrap .pcm-ci-status-warn { color: #d97706 !important; }
+.pcm-wrap .pcm-ci-status-bad { color: #dc2626 !important; }
+
+.pcm-wrap .pcm-ci-icon {
+    font-size: 20px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* ---- Redirects Tab Layout ---- */
+.pcm-wrap .pcm-redirects-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 960px) {
+    .pcm-wrap .pcm-redirects-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pcm-wrap .pcm-redirects-grid .pcm-col-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Redirect candidate list */
+.pcm-wrap .pcm-ra-candidate-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0;
+}
+
+.pcm-wrap .pcm-ra-candidate-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    gap: 8px;
+}
+
+body.admin-color-modern .pcm-wrap .pcm-ra-candidate-item {
+    border-bottom-color: #3c434a;
+}
+
+.pcm-wrap .pcm-ra-candidate-item:last-child { border-bottom: none; }
+
+.pcm-wrap .pcm-ra-candidate-source {
+    font-family: monospace;
+    font-size: 13px;
+    color: var(--pcm-text, #374151);
+    word-break: break-all;
+}
+
+.pcm-wrap .pcm-ra-candidate-target {
+    font-family: monospace;
+    font-size: 13px;
+    color: #6366f1;
+    word-break: break-all;
+}
+
+.pcm-wrap .pcm-ra-candidate-add {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Dry-run result rows */
+.pcm-wrap .pcm-ra-sim-ok { background: #f0fdf4; }
+.pcm-wrap .pcm-ra-sim-warning { background: #fffbeb; }
+.pcm-wrap .pcm-ra-sim-loop { background: #fef2f2; }
+
+body.admin-color-modern .pcm-wrap .pcm-ra-sim-ok { background: #1a2e1a; }
+body.admin-color-modern .pcm-wrap .pcm-ra-sim-warning { background: #2e2a1a; }
+body.admin-color-modern .pcm-wrap .pcm-ra-sim-loop { background: #2e1a1a; }
+
+/* Status indicators */
+.pcm-wrap .pcm-ra-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.pcm-wrap .pcm-ra-status-dot-ok { background: #059669; }
+.pcm-wrap .pcm-ra-status-dot-warn { background: #d97706; }
+.pcm-wrap .pcm-ra-status-dot-loop { background: #dc2626; }
+
+/* Export/Import sub-sections */
+.pcm-wrap .pcm-ra-export-section,
+.pcm-wrap .pcm-ra-import-section {
+    border-top: 1px solid var(--pcm-border, #e5e7eb);
+    padding-top: 12px;
+    margin-top: 12px;
+}
+
+.pcm-wrap .pcm-ra-export-section h5,
+.pcm-wrap .pcm-ra-import-section h5 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--pcm-text, #111827);
+}

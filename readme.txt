@@ -4,7 +4,7 @@ Tags: WordPress, Pressable, Caching, Cache, Batcache, Object Cache
 Requires at least: 5.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 5.2.3
+Stable tag: 5.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.txt
 
@@ -26,6 +26,10 @@ Pressable Cache Management gives you full control over object cache, Batcache, a
 * Flush Batcache for WooCommerce product pages
 * Exclude specific pages from Batcache & Edge Cache
 * Enable / Disable / Purge Edge Cache
+* Deep Dive route analysis with security insight runbooks
+* Cache Insights dashboard (OPcache, Batcache, Object Cache status)
+* Redirect Assistant with rule builder, dry-run simulator, and export/import
+* Object Cache Intelligence with trend analysis and recommendations
 * Show or Hide Pressable Branding
 * Available in English, Spanish, French, Dutch, Chinese (Simplified), and Hindi
 
@@ -38,15 +42,23 @@ Pressable Cache Management gives you full control over object cache, Batcache, a
 
 == Changelog ==
 
+= 5.9.0 =
+* Add security insight runbook panels to Deep Dive diagnosis sections with actionable remediation steps
+* Replace OPcache Awareness module with compact Cache Insights card (OPcache, Batcache, Object Cache status)
+* Move Redirect Assistant to its own top-level tab with 4-card layout: Discover, Rule Builder, Dry-Run Simulator, Export & Import
+* Add dark mode support for new UI components
+
+= 5.8.9 =
+* Fix Object Cache Intelligence timeout with 2s connection timeouts
+* Add static caching to all feature flag functions to reduce redundant get_option() calls
+* Batch rollup writes in daily cron (10 DB writes reduced to 1)
+* Remove summary grid from Deep Dive tab
+* Add smooth scroll-into-view when opening playbooks
+
 = 5.2.3 =
 * Redesigned UI with card layout and toggle switches
 * Added GitHub auto-update support via plugin-update-checker
 * Added translations: Spanish, French, Dutch, Chinese (Simplified), Hindi
-* Fixed double "Cache settings updated" notice
-* Improved timestamp visibility and formatting
-* Branded admin bar modals replacing browser alert()
-* Flush Cache on Post/Page Edit now captures and displays post title
-* Plugin/Theme Update flush now captures and displays the updated item name
 
 = 5.2.2 =
 * Bug fixes and stability improvements

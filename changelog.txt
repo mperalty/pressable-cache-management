@@ -1,5 +1,31 @@
 === Pressable Cache Management Change log ===
 
+= Version 5.9.0 (Mar 09, 2026) =
+
+**Security Insight Runbooks**
+* Add contextual runbook panels beneath Deep Dive diagnosis sections (Edge bypass, Batcache bypass, Poisoning cookies, Poisoning headers, Route risk badges)
+* Each panel explains what the diagnosis means and provides actionable remediation steps
+* Panels only render when actual values are present (hidden when "None")
+
+**Cache Insights**
+* Replace full OPcache Awareness module with compact "Cache Insights" card
+* New pcm_cache_insights AJAX endpoint returns OPcache status, Batcache status/max-age, Object Cache type/hit-ratio
+* Render results as a responsive grid of status cards with color-coded indicators
+
+**Redirects Tab**
+* Move Redirect Assistant from Deep Dive card to its own top-level tab between Deep Dive and Settings
+* Redesigned 4-card layout: Discover Candidates, Rule Builder, Dry-Run Simulator, Export & Import
+* Discover candidates now renders per-item "Add" buttons for adding to rules
+* Dry-run simulator shows color-coded result rows (green/yellow/red for ok/warning/loop)
+* Separate import textarea from export for clearer workflow
+* New redirects-tab.js loaded conditionally only on Redirects tab
+
+**Styles**
+* Add pcm-insight-panel styles with dark mode support
+* Add pcm-cache-insights-grid and pcm-cache-insight-card styles
+* Add redirect tab styles: candidate lists, dry-run rows, status dots, export/import sections
+* Responsive breakpoint at 960px for redirects grid
+
 = Version 5.8.9 (Mar 09, 2026) =
 * Fix Object Cache Intelligence timeout: add 2s connection timeouts to Memcached/Memcache providers
 * Cache resolved provider metrics to eliminate duplicate network round-trips
