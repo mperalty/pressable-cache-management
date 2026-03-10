@@ -205,7 +205,7 @@ class PCM_Microcache_Filesystem_Backend implements PCM_Microcache_Backend {
     }
 
     protected function save_index( array $index ): void {
-        $this->save_index( $index );
+        update_option( $this->index_key, $index, false );
         $this->index_cache = $index;
     }
 

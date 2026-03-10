@@ -486,8 +486,6 @@ class PCM_Cacheability_Probe_Client {
             'timeout'     => 8,
             'redirection' => 3,
             'headers'     => array(
-                'Cache-Control' => 'no-cache',
-                'Pragma'        => 'no-cache',
                 'User-Agent'    => 'Pressable-Cache-Advisor/1.0',
             ),
             'cookies'     => array(),
@@ -862,7 +860,8 @@ class PCM_Cacheability_Rule_Engine {
             );
         }
 
-        $cache_control = isset( $headers['cache-control'] ) ? strtolower( (string) $headers['cache-control'] ) : '';
+        $cache_control_raw = isset( $headers['cache-control'] ) ? $headers['cache-control'] : '';
+        $cache_control     = strtolower( is_array( $cache_control_raw ) ? implode( ', ', $cache_control_raw ) : (string) $cache_control_raw );
         if ( '' !== $cache_control && ( str_contains( $cache_control, 'no-store' ) || str_contains( $cache_control, 'private' ) || str_contains( $cache_control, 'max-age=0' ) ) ) {
             $score -= 30;
             $findings[] = array(
@@ -873,7 +872,8 @@ class PCM_Cacheability_Rule_Engine {
             );
         }
 
-        $vary = isset( $headers['vary'] ) ? strtolower( (string) $headers['vary'] ) : '';
+        $vary_raw = isset( $headers['vary'] ) ? $headers['vary'] : '';
+        $vary     = strtolower( is_array( $vary_raw ) ? implode( ', ', $vary_raw ) : (string) $vary_raw );
         if ( '' !== $vary && ( str_contains( $vary, 'cookie' ) || str_contains( $vary, 'user-agent' ) ) ) {
             $score -= 20;
             $findings[] = array(
@@ -1148,13 +1148,26 @@ class PCM_Cacheability_Advisor_Run_Service {
      */
     public function start_and_execute_scan(): int|false {
         $samples    = $this->sampler->sample();
-        $sample_cnt = count( $samples );
-        $run_id     = $this->repository->create_run( get_current_user_id(), $sample_cnt );
+        $run_id     = $this->repository->create_run( get_current_user_id(), count( $samples ) );
 
         if ( ! $run_id ) {
             return false;
         }
 
+        $this->execute_scan( $run_id );
+
+        return $run_id;
+    }
+
+    /**
+     * Execute probe + evaluation loop for an existing run.
+     *
+     * @param int $run_id Run ID.
+     *
+     * @return void
+     */
+    public function execute_scan( int $run_id ): void {
+        $samples             = $this->sampler->sample();
         $template_aggregates = array();
 
         foreach ( $samples as $sample ) {
@@ -1216,8 +1229,6 @@ class PCM_Cacheability_Advisor_Run_Service {
         }
 
         $this->repository->complete_run( $run_id, 'completed' );
-
-        return $run_id;
     }
 
     /**
@@ -1269,8 +1280,9 @@ function pcm_ajax_cacheability_scan_start(): void {
         wp_send_json_error( array( 'message' => 'Advanced scanning workflows are disabled. Enable them in Feature Flags.' ), 400 );
     }
 
-    $service = new PCM_Cacheability_Advisor_Run_Service();
-    $run_id  = $service->start_and_execute_scan();
+    $repository = new PCM_Cacheability_Advisor_Repository();
+    $samples    = ( new PCM_Cacheability_URL_Sampler() )->sample();
+    $run_id     = $repository->create_run( get_current_user_id(), count( $samples ) );
 
     if ( ! $run_id ) {
         wp_send_json_error( array( 'message' => 'Unable to create scan run.' ), 500 );
@@ -1280,10 +1292,29 @@ function pcm_ajax_cacheability_scan_start(): void {
         pcm_audit_log( 'cacheability_scan_started', 'cacheability_advisor', array( 'run_id' => (int) $run_id ) );
     }
 
+    // Register shutdown work before wp_send_json_success (which calls die).
+    // The shutdown function flushes the response to the client first, then
+    // executes the scan so the browser can poll via the status endpoint.
+    register_shutdown_function( static function () use ( $run_id ): void {
+        if ( function_exists( 'fastcgi_finish_request' ) ) {
+            fastcgi_finish_request();
+        } elseif ( function_exists( 'litespeed_finish_request' ) ) {
+            litespeed_finish_request();
+        }
+
+        $service = new PCM_Cacheability_Advisor_Run_Service();
+        try {
+            $service->execute_scan( $run_id );
+        } catch ( \Throwable $e ) {
+            error_log( 'PCM Cacheability scan failed for run ' . $run_id . ': ' . $e->getMessage() );
+            $service->mark_failed( $run_id );
+        }
+    } );
+
     wp_send_json_success(
         array(
             'run_id' => (int) $run_id,
-            'status' => 'completed',
+            'status' => 'running',
         )
     );
 }

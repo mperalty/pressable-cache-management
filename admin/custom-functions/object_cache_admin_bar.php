@@ -46,7 +46,7 @@ function pcm_abar_object_js(): void { ?>
     jQuery(document).ready(function($){
         $('li#wp-admin-bar-cache-purge .ab-item').on('click', function(e){
             e.preventDefault();
-            $.post(ajaxurl, { action: 'flush_pressable_cache' }, function(r){
+            $.post(ajaxurl, { action: 'flush_pressable_cache', _wpnonce: '<?php echo esc_js( wp_create_nonce( 'pcm_abar_flush' ) ); ?>' }, function(r){
                 window.pcmShowModal(r.trim());
             });
         });
@@ -61,7 +61,7 @@ function pcm_abar_edge_js(): void { ?>
     jQuery(document).ready(function($){
         $('li#wp-admin-bar-edge-purge .ab-item').on('click', function(e){
             e.preventDefault();
-            $.ajax({ url: ajaxurl, type: 'POST', data: { action: 'pressable_edge_cache_purge' },
+            $.ajax({ url: ajaxurl, type: 'POST', data: { action: 'pressable_edge_cache_purge', _wpnonce: '<?php echo esc_js( wp_create_nonce( 'pcm_abar_flush' ) ); ?>' },
                 success: function(r){ window.pcmShowModal(r.trim()); },
                 error:   function(){ window.pcmShowModal('An error occurred during the Edge Cache purge request.'); }
             });
@@ -77,7 +77,7 @@ function pcm_abar_combined_js(): void { ?>
     jQuery(document).ready(function($){
         $('li#wp-admin-bar-combined-cache-purge .ab-item').on('click', function(e){
             e.preventDefault();
-            $.ajax({ url: ajaxurl, type: 'POST', data: { action: 'flush_combined_cache' },
+            $.ajax({ url: ajaxurl, type: 'POST', data: { action: 'flush_combined_cache', _wpnonce: '<?php echo esc_js( wp_create_nonce( 'pcm_abar_flush' ) ); ?>' },
                 success: function(r){ window.pcmShowModal(r.trim()); },
                 error:   function(){ window.pcmShowModal('An error occurred during the combined cache flush.'); }
             });
@@ -101,6 +101,7 @@ add_action( 'wp_ajax_pressable_edge_cache_purge', 'pcm_abar_purge_edge_callback'
 add_action( 'wp_ajax_flush_combined_cache',     'pcm_abar_flush_combined_callback' );
 
 function pcm_abar_flush_object_callback(): void {
+    check_ajax_referer( 'pcm_abar_flush' );
     $required_cap = apply_filters( 'pcm_flush_cache_capability', 'manage_options' );
     if ( ! current_user_can( $required_cap ) ) {
         echo 'You do not have permission to flush the Object Cache.';
@@ -114,6 +115,7 @@ function pcm_abar_flush_object_callback(): void {
 }
 
 function pcm_abar_purge_edge_callback(): void {
+    check_ajax_referer( 'pcm_abar_flush' );
     $required_cap = apply_filters( 'pcm_flush_cache_capability', 'manage_options' );
     if ( ! current_user_can( $required_cap ) ) {
         echo 'You do not have permission to purge the Edge Cache.';
@@ -139,6 +141,7 @@ function pcm_abar_purge_edge_callback(): void {
 }
 
 function pcm_abar_flush_combined_callback(): void {
+    check_ajax_referer( 'pcm_abar_flush' );
     $required_cap = apply_filters( 'pcm_flush_cache_capability', 'manage_options' );
     if ( ! current_user_can( $required_cap ) ) {
         echo 'You do not have permission to flush the combined cache.';

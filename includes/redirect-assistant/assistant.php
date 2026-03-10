@@ -153,7 +153,7 @@ class PCM_Redirect_Assistant_Candidate_Discovery {
                 $noise_params = array_intersect( array_keys( $params ), array( 'gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content' ) );
 
                 if ( ! empty( $noise_params ) ) {
-                    $canonical = trailingslashit( $parts['scheme'] . '://' . $parts['host'] . ltrim( $path, '/' ) );
+                    $canonical = trailingslashit( $parts['scheme'] . '://' . $parts['host'] . '/' . ltrim( $path, '/' ) );
 
                     $candidates[] = array(
                         'id'              => 'cand_' . md5( 'query_' . $path ),
@@ -171,7 +171,7 @@ class PCM_Redirect_Assistant_Candidate_Discovery {
             }
 
             if ( $path !== strtolower( $path ) ) {
-                $target = trailingslashit( $parts['scheme'] . '://' . $parts['host'] . strtolower( ltrim( $path, '/' ) ) );
+                $target = trailingslashit( $parts['scheme'] . '://' . $parts['host'] . '/' . strtolower( ltrim( $path, '/' ) ) );
                 $candidates[] = array(
                     'id'              => 'cand_' . md5( 'case_' . $path ),
                     'enabled'         => false,

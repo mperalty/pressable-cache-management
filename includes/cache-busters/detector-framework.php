@@ -627,8 +627,22 @@ class PCM_Cache_Buster_Event_Storage {
         $rows = $this->all();
         $now  = current_time( 'mysql', true );
 
+        // Build a set of existing (run_id, signature) pairs for deduplication.
+        $existing = array();
+        foreach ( $rows as $row ) {
+            $dedupe_key = ( isset( $row['run_id'] ) ? $row['run_id'] : 0 ) . '|' . ( isset( $row['signature'] ) ? $row['signature'] : '' );
+            $existing[ $dedupe_key ] = true;
+        }
+
         foreach ( $events as $event ) {
             if ( ! is_array( $event ) ) {
+                continue;
+            }
+
+            $signature  = isset( $event['signature'] ) ? sanitize_text_field( $event['signature'] ) : 'unknown';
+            $dedupe_key = absint( $run_id ) . '|' . $signature;
+
+            if ( isset( $existing[ $dedupe_key ] ) ) {
                 continue;
             }
 
@@ -636,7 +650,7 @@ class PCM_Cache_Buster_Event_Storage {
                 'event_id'         => 'cbe_' . wp_generate_uuid4(),
                 'run_id'           => absint( $run_id ),
                 'category'         => isset( $event['category'] ) ? sanitize_key( $event['category'] ) : 'unknown',
-                'signature'        => isset( $event['signature'] ) ? sanitize_text_field( $event['signature'] ) : 'unknown',
+                'signature'        => $signature,
                 'confidence'       => isset( $event['confidence'] ) ? sanitize_key( $event['confidence'] ) : 'low',
                 'count'            => isset( $event['count'] ) ? absint( $event['count'] ) : 0,
                 'likely_source'    => isset( $event['likely_source'] ) ? sanitize_text_field( $event['likely_source'] ) : 'unknown',
@@ -644,6 +658,8 @@ class PCM_Cache_Buster_Event_Storage {
                 'evidence_samples' => isset( $event['evidence_samples'] ) ? (array) $event['evidence_samples'] : array(),
                 'detected_at'      => $now,
             );
+
+            $existing[ $dedupe_key ] = true;
         }
 
         $rows = array_slice( $rows, -1 * $this->max_rows );

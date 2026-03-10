@@ -66,7 +66,7 @@ function pressable_cache_management_callback_validate_options( array $input ): a
 }
 
 // Callback: validate Edge Cache options
-function egde_cache_settings_tab_callback_validate_options( mixed $input ): array {
+function edge_cache_settings_tab_callback_validate_options( mixed $input ): array {
     if ( ! is_array( $input ) ) {
         return array();
     }
