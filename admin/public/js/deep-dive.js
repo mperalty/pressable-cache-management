@@ -916,14 +916,6 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
                 var d = res.data;
                 var cards = [];
 
-                // OPcache
-                var opcacheOk = d.opcache_enabled;
-                cards.push(renderCard(
-                    'PHP OPcache',
-                    (opcacheOk ? '\u2705 Enabled' : '\u274C Disabled'),
-                    opcacheOk ? 'pcm-ci-status-ok' : 'pcm-ci-status-bad'
-                ));
-
                 // Batcache
                 var bcStatus = d.batcache_status || 'unknown';
                 var bcLabel = bcStatus.charAt(0).toUpperCase() + bcStatus.slice(1);
@@ -941,6 +933,14 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
                     var hrClass = d.object_cache_hit_ratio >= 80 ? 'pcm-ci-status-ok' : (d.object_cache_hit_ratio >= 50 ? 'pcm-ci-status-warn' : 'pcm-ci-status-bad');
                     cards.push(renderCard('Hit Ratio', d.object_cache_hit_ratio + '%', hrClass));
                 }
+
+                // PHP OPcache
+                var opcacheOk = d.opcache_enabled;
+                cards.push(renderCard(
+                    'PHP OPcache',
+                    (opcacheOk ? '\u2705 Enabled' : '\u274C Disabled'),
+                    opcacheOk ? 'pcm-ci-status-ok' : 'pcm-ci-status-bad'
+                ));
 
                 container.innerHTML = cards.join('');
                 if (statusEl) statusEl.textContent = '';
