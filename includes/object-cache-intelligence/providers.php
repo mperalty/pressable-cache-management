@@ -385,17 +385,31 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     }
 
     /**
-     * Read one metric from known drop-in properties.
+     * Read one metric from known drop-in public properties.
+     *
+     * Uses direct property access only — never recursively walks the object
+     * (the drop-in's $this->cache can be megabytes of cached data).
      *
      * @param object        $wp_object_cache Active object cache drop-in instance.
-     * @param array<string> $keys            Candidate keys.
+     * @param array<string> $keys            Candidate property names.
      *
      * @return int|null
      */
     protected function read_metric_from_dropin( object $wp_object_cache, array $keys ): ?int {
-        $value = $this->extract_metric_value( $wp_object_cache, $keys );
+        foreach ( $keys as $key ) {
+            if ( property_exists( $wp_object_cache, $key ) ) {
+                try {
+                    $val = $wp_object_cache->{$key};
+                    if ( is_numeric( $val ) ) {
+                        return absint( $val );
+                    }
+                } catch ( \Throwable $e ) {
+                    // Protected/private — skip.
+                }
+            }
+        }
 
-        return null === $value ? null : absint( $value );
+        return null;
     }
 
     /**
@@ -416,9 +430,12 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
     }
 
     /**
-     * Recursively read numeric metric values from nested array/object structures.
+     * Read numeric metric from a small, bounded array/object (stats results).
      *
-     * @param mixed          $source Value to inspect.
+     * Walks up to 3 levels deep with a max-nodes safety limit.  Do NOT pass
+     * the full $wp_object_cache here — use read_metric_from_dropin() for that.
+     *
+     * @param mixed          $source Value to inspect (stats result, small array/object).
      * @param array<string>  $keys   Candidate keys.
      *
      * @return int|null
@@ -429,11 +446,16 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
         }
 
         $normalized_keys = array_map( 'strtolower', array_map( 'strval', $keys ) );
-        $stack           = array( $source );
+        $stack           = array( array( $source, 0 ) ); // [ value, depth ].
         $sum             = null;
+        $max_depth       = 3;
+        $nodes_visited   = 0;
+        $max_nodes       = 200;
 
-        while ( ! empty( $stack ) ) {
-            $node = array_pop( $stack );
+        while ( ! empty( $stack ) && $nodes_visited < $max_nodes ) {
+            list( $node, $depth ) = array_pop( $stack );
+            $nodes_visited++;
+
             if ( is_object( $node ) ) {
                 $node = get_object_vars( $node );
             }
@@ -443,8 +465,8 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             }
 
             foreach ( $node as $key => $value ) {
-                if ( is_array( $value ) || is_object( $value ) ) {
-                    $stack[] = $value;
+                if ( $depth < $max_depth && ( is_array( $value ) || is_object( $value ) ) ) {
+                    $stack[] = array( $value, $depth + 1 );
                 }
 
                 if ( ! is_string( $key ) ) {
