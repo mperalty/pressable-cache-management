@@ -385,14 +385,7 @@ function pcm_ajax_scenario_scan_resolve_urls(): void {
 add_action( 'wp_ajax_pcm_scenario_scan_resolve_urls', 'pcm_ajax_scenario_scan_resolve_urls' );
 
 /**
- * AJAX: Execute a scenario scan.
- *
- * Accepts:
- *   - nonce (pcm_cacheability_scan)
- *   - urls[] (array of URLs to probe)
- *   - variants (JSON-encoded variant config)
- *
- * Returns probed results for every URL × variant combination.
+ * AJAX: Start a scenario scan — validates inputs, stores the queue, returns a scan token.
  */
 function pcm_ajax_scenario_scan_run(): void {
     pcm_verify_ajax_request( 'nonce', 'pcm_cacheability_scan' );
@@ -402,8 +395,8 @@ function pcm_ajax_scenario_scan_run(): void {
     }
 
     // Parse URLs.
-    $raw_urls = isset( $_POST['urls'] ) ? (array) $_POST['urls'] : array();
-    $urls     = array();
+    $raw_urls  = isset( $_POST['urls'] ) ? (array) $_POST['urls'] : array();
+    $urls      = array();
     $site_host = wp_parse_url( get_site_url(), PHP_URL_HOST );
 
     foreach ( $raw_urls as $raw ) {
@@ -428,7 +421,7 @@ function pcm_ajax_scenario_scan_run(): void {
 
     $variants = pcm_scenario_build_variants( $variant_config );
 
-    // Cap total probes to prevent abuse.
+    // Cap total probes.
     $max_total = 60;
     $total     = count( $urls ) * count( $variants );
     if ( $total > $max_total ) {
@@ -436,18 +429,13 @@ function pcm_ajax_scenario_scan_run(): void {
         $variants = array_slice( $variants, 0, $allowed_variants );
     }
 
-    // Execute probes.
-    $results = array();
-    foreach ( $urls as $url ) {
-        $url_results = array();
-        foreach ( $variants as $variant ) {
-            $url_results[] = pcm_scenario_probe_variant( $url, $variant );
-        }
-        $results[] = array(
-            'url'      => $url,
-            'variants' => $url_results,
-        );
-    }
+    // Store the queue in a transient keyed by a unique scan token.
+    $scan_token = 'pcm_scenario_' . wp_generate_uuid4();
+    set_transient( $scan_token, array(
+        'urls'      => $urls,
+        'variants'  => $variants,
+        'results'   => array(),
+    ), HOUR_IN_SECONDS );
 
     if ( function_exists( 'pcm_audit_log' ) ) {
         pcm_audit_log( 'scenario_scan_run', 'diagnostics', array(
@@ -457,11 +445,68 @@ function pcm_ajax_scenario_scan_run(): void {
     }
 
     wp_send_json_success( array(
-        'scanned_at'    => gmdate( 'j M Y, g:ia' ) . ' UTC',
-        'url_count'     => count( $urls ),
+        'scan_token'    => $scan_token,
+        'total'         => count( $urls ),
         'variant_count' => count( $variants ),
         'variant_ids'   => array_map( function ( $v ) { return array( 'id' => $v['id'], 'label' => $v['label'] ); }, $variants ),
-        'results'       => $results,
     ) );
 }
 add_action( 'wp_ajax_pcm_scenario_scan_run', 'pcm_ajax_scenario_scan_run' );
+
+/**
+ * AJAX: Process the next URL in a scenario scan queue.
+ */
+function pcm_ajax_scenario_scan_next(): void {
+    pcm_verify_ajax_request( 'nonce', 'pcm_cacheability_scan' );
+
+    $scan_token = isset( $_POST['scan_token'] ) ? sanitize_text_field( wp_unslash( $_POST['scan_token'] ) ) : '';
+    if ( '' === $scan_token ) {
+        wp_send_json_error( array( 'message' => 'Missing scan_token.' ), 400 );
+    }
+
+    $state = get_transient( $scan_token );
+    if ( ! is_array( $state ) || empty( $state['urls'] ) ) {
+        wp_send_json_error( array( 'message' => 'Scan queue not found or already completed.' ), 404 );
+    }
+
+    $url      = array_shift( $state['urls'] );
+    $variants = $state['variants'];
+
+    $url_results = array();
+    foreach ( $variants as $variant ) {
+        $url_results[] = pcm_scenario_probe_variant( $url, $variant );
+    }
+
+    $state['results'][] = array(
+        'url'      => $url,
+        'variants' => $url_results,
+    );
+
+    $done      = empty( $state['urls'] );
+    $remaining = count( $state['urls'] );
+
+    if ( $done ) {
+        // Return final results and clean up.
+        $results = $state['results'];
+        delete_transient( $scan_token );
+
+        wp_send_json_success( array(
+            'done'          => true,
+            'remaining'     => 0,
+            'scanned_at'    => gmdate( 'j M Y, g:ia' ) . ' UTC',
+            'url_count'     => count( $results ),
+            'variant_count' => count( $variants ),
+            'variant_ids'   => array_map( function ( $v ) { return array( 'id' => $v['id'], 'label' => $v['label'] ); }, $variants ),
+            'results'       => $results,
+        ) );
+    } else {
+        set_transient( $scan_token, $state, HOUR_IN_SECONDS );
+
+        wp_send_json_success( array(
+            'done'      => false,
+            'remaining' => $remaining,
+            'url'       => $url,
+        ) );
+    }
+}
+add_action( 'wp_ajax_pcm_scenario_scan_next', 'pcm_ajax_scenario_scan_next' );

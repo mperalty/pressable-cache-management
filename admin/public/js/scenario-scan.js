@@ -141,6 +141,27 @@
 
         // ── Run scan ───────────────────────────────────────────────────
 
+        function processScenarioQueue(scanToken, total) {
+            function processNext() {
+                return window.pcmPost({
+                    action: 'pcm_scenario_scan_next',
+                    nonce: window.pcmGetCacheabilityNonce(),
+                    scan_token: scanToken
+                }).then(function(res) {
+                    if (!res || !res.success || !res.data) {
+                        throw new Error((res && res.data && res.data.message) || 'Processing failed');
+                    }
+                    if (!res.data.done) {
+                        var scanned = total - res.data.remaining;
+                        statusEl.textContent = 'Scanning\u2026 ' + scanned + '/' + total + ' URLs probed.';
+                        return processNext();
+                    }
+                    return res.data;
+                });
+            }
+            return processNext();
+        }
+
         runBtn.addEventListener('click', function() {
             if (running) return;
             var urls = collectUrls();
@@ -152,8 +173,8 @@
             var config = getVariantConfig();
             running = true;
             runBtn.disabled = true;
-            runBtn.textContent = 'Scanning\u2026';
-            statusEl.textContent = 'Probing ' + urls.length + ' URL(s) across variants\u2026';
+            runBtn.textContent = 'Starting\u2026';
+            statusEl.textContent = 'Starting scenario scan\u2026';
             resultsWrap.classList.add('pcm-hidden');
 
             var body = {
@@ -161,31 +182,31 @@
                 nonce: window.pcmGetCacheabilityNonce(),
                 variants: JSON.stringify(config)
             };
-            // Append URLs as array params.
             for (var u = 0; u < urls.length; u++) {
                 body['urls[' + u + ']'] = urls[u];
             }
 
-            window.pcmPost(body, { timeout: 120000 }).then(function(res) {
-                running = false;
-                runBtn.disabled = false;
-                runBtn.textContent = 'Run Scenario Scan';
-
-                if (!res || !res.success) {
-                    statusEl.textContent = (res && res.data && res.data.message) ? res.data.message : 'Scan failed.';
-                    return;
+            window.pcmPost(body).then(function(res) {
+                if (!res || !res.success || !res.data || !res.data.scan_token) {
+                    throw new Error((res && res.data && res.data.message) || 'Unable to start scan');
                 }
 
-                var d = res.data;
+                var total = res.data.total;
+                runBtn.textContent = 'Scanning\u2026';
+                statusEl.textContent = 'Scanning\u2026 0/' + total + ' URLs probed.';
+
+                return processScenarioQueue(res.data.scan_token, total);
+            }).then(function(d) {
+                if (!d) return;
                 statusEl.innerHTML = '<small>Scanned ' + d.url_count + ' URL(s) \u00d7 ' + d.variant_count + ' variant(s) at ' + esc(d.scanned_at) + '</small>';
                 renderResults(d);
                 resultsWrap.classList.remove('pcm-hidden');
-
             }).catch(function(err) {
+                window.pcmHandleError('Scenario Scan', err, statusEl);
+            }).finally(function() {
                 running = false;
                 runBtn.disabled = false;
                 runBtn.textContent = 'Run Scenario Scan';
-                window.pcmHandleError('Scenario Scan', err, statusEl);
             });
         });
 
