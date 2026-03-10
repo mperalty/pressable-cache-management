@@ -38,9 +38,18 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
         $limit     = $this->read_metric_from_dropin( $wp_object_cache, array( 'limit_maxbytes', 'maxbytes', 'bytes_limit' ) );
 
         if ( method_exists( $wp_object_cache, 'stats' ) ) {
-            ob_start();
-            $stats_result = $wp_object_cache->stats();
-            $stats_text   = (string) ob_get_clean();
+            try {
+                ob_start();
+                $stats_result = $wp_object_cache->stats();
+                $stats_text   = (string) ob_get_clean();
+            } catch ( \Throwable $e ) {
+                // stats() can block or throw — clean up output buffer and continue.
+                if ( ob_get_level() ) {
+                    ob_end_clean();
+                }
+                $stats_text   = '';
+                $stats_result = null;
+            }
 
             $parsed_text   = $this->parse_dropin_stats_text( $stats_text );
             $parsed_struct = $this->parse_dropin_stats_struct( $stats_result );
@@ -120,10 +129,14 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
             return array();
         }
 
-        if ( $client instanceof Memcached ) {
-            $all_stats = $client->getStats();
-        } else {
-            $all_stats = $client->getExtendedStats();
+        try {
+            if ( $client instanceof Memcached ) {
+                $all_stats = $client->getStats();
+            } else {
+                $all_stats = $client->getExtendedStats();
+            }
+        } catch ( \Throwable $e ) {
+            return array();
         }
 
         if ( ! is_array( $all_stats ) || empty( $all_stats ) ) {
@@ -555,9 +568,9 @@ class PCM_Object_Cache_Stats_Provider_Resolver {
     protected float $time_budget;
 
     /**
-     * @param float $time_budget Maximum seconds for provider resolution (default 8s).
+     * @param float $time_budget Maximum seconds for provider resolution (default 5s).
      */
-    public function __construct( float $time_budget = 8.0 ) {
+    public function __construct( float $time_budget = 5.0 ) {
         $this->time_budget = $time_budget;
     }
 

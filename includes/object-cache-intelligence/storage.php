@@ -116,14 +116,17 @@ if ( ! defined( 'PCM_OCI_SNAPSHOT_TRANSIENT_TTL' ) ) {
 /**
  * Persist one snapshot and return it.
  *
+ * @param float $time_budget Maximum seconds for provider resolution (0 = default).
+ *
  * @return array<string, mixed>
  */
-function pcm_object_cache_collect_and_store_snapshot(): array {
+function pcm_object_cache_collect_and_store_snapshot( float $time_budget = 0 ): array {
     if ( ! pcm_object_cache_intelligence_is_enabled() ) {
         return array();
     }
 
-    $service  = new PCM_Object_Cache_Intelligence_Service();
+    $resolver = $time_budget > 0 ? new PCM_Object_Cache_Stats_Provider_Resolver( $time_budget ) : null;
+    $service  = new PCM_Object_Cache_Intelligence_Service( $resolver );
     $snapshot = $service->collect_snapshot();
 
     if ( empty( $snapshot ) ) {
@@ -614,9 +617,11 @@ function pcm_ajax_object_cache_snapshot(): void {
     $is_stale      = false;
 
     if ( $force_collect ) {
-        // Attempt a live collection; fall back to cached data on failure.
+        // Attempt a live collection with a 5 s time budget; fall back to
+        // cached data on failure so the AJAX response stays within the client
+        // timeout (15 s).
         try {
-            $snapshot = pcm_object_cache_collect_and_store_snapshot();
+            $snapshot = pcm_object_cache_collect_and_store_snapshot( 5.0 );
         } catch ( \Throwable $e ) {
             $snapshot = array();
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {

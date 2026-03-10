@@ -591,56 +591,63 @@ function pcm_ajax_cache_insights() {
 		wp_send_json_error( 'Unauthorized', 403 );
 	}
 
-	$insights = array();
+	try {
+		$insights = array();
 
-	// OPcache status.
-	if ( function_exists( 'opcache_get_configuration' ) ) {
-		$config  = @opcache_get_configuration();
-		$enabled = ! empty( $config['directives']['opcache.enable'] );
-		$insights['opcache_enabled'] = $enabled;
-	} else {
-		$insights['opcache_enabled'] = false;
-	}
-
-	// Batcache status.
-	$batcache_status = get_transient( 'pcm_batcache_status' );
-	$insights['batcache_status'] = $batcache_status ? $batcache_status : 'unknown';
-
-	// Batcache max_age from global.
-	global $batcache;
-	$insights['batcache_max_age'] = ( is_array( $batcache ) && isset( $batcache['max_age'] ) )
-		? (int) $batcache['max_age']
-		: ( ( is_object( $batcache ) && isset( $batcache->max_age ) ) ? (int) $batcache->max_age : null );
-
-	// Object cache type detection.
-	global $wp_object_cache;
-	$oc_type = 'unknown';
-	if ( $wp_object_cache ) {
-		$class = get_class( $wp_object_cache );
-		if ( stripos( $class, 'redis' ) !== false ) {
-			$oc_type = 'Redis';
-		} elseif ( stripos( $class, 'memcach' ) !== false ) {
-			$oc_type = 'Memcached';
-		} elseif ( $class !== 'WP_Object_Cache' ) {
-			$oc_type = $class;
+		// OPcache status.
+		if ( function_exists( 'opcache_get_configuration' ) ) {
+			$config  = @opcache_get_configuration(); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			$enabled = ! empty( $config['directives']['opcache.enable'] );
+			$insights['opcache_enabled'] = $enabled;
 		} else {
-			$oc_type = 'Default (none)';
+			$insights['opcache_enabled'] = false;
 		}
-	}
-	$insights['object_cache_type'] = $oc_type;
 
-	// Object cache hit ratio — read cached value only (never trigger live collection).
-	$cached_hit_ratio = (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, 0 );
-	if ( $cached_hit_ratio > 0 ) {
-		$insights['object_cache_hit_ratio'] = round( $cached_hit_ratio, 1 );
-	} elseif ( function_exists( 'pcm_object_cache_get_latest_snapshot' ) ) {
-		// Fall back to transient/stored snapshot without triggering slow collection.
-		$snap = get_transient( 'pcm_oci_latest_snapshot' );
-		if ( is_array( $snap ) && isset( $snap['hit_ratio'] ) ) {
-			$insights['object_cache_hit_ratio'] = round( (float) $snap['hit_ratio'], 1 );
+		// Batcache status.
+		$batcache_status = get_transient( 'pcm_batcache_status' );
+		$insights['batcache_status'] = $batcache_status ? $batcache_status : 'unknown';
+
+		// Batcache max_age from global.
+		global $batcache;
+		$insights['batcache_max_age'] = ( is_array( $batcache ) && isset( $batcache['max_age'] ) )
+			? (int) $batcache['max_age']
+			: ( ( is_object( $batcache ) && isset( $batcache->max_age ) ) ? (int) $batcache->max_age : null );
+
+		// Object cache type detection.
+		global $wp_object_cache;
+		$oc_type = 'unknown';
+		if ( is_object( $wp_object_cache ) ) {
+			$class = get_class( $wp_object_cache );
+			if ( stripos( $class, 'redis' ) !== false ) {
+				$oc_type = 'Redis';
+			} elseif ( stripos( $class, 'memcach' ) !== false ) {
+				$oc_type = 'Memcached';
+			} elseif ( $class !== 'WP_Object_Cache' ) {
+				$oc_type = $class;
+			} else {
+				$oc_type = 'Default (none)';
+			}
 		}
-	}
+		$insights['object_cache_type'] = $oc_type;
 
-	wp_send_json_success( $insights );
+		// Object cache hit ratio — read cached value only (never trigger live collection).
+		$cached_hit_ratio = (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, 0 );
+		if ( $cached_hit_ratio > 0 ) {
+			$insights['object_cache_hit_ratio'] = round( $cached_hit_ratio, 1 );
+		} elseif ( function_exists( 'pcm_object_cache_get_latest_snapshot' ) ) {
+			// Fall back to transient/stored snapshot without triggering slow collection.
+			$snap = get_transient( 'pcm_oci_latest_snapshot' );
+			if ( is_array( $snap ) && isset( $snap['hit_ratio'] ) ) {
+				$insights['object_cache_hit_ratio'] = round( (float) $snap['hit_ratio'], 1 );
+			}
+		}
+
+		wp_send_json_success( $insights );
+	} catch ( \Throwable $e ) {
+		wp_send_json_error(
+			array( 'message' => 'Cache insights collection failed: ' . $e->getMessage() ),
+			500
+		);
+	}
 }
 add_action( 'wp_ajax_pcm_cache_insights', 'pcm_ajax_cache_insights' );

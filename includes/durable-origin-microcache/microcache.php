@@ -587,11 +587,18 @@ function pcm_microcache_get_archive_cards( array $query_args = array(), int $ttl
 
             $cards = array();
             foreach ( (array) $query->posts as $post ) {
+                // Use raw excerpt or trimmed content instead of get_the_excerpt()
+                // to avoid triggering the_content filters that may rely on
+                // globals (e.g. WooCommerce $product) unavailable during pre-warming.
+                $excerpt = $post->post_excerpt
+                    ? wp_trim_words( $post->post_excerpt, 55, '&hellip;' )
+                    : wp_trim_words( wp_strip_all_tags( strip_shortcodes( $post->post_content ) ), 55, '&hellip;' );
+
                 $cards[] = array(
                     'id'        => (int) $post->ID,
                     'title'     => get_the_title( $post ),
                     'permalink' => get_permalink( $post ),
-                    'excerpt'   => get_the_excerpt( $post ),
+                    'excerpt'   => $excerpt,
                     'date'      => get_post_time( 'c', true, $post ),
                 );
             }
