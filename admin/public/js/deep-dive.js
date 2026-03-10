@@ -675,10 +675,12 @@ window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
             window.pcmRenderDeepDiveDependencyError(targetEl, 'Object Cache Intelligence', 'reload-section', error, fallbackMessage);
         }
 
-        function renderLatest(snapshot, isStale) {
+        function renderLatest(snapshot, isStale, debugInfo) {
             if (!snapshot || !snapshot.taken_at) {
                 latestEl.innerHTML = '<em>No snapshot data yet.</em>';
-                summaryEl.textContent = 'No diagnostics snapshot available.';
+                summaryEl.textContent = (debugInfo && debugInfo.length)
+                    ? 'Debug: ' + debugInfo.join(', ')
+                    : 'No diagnostics snapshot available.';
                 return;
             }
 
@@ -833,10 +835,7 @@ window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
                     }
                     var isStale = payload.data && payload.data.stale;
                     var snap = payload.data ? payload.data.snapshot : null;
-                    if ((!snap || !snap.taken_at) && debugInfo.length) {
-                        summaryEl.textContent = 'Debug: ' + debugInfo.join(', ');
-                    }
-                    renderLatest(snap, isStale);
+                    renderLatest(snap, isStale, debugInfo);
                 });
         }
 

@@ -608,9 +608,18 @@ function pcm_ajax_cache_insights() {
 			$insights['opcache_enabled'] = false;
 		}
 
-		// Batcache status.
+		// Batcache status — try transient first, fall back to drop-in detection.
 		$batcache_status = get_transient( 'pcm_batcache_status' );
-		$insights['batcache_status'] = $batcache_status ? $batcache_status : 'unknown';
+		if ( ! $batcache_status || 'unknown' === $batcache_status ) {
+			// Check if advanced-cache.php drop-in exists and loads Batcache.
+			if ( defined( 'WP_CONTENT_DIR' ) && file_exists( WP_CONTENT_DIR . '/advanced-cache.php' ) ) {
+				global $batcache;
+				$batcache_status = ( is_array( $batcache ) || is_object( $batcache ) ) ? 'active' : 'installed';
+			} else {
+				$batcache_status = 'not installed';
+			}
+		}
+		$insights['batcache_status'] = $batcache_status;
 
 		// Batcache max_age from global.
 		global $batcache;
@@ -630,7 +639,15 @@ function pcm_ajax_cache_insights() {
 			} elseif ( $class !== 'WP_Object_Cache' ) {
 				$oc_type = $class;
 			} else {
-				$oc_type = 'Default (none)';
+				// Default WP_Object_Cache — check if a persistent backend is
+				// available even though no drop-in is active.
+				if ( class_exists( 'Memcached' ) || class_exists( 'Memcache' ) ) {
+					$oc_type = 'Default (Memcached extension available but no drop-in)';
+				} elseif ( class_exists( 'Redis' ) ) {
+					$oc_type = 'Default (Redis extension available but no drop-in)';
+				} else {
+					$oc_type = 'Default (none)';
+				}
 			}
 		}
 		$insights['object_cache_type'] = $oc_type;
