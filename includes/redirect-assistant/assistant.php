@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 function pcm_redirect_assistant_is_enabled(): bool {
     static $cached = null;
     if ( $cached === null ) {
-        $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+        $enabled = (bool) get_option( PCM_Options::ENABLE_REDIRECT_ASSISTANT->value, false );
         $cached  = (bool) apply_filters( 'pcm_enable_redirect_assistant', $enabled );
     }
 

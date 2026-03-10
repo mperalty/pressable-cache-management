@@ -59,6 +59,8 @@ enum PCM_Options: string {
 
     // ── Feature flags ─────────────────────────────────────────────────────────
     case ENABLE_CACHING_SUITE_FEATURES             = 'pcm_enable_caching_suite_features';
+    case ENABLE_REDIRECT_ASSISTANT                 = 'pcm_enable_redirect_assistant';
+    case ENABLE_ADVANCED_SCAN_WORKFLOWS            = 'pcm_enable_advanced_scan_workflows';
     case ENABLE_DURABLE_ORIGIN_MICROCACHE          = 'pcm_enable_durable_origin_microcache';
 
     // ── Observability / Reporting metrics ─────────────────────────────────────

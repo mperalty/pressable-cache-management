@@ -186,24 +186,33 @@ function pressable_cache_management_display_settings_page() {
     if ( ! current_user_can('manage_options') ) return;
 
     if ( pcm_verify_request( 'pcm_feature_flags_nonce', 'pcm_save_feature_flags' ) ) {
-        $caching_suite_enabled = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
-        $microcache_enabled    = isset( $_POST['pcm_enable_durable_origin_microcache'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_durable_origin_microcache'] );
+        $caching_suite_enabled  = isset( $_POST['pcm_enable_caching_suite_features'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_caching_suite_features'] );
+        $redirect_enabled       = isset( $_POST['pcm_enable_redirect_assistant'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_redirect_assistant'] );
+        $advanced_scan_enabled  = isset( $_POST['pcm_enable_advanced_scan_workflows'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_advanced_scan_workflows'] );
+        $microcache_enabled     = isset( $_POST['pcm_enable_durable_origin_microcache'] ) && '1' === (string) wp_unslash( $_POST['pcm_enable_durable_origin_microcache'] );
 
         update_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, $caching_suite_enabled, false );
+        update_option( PCM_Options::ENABLE_REDIRECT_ASSISTANT->value, $redirect_enabled, false );
+        update_option( PCM_Options::ENABLE_ADVANCED_SCAN_WORKFLOWS->value, $advanced_scan_enabled, false );
         update_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, $microcache_enabled, false );
 
         if ( function_exists( 'pcm_audit_log' ) ) {
             pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $caching_suite_enabled ) );
+            pcm_audit_log( 'redirect_assistant_toggled', 'settings', array( 'enabled' => $redirect_enabled ) );
+            pcm_audit_log( 'advanced_scan_toggled', 'settings', array( 'enabled' => $advanced_scan_enabled ) );
             pcm_audit_log( 'durable_microcache_toggled', 'settings', array( 'enabled' => $microcache_enabled ) );
         }
     }
 
-    $caching_suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
-    $tab                   = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : null;
+    $caching_suite_enabled  = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+    $redirect_enabled       = (bool) get_option( PCM_Options::ENABLE_REDIRECT_ASSISTANT->value, false );
+    $advanced_scan_enabled  = (bool) get_option( PCM_Options::ENABLE_ADVANCED_SCAN_WORKFLOWS->value, false );
+    $tab                    = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : null;
 
-    $is_deep_dive_disabled = ( 'deep_dive_tab' === $tab && ! $caching_suite_enabled );
+    $is_deep_dive_disabled  = ( 'deep_dive_tab' === $tab && ! $caching_suite_enabled );
+    $is_redirects_disabled  = ( 'redirects_tab' === $tab && ! $redirect_enabled );
 
-    if ( $is_deep_dive_disabled ) {
+    if ( $is_deep_dive_disabled || $is_redirects_disabled ) {
         $tab = null;
     }
 
@@ -275,7 +284,7 @@ function pressable_cache_management_display_settings_page() {
         );
     }
 
-    if ( $is_deep_dive_tab ) {
+    if ( $is_deep_dive_tab || $is_settings_tab ) {
         wp_enqueue_script(
             'pcm-settings-page-deep-dive',
             $base_js_url . 'deep-dive.js',
@@ -376,7 +385,7 @@ function pressable_cache_management_display_settings_page() {
         <a href="admin.php?page=pressable_cache_management&tab=deep_dive_tab"
            class="nav-tab nav-tab-disabled" id="pcm-deep-dive-tab" aria-disabled="true">Deep Dive</a>
         <?php endif; ?>
-        <?php if ( $caching_suite_enabled ) : ?>
+        <?php if ( $redirect_enabled ) : ?>
         <a href="admin.php?page=pressable_cache_management&tab=redirects_tab"
            class="nav-tab <?php echo $is_redirects_tab ? 'nav-tab-active' : ''; ?>">Redirects</a>
         <?php else : ?>
@@ -447,6 +456,30 @@ function pressable_cache_management_display_settings_page() {
                         <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Generates recommended next actions when anti-patterns are detected." aria-describedby="pcm-chip-desc-4"><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-4" role="tooltip"><?php echo esc_html__( 'Generates recommended next actions when anti-patterns are detected.', 'pressable_cache_management' ); ?></span></span>
                     </div>
                     <span class="pcm-ts-inline" id="pcm-caching-suite-inline-status"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $caching_suite_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
+                </div>
+            </div>
+
+            <div class="pcm-toggle-row">
+                <label class="switch pcm-switch-label">
+                    <input type="checkbox" name="pcm_enable_redirect_assistant" value="1" <?php checked( $redirect_enabled ); ?> aria-label="<?php echo esc_attr__( 'Enable Redirect Assistant', 'pressable_cache_management' ); ?>" />
+                    <span class="slider round"></span>
+                </label>
+                <div>
+                    <div class="pcm-toggle-title"><?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></div>
+                    <div class="pcm-toggle-desc"><?php echo esc_html__( 'Enables the Redirects tab for discovering, managing, simulating, and exporting redirect rules.', 'pressable_cache_management' ); ?></div>
+                    <span class="pcm-ts-inline"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $redirect_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
+                </div>
+            </div>
+
+            <div class="pcm-toggle-row">
+                <label class="switch pcm-switch-label">
+                    <input type="checkbox" name="pcm_enable_advanced_scan_workflows" value="1" <?php checked( $advanced_scan_enabled ); ?> aria-label="<?php echo esc_attr__( 'Enable Advanced Scanning Workflows', 'pressable_cache_management' ); ?>" />
+                    <span class="slider round"></span>
+                </label>
+                <div>
+                    <div class="pcm-toggle-title"><?php echo esc_html__( 'Advanced Scanning Workflows', 'pressable_cache_management' ); ?></div>
+                    <div class="pcm-toggle-desc"><?php echo esc_html__( 'Allows deep header inspection and multi-URL scanning in Cacheability Advisor. Requires privacy opt-in.', 'pressable_cache_management' ); ?></div>
+                    <span class="pcm-ts-inline"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $advanced_scan_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
                 </div>
             </div>
 
@@ -583,7 +616,7 @@ function pressable_cache_management_display_settings_page() {
 
     <?php endif; ?>
 
-    <?php if ( $is_redirects_tab && $caching_suite_enabled && $pcm_module_available['redirects'] && pcm_redirect_assistant_is_enabled() ) : ?>
+    <?php if ( $is_redirects_tab && $redirect_enabled && $pcm_module_available['redirects'] && pcm_redirect_assistant_is_enabled() ) : ?>
     <div class="pcm-redirects-grid">
         <div class="pcm-col-stack">
             <!-- Card 1: Discover Candidates -->
@@ -692,8 +725,8 @@ function pressable_cache_management_display_settings_page() {
     <?php elseif ( $is_redirects_tab ) : ?>
     <div class="pcm-card">
         <h3 class="pcm-card-title"><span class="dashicons dashicons-redo pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Redirects', 'pressable_cache_management' ); ?></h3>
-        <?php if ( ! $caching_suite_enabled ) : ?>
-        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Enable Caching Suite in Feature Flags to use Redirects.', 'pressable_cache_management' ); ?></p>
+        <?php if ( ! $redirect_enabled ) : ?>
+        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Enable Redirect Assistant in Feature Flags to use Redirects.', 'pressable_cache_management' ); ?></p>
         <p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>" class="pcm-btn-primary pcm-btn-inline-flex"><?php echo esc_html__( 'Go to Settings', 'pressable_cache_management' ); ?></a></p>
         <?php else : ?>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
@@ -744,14 +777,21 @@ function pressable_cache_management_display_settings_page() {
                 <p><label><?php echo esc_html__( 'Redaction Level', 'pressable_cache_management' ); ?>
                     <select id="pcm-privacy-redaction"><option value="minimal" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "minimal" ); ?>>minimal</option><option value="standard" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "standard" ); ?>>standard</option><option value="strict" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "strict" ); ?>>strict</option></select>
                 </label></p>
-                <p><label><input type="checkbox" id="pcm-privacy-advanced-scan" <?php checked( ! empty( $privacy_settings['advanced_scan_opt_in'] ) ); ?> /> <?php echo esc_html__( 'Allow advanced scanning workflows', 'pressable_cache_management' ); ?></label></p>
+                <div class="pcm-redaction-hints pcm-text-muted-intro" style="margin: 4px 0 12px; font-size: 12px; line-height: 1.5;">
+                    <strong><?php echo esc_html__( 'Minimal:', 'pressable_cache_management' ); ?></strong> <?php echo esc_html__( 'Only passwords and secrets are redacted. Emails, usernames, and IPs remain visible in exports and logs.', 'pressable_cache_management' ); ?><br />
+                    <strong><?php echo esc_html__( 'Standard:', 'pressable_cache_management' ); ?></strong> <?php echo esc_html__( 'Emails and auth tokens are masked. Usernames and IPs are preserved for diagnostics.', 'pressable_cache_management' ); ?><br />
+                    <strong><?php echo esc_html__( 'Strict:', 'pressable_cache_management' ); ?></strong> <?php echo esc_html__( 'All personally identifiable data (emails, usernames, IPs, tokens) are fully redacted in exports.', 'pressable_cache_management' ); ?>
+                </div>
                 <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
                 <p><button type="button" class="pcm-btn-primary" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
                 <span id="pcm-privacy-status" class="pcm-privacy-status" aria-live="polite" role="status"></span></p>
             </div>
             <div>
                 <h4 class="pcm-section-subhead"><?php echo esc_html__( 'Audit Log', 'pressable_cache_management' ); ?></h4>
-                <p><button type="button" class="pcm-btn-secondary" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button></p>
+                <p>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button>
+                    <button type="button" class="pcm-btn-secondary" id="pcm-audit-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
+                </p>
                 <div id="pcm-audit-log" class="pcm-audit-panel pcm-skeleton-panel" aria-live="polite"></div>
                 <p class="pcm-mt-8"><button type="button" class="pcm-btn-secondary pcm-hidden" id="pcm-audit-load-more"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
             </div>

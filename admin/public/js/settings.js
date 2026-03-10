@@ -99,6 +99,16 @@
             }
         }
 
+        function pcmSetTabDisabled(tab, disabled) {
+            if (!tab) return;
+            tab.classList.toggle('nav-tab-disabled', disabled);
+            if (disabled) {
+                tab.setAttribute('aria-disabled', 'true');
+            } else {
+                tab.removeAttribute('aria-disabled');
+            }
+        }
+
         function pcmSyncCachingSuiteUi(enabled) {
             var badge = document.getElementById('pcm-caching-suite-status-badge');
             var inlineStatus = document.getElementById('pcm-caching-suite-inline-status');
@@ -113,8 +123,11 @@
 
             var tabsNav = document.getElementById('pcm-main-tab-nav');
             var deepDiveTab = document.getElementById('pcm-deep-dive-tab');
+
             if (enabled) {
-                if (!deepDiveTab && tabsNav) {
+                if (deepDiveTab) {
+                    pcmSetTabDisabled(deepDiveTab, false);
+                } else if (tabsNav) {
                     deepDiveTab = document.createElement('a');
                     deepDiveTab.id = 'pcm-deep-dive-tab';
                     deepDiveTab.className = 'nav-tab';
@@ -127,15 +140,17 @@
                         tabsNav.appendChild(deepDiveTab);
                     }
                 }
-            } else if (deepDiveTab && deepDiveTab.parentNode) {
-                deepDiveTab.parentNode.removeChild(deepDiveTab);
+            } else {
+                pcmSetTabDisabled(deepDiveTab, true);
             }
         }
 
         toggle.addEventListener('change', function(){
             var enabled = toggle.checked;
-            toggle.disabled = true;
-            toggle.closest('.switch').style.opacity = '0.6';
+            var sw = toggle.closest('.switch');
+            // Use pointer-events instead of disabled so the checkbox value is
+            // still included if the surrounding form is submitted mid-flight.
+            if (sw) { sw.style.pointerEvents = 'none'; sw.style.opacity = '0.6'; }
 
             window.pcmPost({
                 action: 'pcm_toggle_caching_suite_features',
@@ -151,9 +166,7 @@
                 toggle.checked = !enabled;
                 pcmShowToast(window.pcmHandleError('Save Caching Suite Setting', error), 'error');
             }).finally(function(){
-                toggle.disabled = false;
-                var sw = toggle.closest('.switch');
-                if (sw) sw.style.opacity = '';
+                if (sw) { sw.style.pointerEvents = ''; sw.style.opacity = ''; }
             });
         });
     })();
@@ -163,7 +176,6 @@
         var initialSettings = (window.pcmSettingsData && window.pcmSettingsData.privacySettings) || {};
         var retentionEl = document.getElementById('pcm-privacy-retention');
         var redactionEl = document.getElementById('pcm-privacy-redaction');
-        var advancedEl = document.getElementById('pcm-privacy-advanced-scan');
         var auditEnabledEl = document.getElementById('pcm-privacy-audit-enabled');
         var statusEl = document.getElementById('pcm-privacy-status');
         var auditLogEl = document.getElementById('pcm-audit-log');
@@ -177,14 +189,13 @@
         // Without this guard, attempting to bind events from other tabs throws
         // and prevents the rest of settings.js (including Edge Cache controls)
         // from running.
-        if (!retentionEl || !redactionEl || !advancedEl || !auditEnabledEl || !statusEl || !auditLogEl || !loadMoreEl) {
+        if (!retentionEl || !redactionEl || !auditEnabledEl || !statusEl || !auditLogEl || !loadMoreEl) {
             return;
         }
 
         function renderSettings(s) {
             retentionEl.value = s.retention_days || 90;
             redactionEl.value = s.redaction_level || 'standard';
-            advancedEl.checked = !!s.advanced_scan_opt_in;
             auditEnabledEl.checked = !!s.audit_log_enabled;
         }
 
@@ -242,7 +253,6 @@
                 settings: JSON.stringify({
                     retention_days: retentionEl.value,
                     redaction_level: redactionEl.value,
-                    advanced_scan_opt_in: advancedEl.checked,
                     audit_log_enabled: auditEnabledEl.checked,
                     export_restrictions: 'admin_only'
                 })
@@ -259,6 +269,32 @@
 
         document.getElementById('pcm-audit-refresh').addEventListener('click', function(){ loadAudit(true); });
         loadMoreEl.addEventListener('click', function(){ loadAudit(false); });
+
+        var exportCsvBtn = document.getElementById('pcm-audit-export-csv');
+        if (exportCsvBtn) {
+            exportCsvBtn.addEventListener('click', function(){
+                if (!allRows.length) return;
+                var header = '#,Action,User,Timestamp';
+                var csvRows = [header];
+                allRows.forEach(function(row){
+                    csvRows.push(
+                        '"' + String(row.sequence_id || '').replace(/"/g, '""') + '",' +
+                        '"' + String(row.action || '').replace(/"/g, '""') + '",' +
+                        '"' + String(row.actor_display || 'System').replace(/"/g, '""') + '",' +
+                        '"' + String(row.created_at || '').replace(/"/g, '""') + '"'
+                    );
+                });
+                var blob = new Blob([csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'pcm-audit-log-' + new Date().toISOString().slice(0,10) + '.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        }
 
         renderSettings(initialSettings);
         loadAudit(true);

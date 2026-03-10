@@ -1265,11 +1265,8 @@ function pcm_ajax_cacheability_scan_start(): void {
         wp_send_json_error( array( 'message' => 'Cacheability Advisor is disabled.' ), 400 );
     }
 
-    if ( function_exists( 'pcm_get_privacy_settings' ) ) {
-        $privacy_settings = pcm_get_privacy_settings();
-        if ( empty( $privacy_settings['advanced_scan_opt_in'] ) ) {
-            wp_send_json_error( array( 'message' => 'Advanced scans require privacy opt-in.' ), 400 );
-        }
+    if ( ! (bool) get_option( PCM_Options::ENABLE_ADVANCED_SCAN_WORKFLOWS->value, false ) ) {
+        wp_send_json_error( array( 'message' => 'Advanced scanning workflows are disabled. Enable them in Feature Flags.' ), 400 );
     }
 
     $service = new PCM_Cacheability_Advisor_Run_Service();
