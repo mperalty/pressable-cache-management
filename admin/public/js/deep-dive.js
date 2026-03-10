@@ -825,13 +825,18 @@ window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
                         throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load object cache snapshot endpoint.'));
                     }
                     ociRetryCount = 0;
+                    var debugInfo = (payload.data && payload.data.debug) ? payload.data.debug : [];
                     if (payload.data && payload.data.feature_disabled) {
                         summaryEl.textContent = 'Caching Suite is disabled. Enable it in Feature Flags to collect diagnostics.';
                         latestEl.innerHTML = '<em>Enable the Caching Suite feature flag, then click Refresh to collect a snapshot.</em>';
                         return;
                     }
                     var isStale = payload.data && payload.data.stale;
-                    renderLatest(payload.data ? payload.data.snapshot : null, isStale);
+                    var snap = payload.data ? payload.data.snapshot : null;
+                    if ((!snap || !snap.taken_at) && debugInfo.length) {
+                        summaryEl.textContent = 'Debug: ' + debugInfo.join(', ');
+                    }
+                    renderLatest(snap, isStale);
                 });
         }
 
@@ -887,6 +892,7 @@ window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
 });
 
 window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
+    var escapeHtml = window.pcmEscapeHtml;
     var container = document.getElementById('pcm-cache-insights-content');
     var statusEl  = document.getElementById('pcm-cache-insights-status');
     var refreshBtn = document.getElementById('pcm-cache-insights-refresh');

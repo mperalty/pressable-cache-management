@@ -616,14 +616,20 @@ function pcm_ajax_object_cache_snapshot(): void {
     $force_collect = isset( $_REQUEST['refresh'] ) && '1' === (string) wp_unslash( $_REQUEST['refresh'] );
     $is_stale      = false;
 
+    $debug_info = array();
+
     if ( $force_collect ) {
         // Attempt a live collection with a 5 s time budget; fall back to
         // cached data on failure so the AJAX response stays within the client
         // timeout (15 s).
         try {
             $snapshot = pcm_object_cache_collect_and_store_snapshot( 5.0 );
+            if ( empty( $snapshot ) ) {
+                $debug_info[] = 'collect_returned_empty';
+            }
         } catch ( \Throwable $e ) {
-            $snapshot = array();
+            $snapshot     = array();
+            $debug_info[] = 'collect_threw: ' . $e->getMessage();
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log( '[PCM OCI] Live collection failed: ' . $e->getMessage() );
@@ -634,6 +640,9 @@ function pcm_ajax_object_cache_snapshot(): void {
             // Fall back to last-known-good snapshot so the UI isn't blank.
             $snapshot = pcm_object_cache_get_cached_snapshot();
             $is_stale = ! empty( $snapshot );
+            if ( empty( $snapshot ) ) {
+                $debug_info[] = 'cached_snapshot_also_empty';
+            }
         }
     } else {
         // Non-refresh: read cached data only (transient / stored option).
@@ -643,12 +652,25 @@ function pcm_ajax_object_cache_snapshot(): void {
         // requests.  The hourly cron or an explicit Refresh click will
         // populate the snapshot.
         $snapshot = pcm_object_cache_get_cached_snapshot();
+        if ( empty( $snapshot ) ) {
+            $debug_info[] = 'no_cached_snapshot';
+        }
     }
+
+    $feature_disabled = ! pcm_object_cache_intelligence_is_enabled();
+    if ( $feature_disabled ) {
+        $debug_info[] = 'feature_flag_off';
+    }
+
+    // Detect object cache environment for diagnostics.
+    global $wp_object_cache;
+    $debug_info[] = 'dropin_class:' . ( is_object( $wp_object_cache ) ? get_class( $wp_object_cache ) : 'none' );
 
     wp_send_json_success( array(
         'snapshot'         => $snapshot,
         'stale'            => $is_stale,
-        'feature_disabled' => ! pcm_object_cache_intelligence_is_enabled(),
+        'feature_disabled' => $feature_disabled,
+        'debug'            => $debug_info,
     ) );
 }
 add_action( 'wp_ajax_pcm_object_cache_snapshot', 'pcm_ajax_object_cache_snapshot' );
