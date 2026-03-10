@@ -637,25 +637,12 @@ function pcm_ajax_object_cache_snapshot(): void {
         }
     } else {
         // Non-refresh: read cached data only (transient / stored option).
-        // Avoids triggering a slow live collection on initial page load.
+        // Never attempt live collection on initial page load — it can block
+        // for 10+ seconds if the Memcached server is slow or unreachable,
+        // tying up a PHP worker and cascading into timeouts for other AJAX
+        // requests.  The hourly cron or an explicit Refresh click will
+        // populate the snapshot.
         $snapshot = pcm_object_cache_get_cached_snapshot();
-
-        // If no cached data exists, attempt a quick live collection with a
-        // reduced time budget so the request doesn't block for 8+ seconds.
-        if ( empty( $snapshot ) ) {
-            try {
-                $resolver = new PCM_Object_Cache_Stats_Provider_Resolver( 3.0 );
-                $service  = new PCM_Object_Cache_Intelligence_Service( $resolver );
-                $snapshot = $service->collect_snapshot();
-                if ( ! empty( $snapshot ) ) {
-                    $storage = new PCM_Object_Cache_Snapshot_Storage();
-                    $storage->append( $snapshot );
-                    set_transient( PCM_OCI_LATEST_SNAPSHOT_TRANSIENT, $snapshot, PCM_OCI_SNAPSHOT_TRANSIENT_TTL );
-                }
-            } catch ( \Throwable $e ) {
-                $snapshot = array();
-            }
-        }
     }
 
     wp_send_json_success( array(

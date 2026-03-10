@@ -37,7 +37,11 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
         $bytes     = $this->read_metric_from_dropin( $wp_object_cache, array( 'bytes', 'bytes_used', 'used_bytes' ) );
         $limit     = $this->read_metric_from_dropin( $wp_object_cache, array( 'limit_maxbytes', 'maxbytes', 'bytes_limit' ) );
 
-        if ( method_exists( $wp_object_cache, 'stats' ) ) {
+        // Only call the potentially-blocking stats() method when we couldn't
+        // read basic metrics from the drop-in properties above.
+        $have_basics = ( null !== $hits && null !== $misses );
+
+        if ( ! $have_basics && method_exists( $wp_object_cache, 'stats' ) ) {
             try {
                 ob_start();
                 $stats_result = $wp_object_cache->stats();
@@ -127,6 +131,13 @@ class PCM_Object_Cache_Dropin_Stats_Provider implements PCM_Object_Cache_Stats_P
         $client = $this->get_underlying_client( $wp_object_cache );
         if ( ! $client ) {
             return array();
+        }
+
+        // Enforce socket-level timeouts so getStats() can't block indefinitely.
+        if ( $client instanceof Memcached ) {
+            $client->setOption( Memcached::OPT_CONNECT_TIMEOUT, 1000 );   // 1 s connect.
+            $client->setOption( Memcached::OPT_SEND_TIMEOUT, 1000000 );   // 1 s send (μs).
+            $client->setOption( Memcached::OPT_RECV_TIMEOUT, 2000000 );   // 2 s receive (μs).
         }
 
         try {
@@ -341,9 +352,9 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
         }
 
         $memcached = new Memcached();
-        $memcached->setOption( Memcached::OPT_CONNECT_TIMEOUT, 1000 );
-        $memcached->setOption( Memcached::OPT_SEND_TIMEOUT, 1000000 );
-        $memcached->setOption( Memcached::OPT_RECV_TIMEOUT, 1000000 );
+        $memcached->setOption( Memcached::OPT_CONNECT_TIMEOUT, 1000 );    // 1 s connect.
+        $memcached->setOption( Memcached::OPT_SEND_TIMEOUT, 1000000 );    // 1 s send (μs).
+        $memcached->setOption( Memcached::OPT_RECV_TIMEOUT, 2000000 );    // 2 s receive (μs).
         $servers   = pcm_object_cache_memcached_servers_from_constant();
         $server_ok = false;
 
@@ -363,7 +374,11 @@ class PCM_Object_Cache_Memcached_Extension_Stats_Provider implements PCM_Object_
             return array();
         }
 
-        $all_stats = $memcached->getStats();
+        try {
+            $all_stats = $memcached->getStats();
+        } catch ( \Throwable $e ) {
+            return array();
+        }
         if ( ! is_array( $all_stats ) || empty( $all_stats ) ) {
             return array();
         }
@@ -457,12 +472,16 @@ class PCM_Object_Cache_Memcache_Extension_Stats_Provider implements PCM_Object_C
                 continue;
             }
 
-            $node_stats = $client->getExtendedStats();
-            if ( is_array( $node_stats ) ) {
-                $all_stats = array_merge( $all_stats, $node_stats );
+            try {
+                $node_stats = $client->getExtendedStats();
+                if ( is_array( $node_stats ) ) {
+                    $all_stats = array_merge( $all_stats, $node_stats );
+                }
+            } catch ( \Throwable $e ) {
+                // getExtendedStats() can block — skip this server.
             }
 
-            $client->close();
+            @$client->close(); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
         }
 
         if ( empty( $all_stats ) ) {
