@@ -189,11 +189,11 @@ function pcm_load_feature_modules(): void {
     require_once $dir . 'redirect-assistant/assistant.php';
     require_once $dir . 'security-privacy/security-privacy.php';
     require_once $dir . 'guided-remediation-playbooks/playbooks.php';
+    require_once $dir . 'layered-probe/layered-probe.php';
+    require_once $dir . 'cacheability-advisor/scenario-scan.php';
 }
 if ( is_admin() || wp_doing_ajax() ) {
     add_action( 'admin_init', 'pcm_load_feature_modules' );
-} else {
-    add_action( 'wp_loaded', 'pcm_load_feature_modules' );
 }
 
 // ─── Settings link on plugin list page ──────────────────────────────────────

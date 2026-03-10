@@ -1045,6 +1045,8 @@ class PCM_Cacheability_Decision_Tracer {
  * URL sampler.
  */
 class PCM_Cacheability_URL_Sampler {
+    protected const MAX_URLS = 20;
+
     /**
      * @return array[]
      */
@@ -1092,7 +1094,9 @@ class PCM_Cacheability_URL_Sampler {
             }
         }
 
-        return $this->unique_samples( $samples );
+        $unique = $this->unique_samples( $samples );
+
+        return array_slice( $unique, 0, self::MAX_URLS );
     }
 
     /**
@@ -1142,74 +1146,105 @@ class PCM_Cacheability_Advisor_Run_Service {
     }
 
     /**
-     * Start a run + execute orchestrator.
+     * Start a new scan run and store the URL queue for batch processing.
      *
-     * @return int|false
+     * @return int|false Run ID on success, false on failure.
      */
-    public function start_and_execute_scan(): int|false {
-        $samples    = $this->sampler->sample();
-        $run_id     = $this->repository->create_run( get_current_user_id(), count( $samples ) );
+    public function start_scan(): int|false {
+        $samples = $this->sampler->sample();
+        $run_id  = $this->repository->create_run( get_current_user_id(), count( $samples ) );
 
         if ( ! $run_id ) {
             return false;
         }
 
-        $this->execute_scan( $run_id );
+        set_transient( 'pcm_scan_queue_' . $run_id, $samples, HOUR_IN_SECONDS );
 
         return $run_id;
     }
 
     /**
-     * Execute probe + evaluation loop for an existing run.
+     * Process the next queued URL for a run.
      *
      * @param int $run_id Run ID.
      *
-     * @return void
+     * @return array{done: bool, processed: int, remaining: int}
      */
-    public function execute_scan( int $run_id ): void {
-        $samples             = $this->sampler->sample();
-        $template_aggregates = array();
+    public function process_next( int $run_id ): array {
+        $queue = get_transient( 'pcm_scan_queue_' . $run_id );
 
-        foreach ( $samples as $sample ) {
-            $url           = isset( $sample['url'] ) ? $sample['url'] : '';
-            $template_type = isset( $sample['template_type'] ) ? $sample['template_type'] : 'unknown';
-            $probe         = $this->probe_client->probe( $url );
-            $evaluation    = $this->rule_engine->evaluate( $probe );
-            $trace         = $this->decision_tracer->trace( $url, $probe, $evaluation );
-            $score         = isset( $evaluation['score'] ) ? absint( $evaluation['score'] ) : 0;
+        if ( ! is_array( $queue ) || empty( $queue ) ) {
+            $this->finalize_run( $run_id );
 
-            $this->repository->add_url_result(
+            return array( 'done' => true, 'processed' => 0, 'remaining' => 0 );
+        }
+
+        $sample        = array_shift( $queue );
+        $url           = isset( $sample['url'] ) ? $sample['url'] : '';
+        $template_type = isset( $sample['template_type'] ) ? $sample['template_type'] : 'unknown';
+
+        $probe      = $this->probe_client->probe( $url );
+        $evaluation = $this->rule_engine->evaluate( $probe );
+        $trace      = $this->decision_tracer->trace( $url, $probe, $evaluation );
+        $score      = isset( $evaluation['score'] ) ? absint( $evaluation['score'] ) : 0;
+
+        $this->repository->add_url_result(
+            $run_id,
+            $url,
+            $template_type,
+            isset( $probe['status_code'] ) ? absint( $probe['status_code'] ) : 0,
+            $score,
+            array(
+                'decision_trace' => $trace,
+                'probe'          => array(
+                    'effective_url'    => isset( $probe['effective_url'] ) ? $probe['effective_url'] : '',
+                    'redirect_chain'   => isset( $probe['redirect_chain'] ) ? $probe['redirect_chain'] : array(),
+                    'timing'           => isset( $probe['timing'] ) ? $probe['timing'] : array(),
+                    'response_size'    => isset( $probe['response_size'] ) ? absint( $probe['response_size'] ) : 0,
+                    'platform_headers' => isset( $probe['platform_headers'] ) ? $probe['platform_headers'] : array(),
+                    'headers'          => isset( $probe['headers'] ) ? $probe['headers'] : array(),
+                ),
+            )
+        );
+
+        foreach ( (array) $evaluation['findings'] as $finding ) {
+            $this->repository->add_finding(
                 $run_id,
                 $url,
-                $template_type,
-                isset( $probe['status_code'] ) ? absint( $probe['status_code'] ) : 0,
-                $score,
+                isset( $finding['rule_id'] ) ? $finding['rule_id'] : 'unknown_rule',
+                isset( $finding['severity'] ) ? $finding['severity'] : 'warning',
                 array(
-                    'decision_trace' => $trace,
-                    'probe'          => array(
-                        'effective_url'    => isset( $probe['effective_url'] ) ? $probe['effective_url'] : '',
-                        'redirect_chain'   => isset( $probe['redirect_chain'] ) ? $probe['redirect_chain'] : array(),
-                        'timing'           => isset( $probe['timing'] ) ? $probe['timing'] : array(),
-                        'response_size'    => isset( $probe['response_size'] ) ? absint( $probe['response_size'] ) : 0,
-                        'platform_headers' => isset( $probe['platform_headers'] ) ? $probe['platform_headers'] : array(),
-                        'headers'          => isset( $probe['headers'] ) ? $probe['headers'] : array(),
-                    ),
-                )
+                    'headers'       => isset( $probe['headers'] ) ? $probe['headers'] : array(),
+                    'probe_context' => isset( $finding['evidence'] ) ? $finding['evidence'] : array(),
+                ),
+                isset( $finding['recommendation_id'] ) ? $finding['recommendation_id'] : ''
             );
+        }
 
-            foreach ( (array) $evaluation['findings'] as $finding ) {
-                $this->repository->add_finding(
-                    $run_id,
-                    $url,
-                    isset( $finding['rule_id'] ) ? $finding['rule_id'] : 'unknown_rule',
-                    isset( $finding['severity'] ) ? $finding['severity'] : 'warning',
-                    array(
-                        'headers'       => isset( $probe['headers'] ) ? $probe['headers'] : array(),
-                        'probe_context' => isset( $finding['evidence'] ) ? $finding['evidence'] : array(),
-                    ),
-                    isset( $finding['recommendation_id'] ) ? $finding['recommendation_id'] : ''
-                );
-            }
+        if ( empty( $queue ) ) {
+            delete_transient( 'pcm_scan_queue_' . $run_id );
+            $this->finalize_run( $run_id );
+
+            return array( 'done' => true, 'processed' => 1, 'remaining' => 0 );
+        }
+
+        set_transient( 'pcm_scan_queue_' . $run_id, $queue, HOUR_IN_SECONDS );
+
+        return array( 'done' => false, 'processed' => 1, 'remaining' => count( $queue ) );
+    }
+
+    /**
+     * Compute template aggregates and mark the run as completed.
+     *
+     * @param int $run_id Run ID.
+     */
+    protected function finalize_run( int $run_id ): void {
+        $results             = $this->repository->list_url_results( $run_id );
+        $template_aggregates = array();
+
+        foreach ( $results as $result ) {
+            $template_type = isset( $result['template_type'] ) ? $result['template_type'] : 'unknown';
+            $score         = isset( $result['score'] ) ? absint( $result['score'] ) : 0;
 
             if ( ! isset( $template_aggregates[ $template_type ] ) ) {
                 $template_aggregates[ $template_type ] = array(
@@ -1280,9 +1315,8 @@ function pcm_ajax_cacheability_scan_start(): void {
         wp_send_json_error( array( 'message' => 'Advanced scanning workflows are disabled. Enable them in Feature Flags.' ), 400 );
     }
 
-    $repository = new PCM_Cacheability_Advisor_Repository();
-    $samples    = ( new PCM_Cacheability_URL_Sampler() )->sample();
-    $run_id     = $repository->create_run( get_current_user_id(), count( $samples ) );
+    $service = new PCM_Cacheability_Advisor_Run_Service();
+    $run_id  = $service->start_scan();
 
     if ( ! $run_id ) {
         wp_send_json_error( array( 'message' => 'Unable to create scan run.' ), 500 );
@@ -1292,33 +1326,58 @@ function pcm_ajax_cacheability_scan_start(): void {
         pcm_audit_log( 'cacheability_scan_started', 'cacheability_advisor', array( 'run_id' => (int) $run_id ) );
     }
 
-    // Register shutdown work before wp_send_json_success (which calls die).
-    // The shutdown function flushes the response to the client first, then
-    // executes the scan so the browser can poll via the status endpoint.
-    register_shutdown_function( static function () use ( $run_id ): void {
-        if ( function_exists( 'fastcgi_finish_request' ) ) {
-            fastcgi_finish_request();
-        } elseif ( function_exists( 'litespeed_finish_request' ) ) {
-            litespeed_finish_request();
-        }
-
-        $service = new PCM_Cacheability_Advisor_Run_Service();
-        try {
-            $service->execute_scan( $run_id );
-        } catch ( \Throwable $e ) {
-            error_log( 'PCM Cacheability scan failed for run ' . $run_id . ': ' . $e->getMessage() );
-            $service->mark_failed( $run_id );
-        }
-    } );
+    $queue = get_transient( 'pcm_scan_queue_' . $run_id );
 
     wp_send_json_success(
         array(
-            'run_id' => (int) $run_id,
-            'status' => 'running',
+            'run_id'    => (int) $run_id,
+            'status'    => 'queued',
+            'remaining' => is_array( $queue ) ? count( $queue ) : 0,
         )
     );
 }
 add_action( 'wp_ajax_pcm_cacheability_scan_start', 'pcm_ajax_cacheability_scan_start' );
+
+/**
+ * AJAX: Process the next queued URL for a scan run.
+ *
+ * @return void
+ */
+function pcm_ajax_cacheability_scan_process_next(): void {
+    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_run_scans' );
+    } else {
+        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+
+        if ( ! pcm_cacheability_advisor_ajax_can_manage() ) {
+            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+        }
+    }
+
+    $run_id = isset( $_REQUEST['run_id'] ) ? absint( wp_unslash( $_REQUEST['run_id'] ) ) : 0;
+    if ( $run_id <= 0 ) {
+        wp_send_json_error( array( 'message' => 'Missing run_id.' ), 400 );
+    }
+
+    $service = new PCM_Cacheability_Advisor_Run_Service();
+
+    try {
+        $result = $service->process_next( $run_id );
+    } catch ( \Throwable $e ) {
+        error_log( 'PCM Cacheability scan failed for run ' . $run_id . ': ' . $e->getMessage() );
+        $service->mark_failed( $run_id );
+        wp_send_json_error( array( 'message' => 'Scan processing failed.' ), 500 );
+    }
+
+    wp_send_json_success(
+        array(
+            'run_id'    => $run_id,
+            'done'      => $result['done'],
+            'remaining' => $result['remaining'],
+        )
+    );
+}
+add_action( 'wp_ajax_pcm_cacheability_scan_process_next', 'pcm_ajax_cacheability_scan_process_next' );
 
 /**
  * AJAX: Get scan run status.

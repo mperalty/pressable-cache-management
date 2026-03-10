@@ -755,51 +755,26 @@ function pcm_ajax_playbook_verify(): void {
         wp_send_json_error( array( 'message' => 'Missing playbook_id or rule_id.' ), 400 );
     }
 
-    $service    = new PCM_Cacheability_Advisor_Run_Service();
-    $repository = new PCM_Cacheability_Advisor_Repository();
-    $run_id     = $service->start_and_execute_scan();
+    $service = new PCM_Cacheability_Advisor_Run_Service();
+    $run_id  = $service->start_scan();
 
     if ( ! $run_id ) {
-        wp_send_json_error( array( 'message' => 'Unable to execute verification scan.' ), 500 );
+        wp_send_json_error( array( 'message' => 'Unable to start verification scan.' ), 500 );
     }
-
-    $findings      = $repository->list_findings( $run_id );
-    $rule_still_on = false;
-
-    foreach ( $findings as $finding ) {
-        if ( isset( $finding['rule_id'] ) && sanitize_key( $finding['rule_id'] ) === $rule_id ) {
-            $rule_still_on = true;
-            break;
-        }
-    }
-
-    $status  = $rule_still_on ? 'failing' : 'passed';
-    $message = $rule_still_on
-        ? 'Rule is still present after verification scan.'
-        : 'Rule did not appear in verification scan.';
-
-    $store = new PCM_Playbook_Progress_Store();
-    $state = $store->save_verification(
-        $playbook_id,
-        array(
-            'status'  => $status,
-            'run_id'  => $run_id,
-            'rule_id' => $rule_id,
-            'message' => $message,
-        )
-    );
 
     if ( function_exists( 'pcm_audit_log' ) ) {
-        pcm_audit_log( 'playbook_verification_run', 'guided_playbooks', array( 'playbook_id' => $playbook_id, 'run_id' => (int) $run_id, 'status' => $status ) );
+        pcm_audit_log( 'playbook_verification_run', 'guided_playbooks', array( 'playbook_id' => $playbook_id, 'run_id' => (int) $run_id ) );
     }
+
+    $queue = get_transient( 'pcm_scan_queue_' . $run_id );
 
     wp_send_json_success(
         array(
             'playbook_id' => $playbook_id,
             'run_id'      => (int) $run_id,
-            'status'      => $status,
-            'message'     => $message,
-            'progress'    => $state,
+            'status'      => 'queued',
+            'remaining'   => is_array( $queue ) ? count( $queue ) : 0,
+            'rule_id'     => $rule_id,
         )
     );
 }

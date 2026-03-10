@@ -529,17 +529,41 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
             });
         }
 
+        function processScanQueue(runId, total) {
+            var remaining = total;
+            function processNext() {
+                return window.pcmPost({ action: 'pcm_cacheability_scan_process_next', nonce: window.pcmGetCacheabilityNonce(), run_id: runId })
+                    .then(function(payload) {
+                        if (!payload || !payload.success || !payload.data) {
+                            throw new Error('Scan processing failed');
+                        }
+                        remaining = payload.data.remaining || 0;
+                        var scanned = total - remaining;
+                        runStatus.textContent = 'Scanning… ' + scanned + '/' + total + ' URLs processed.';
+                        if (!payload.data.done) {
+                            return processNext();
+                        }
+                    });
+            }
+            return processNext();
+        }
+
         runBtn.addEventListener('click', function(){
             runBtn.disabled = true;
             runBtn.style.opacity = '0.6';
-            runStatus.textContent = 'Running scan…';
+            runStatus.textContent = 'Starting scan…';
             window.pcmPost({ action: 'pcm_cacheability_scan_start', nonce: window.pcmGetCacheabilityNonce() })
                 .then(function(payload){
                     if (!payload || !payload.success || !payload.data || !payload.data.run_id) {
                         throw new Error('Unable to start run');
                     }
-                    runStatus.textContent = 'Scan completed for run #' + payload.data.run_id + '.';
-                    return loadRunDetails(payload.data.run_id);
+                    var runId = payload.data.run_id;
+                    var total = payload.data.remaining || 0;
+                    runStatus.textContent = 'Scanning… 0/' + total + ' URLs processed.';
+                    return processScanQueue(runId, total).then(function() {
+                        runStatus.textContent = 'Scan completed for run #' + runId + '.';
+                        return loadRunDetails(runId);
+                    });
                 })
                 .catch(function(error){
                     showError(scoreWrap, 'reload-section', error);

@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_reporting_is_enabled(): bool {
-    $enabled = true;
+    $enabled = (bool) get_option( PCM_Options::ENABLE_OBSERVABILITY_REPORTING->value, false );
 
     return (bool) apply_filters( 'pcm_enable_observability_reporting', $enabled );
 }
@@ -29,15 +29,9 @@ class PCM_Metric_Registry {
      */
     public function get_catalog(): array {
         return array(
-            'cacheability_score'        => array( 'unit' => 'score', 'source' => 'cacheability_advisor' ),
-            'cache_buster_incidence'    => array( 'unit' => 'count', 'source' => 'cache_busters' ),
-            'object_cache_hit_ratio'    => array( 'unit' => 'percent', 'source' => 'object_cache_intelligence' ),
-            'object_cache_evictions'    => array( 'unit' => 'count', 'source' => 'object_cache_intelligence' ),
-            'opcache_memory_pressure'   => array( 'unit' => 'percent', 'source' => 'opcache_awareness' ),
-            'opcache_restarts'          => array( 'unit' => 'count', 'source' => 'opcache_awareness' ),
-            'batcache_hits'             => array( 'unit' => 'count', 'source' => 'runtime_headers' ),
-            'high_memcache_sensitivity_routes_24h' => array( 'unit' => 'count', 'source' => 'object_cache_intelligence' ),
-            'high_memcache_sensitivity_routes_7d'  => array( 'unit' => 'count', 'source' => 'object_cache_intelligence' ),
+            'cacheability_score'     => array( 'unit' => 'score', 'source' => 'cacheability_advisor' ),
+            'cache_buster_incidence' => array( 'unit' => 'count', 'source' => 'cache_busters' ),
+            'batcache_hits'          => array( 'unit' => 'count', 'source' => 'runtime_headers' ),
         );
     }
 
@@ -473,31 +467,7 @@ function pcm_reporting_daily_rollup(): void {
     $cache_buster_incidence = function_exists( 'pcm_cache_busters_get_total_incidence' ) ? (float) pcm_cache_busters_get_total_incidence( '7d' ) : 0.0;
     $rollups->write_rollup( 'cache_buster_incidence', $cache_buster_incidence );
 
-    $object_snapshot = function_exists( 'pcm_object_cache_collect_and_store_snapshot' ) ? pcm_object_cache_collect_and_store_snapshot() : array();
-    $object_hit_ratio = isset( $object_snapshot['hit_ratio'] ) ? (float) $object_snapshot['hit_ratio'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_HIT_RATIO->value, 0 );
-    $object_evictions = isset( $object_snapshot['evictions'] ) ? (float) $object_snapshot['evictions'] : (float) get_option( PCM_Options::LATEST_OBJECT_CACHE_EVICTIONS->value, 0 );
-
-    $rollups->write_rollup( 'object_cache_hit_ratio', $object_hit_ratio );
-    $rollups->write_rollup( 'object_cache_evictions', $object_evictions );
-
-    $opcache_snapshot = function_exists( 'pcm_opcache_collect_and_store_snapshot' ) ? pcm_opcache_collect_and_store_snapshot() : array();
-    $opcache_memory_pressure = isset( $opcache_snapshot['memory']['used_memory'], $opcache_snapshot['memory']['free_memory'], $opcache_snapshot['memory']['wasted_memory'] )
-        ? (float) pcm_opcache_percent(
-            $opcache_snapshot['memory']['used_memory'] + $opcache_snapshot['memory']['wasted_memory'],
-            $opcache_snapshot['memory']['used_memory'] + $opcache_snapshot['memory']['free_memory'] + $opcache_snapshot['memory']['wasted_memory']
-        )
-        : (float) get_option( PCM_Options::LATEST_OPCACHE_MEMORY_PRESSURE->value, 0 );
-    $opcache_restarts = isset( $opcache_snapshot['statistics']['restart_total'] )
-        ? (float) $opcache_snapshot['statistics']['restart_total']
-        : (float) get_option( PCM_Options::LATEST_OPCACHE_RESTARTS->value, 0 );
-
-    $rollups->write_rollup( 'opcache_memory_pressure', $opcache_memory_pressure );
-    $rollups->write_rollup( 'opcache_restarts', $opcache_restarts );
-
     $rollups->write_rollup( 'batcache_hits', (float) pcm_reporting_latest_batcache_hits() );
-
-    $rollups->write_rollup( 'high_memcache_sensitivity_routes_24h', (float) pcm_reporting_high_memcache_sensitivity_routes( '24h' ) );
-    $rollups->write_rollup( 'high_memcache_sensitivity_routes_7d', (float) pcm_reporting_high_memcache_sensitivity_routes( '7d' ) );
 
     $rollups->flush_storage();
     $rollups->cleanup_storage( (int) get_option( PCM_Options::REPORTING_RETENTION_DAYS->value, 90 ) );
@@ -540,21 +510,6 @@ function pcm_reporting_latest_cacheability_score(): float {
  */
 function pcm_reporting_latest_batcache_hits(): int {
     return (int) get_option( PCM_Options::BATCACHE_HITS_24H->value, 0 );
-}
-
-/**
- * @param string $range 24h|7d|30d
- *
- * @return int
- */
-function pcm_reporting_high_memcache_sensitivity_routes( string $range = '24h' ): int {
-    if ( ! function_exists( 'pcm_object_cache_memcache_sensitivity_summary' ) ) {
-        return 0;
-    }
-
-    $summary = pcm_object_cache_memcache_sensitivity_summary( $range );
-
-    return isset( $summary['high_route_count'] ) ? (int) $summary['high_route_count'] : 0;
 }
 
 /**

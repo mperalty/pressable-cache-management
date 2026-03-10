@@ -41,10 +41,14 @@ function pcm_abar_modal_html(): void {
 
 // ─── JS: Flush Object Cache ────────────────────────────────────────────────
 add_action( 'admin_footer', 'pcm_abar_object_js' );
-function pcm_abar_object_js(): void { ?>
+function pcm_abar_object_js(): void {
+    if ( ! pcm_abar_can_global_flush() ) return;
+    ?>
     <script>
     jQuery(document).ready(function($){
-        $('li#wp-admin-bar-cache-purge .ab-item').on('click', function(e){
+        var $node = $('li#wp-admin-bar-cache-purge .ab-item');
+        if (!$node.length) return;
+        $node.on('click', function(e){
             e.preventDefault();
             $.post(ajaxurl, { action: 'flush_pressable_cache', _wpnonce: '<?php echo esc_js( wp_create_nonce( 'pcm_abar_flush' ) ); ?>' }, function(r){
                 window.pcmShowModal(r.trim());
@@ -56,10 +60,14 @@ function pcm_abar_object_js(): void { ?>
 
 // ─── JS: Purge Edge Cache ──────────────────────────────────────────────────
 add_action( 'admin_footer', 'pcm_abar_edge_js' );
-function pcm_abar_edge_js(): void { ?>
+function pcm_abar_edge_js(): void {
+    if ( ! pcm_abar_can_global_flush() ) return;
+    ?>
     <script>
     jQuery(document).ready(function($){
-        $('li#wp-admin-bar-edge-purge .ab-item').on('click', function(e){
+        var $node = $('li#wp-admin-bar-edge-purge .ab-item');
+        if (!$node.length) return;
+        $node.on('click', function(e){
             e.preventDefault();
             $.ajax({ url: ajaxurl, type: 'POST', data: { action: 'pressable_edge_cache_purge', _wpnonce: '<?php echo esc_js( wp_create_nonce( 'pcm_abar_flush' ) ); ?>' },
                 success: function(r){ window.pcmShowModal(r.trim()); },
@@ -72,10 +80,14 @@ function pcm_abar_edge_js(): void { ?>
 
 // ─── JS: Flush Object + Edge Cache ────────────────────────────────────────
 add_action( 'admin_footer', 'pcm_abar_combined_js' );
-function pcm_abar_combined_js(): void { ?>
+function pcm_abar_combined_js(): void {
+    if ( ! pcm_abar_can_global_flush() ) return;
+    ?>
     <script>
     jQuery(document).ready(function($){
-        $('li#wp-admin-bar-combined-cache-purge .ab-item').on('click', function(e){
+        var $node = $('li#wp-admin-bar-combined-cache-purge .ab-item');
+        if (!$node.length) return;
+        $node.on('click', function(e){
             e.preventDefault();
             $.ajax({ url: ajaxurl, type: 'POST', data: { action: 'flush_combined_cache', _wpnonce: '<?php echo esc_js( wp_create_nonce( 'pcm_abar_flush' ) ); ?>' },
                 success: function(r){ window.pcmShowModal(r.trim()); },

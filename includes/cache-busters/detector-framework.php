@@ -627,11 +627,13 @@ class PCM_Cache_Buster_Event_Storage {
         $rows = $this->all();
         $now  = current_time( 'mysql', true );
 
-        // Build a set of existing (run_id, signature) pairs for deduplication.
+        // Build a set of existing signatures for deduplication across all runs.
         $existing = array();
         foreach ( $rows as $row ) {
-            $dedupe_key = ( isset( $row['run_id'] ) ? $row['run_id'] : 0 ) . '|' . ( isset( $row['signature'] ) ? $row['signature'] : '' );
-            $existing[ $dedupe_key ] = true;
+            $sig = isset( $row['signature'] ) ? $row['signature'] : '';
+            if ( '' !== $sig ) {
+                $existing[ $sig ] = true;
+            }
         }
 
         foreach ( $events as $event ) {
@@ -639,10 +641,9 @@ class PCM_Cache_Buster_Event_Storage {
                 continue;
             }
 
-            $signature  = isset( $event['signature'] ) ? sanitize_text_field( $event['signature'] ) : 'unknown';
-            $dedupe_key = absint( $run_id ) . '|' . $signature;
+            $signature = isset( $event['signature'] ) ? sanitize_text_field( $event['signature'] ) : 'unknown';
 
-            if ( isset( $existing[ $dedupe_key ] ) ) {
+            if ( isset( $existing[ $signature ] ) ) {
                 continue;
             }
 
@@ -659,7 +660,7 @@ class PCM_Cache_Buster_Event_Storage {
                 'detected_at'      => $now,
             );
 
-            $existing[ $dedupe_key ] = true;
+            $existing[ $signature ] = true;
         }
 
         $rows = array_slice( $rows, -1 * $this->max_rows );
