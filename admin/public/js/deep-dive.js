@@ -661,240 +661,20 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
     })();
 });
 
-window.pcmOnSectionReady('pcm-feature-object-cache-intelligence', function(){
+window.pcmOnSectionReady('pcm-feature-cache-overview', function(){
 (function(){
-        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
-        var refreshBtn = document.getElementById('pcm-oci-refresh-btn');
-        var summaryEl = document.getElementById('pcm-oci-summary');
-        var latestEl = document.getElementById('pcm-oci-latest');
-        var trendEl = document.getElementById('pcm-oci-trends');
-        var section = document.getElementById('pcm-feature-object-cache-intelligence');
-        if (!refreshBtn || !summaryEl || !latestEl || !trendEl || !section) return;
-
-        function showError(targetEl, error, fallbackMessage) {
-            window.pcmRenderDeepDiveDependencyError(targetEl, 'Object Cache Intelligence', 'reload-section', error, fallbackMessage);
-        }
-
-        function renderLatest(snapshot, isStale, debugInfo) {
-            if (!snapshot || !snapshot.taken_at) {
-                latestEl.innerHTML = '<em>No snapshot data yet.</em>';
-                summaryEl.textContent = (debugInfo && debugInfo.length)
-                    ? 'Debug: ' + debugInfo.join(', ')
-                    : 'No diagnostics snapshot available.';
-                return;
-            }
-
-            var staleNote = isStale ? ' (showing cached data — live refresh unavailable)' : '';
-            summaryEl.textContent = 'Health: ' + (snapshot.health || 'unknown') + ' | Provider: ' + (snapshot.provider || 'n/a') + staleNote;
-            var evictionsText = (snapshot.evictions == null ? 'n/a' : snapshot.evictions);
-            var memoryText = (snapshot.memory_pressure == null ? 'n/a' : snapshot.memory_pressure + '%');
-            var memoryNote = '';
-            if (snapshot.memory_pressure === 0 && (!snapshot.bytes_limit || Number(snapshot.bytes_limit) <= 0)) {
-                memoryNote = ' <span style="color:#6b7280;">(provider did not report memory limit bytes)</span>';
-            }
-            var evictionNote = snapshot.evictions == null
-                ? ' <span style="color:#6b7280;">(provider did not report eviction counters)</span>'
-                : '';
-            var meta = snapshot.meta || {};
-            var usedGb = (meta.used_gb == null ? 'n/a' : Number(meta.used_gb).toFixed(2) + ' GB');
-            var limitGb = (meta.limit_gb == null ? 'n/a' : Number(meta.limit_gb).toFixed(2) + ' GB');
-            var itemsNow = (meta.curr_items == null ? 'n/a' : Number(meta.curr_items));
-            var itemsTotal = (meta.total_items == null ? 'n/a' : Number(meta.total_items));
-            var connsNow = (meta.curr_connections == null ? 'n/a' : Number(meta.curr_connections));
-            var uptime = (meta.uptime_human == null ? 'n/a' : String(meta.uptime_human));
-
-            latestEl.innerHTML = [
-                '<ul style="margin:0;padding-left:18px;">',
-                '<li><strong>Status</strong>: ' + (snapshot.status || 'unknown') + '</li>',
-                '<li><strong>Hit Ratio</strong>: ' + (snapshot.hit_ratio == null ? 'n/a' : snapshot.hit_ratio + '%') + '</li>',
-                '<li><strong>Evictions</strong>: ' + evictionsText + evictionNote + '</li>',
-                '<li><strong>Memory Pressure</strong>: ' + memoryText + memoryNote + '</li>',
-                '<li><strong>Memory Used / Limit</strong>: ' + usedGb + ' / ' + limitGb + '</li>',
-                '<li><strong>Current / Total Items</strong>: ' + itemsNow + ' / ' + itemsTotal + '</li>',
-                '<li><strong>Current Connections</strong>: ' + connsNow + '</li>',
-                '<li><strong>Node Uptime</strong>: ' + uptime + '</li>',
-                '<li><strong>Captured</strong>: ' + snapshot.taken_at + '</li>',
-                '</ul>'
-            ].join('');
-        }
-
-        function toPoints(points, key) {
-            return points.map(function(point){
-                var value = Number(point[key]);
-                return Number.isFinite(value) ? value : null;
-            });
-        }
-
-        function lineChartSvg(values, labels, threshold, opts) {
-            opts = opts || {};
-            var width = 520;
-            var height = 140;
-            var pad = { top: 12, right: 12, bottom: 20, left: 28 };
-            var valid = values.filter(function(value){ return value != null; });
-            var maxVal = valid.length ? Math.max.apply(null, valid.concat([threshold || 0])) : 100;
-            maxVal = Math.max(maxVal, opts.minMax || 100);
-            var innerW = width - pad.left - pad.right;
-            var innerH = height - pad.top - pad.bottom;
-            var safeLength = Math.max(values.length - 1, 1);
-            function xAt(index) { return pad.left + ((innerW * index) / safeLength); }
-            function yAt(value) { return pad.top + innerH - ((Math.max(value, 0) / maxVal) * innerH); }
-
-            var linePath = '';
-            var areaPath = '';
-            var started = false;
-            values.forEach(function(value, index){
-                if (value == null) {
-                    if (started) {
-                        areaPath += ' L ' + xAt(index - 1).toFixed(2) + ' ' + (pad.top + innerH).toFixed(2) + ' Z';
-                        started = false;
-                    }
-                    return;
-                }
-                var x = xAt(index).toFixed(2);
-                var y = yAt(value).toFixed(2);
-                if (!started) {
-                    linePath += (linePath ? ' M ' : 'M ') + x + ' ' + y;
-                    areaPath += (areaPath ? ' M ' : 'M ') + x + ' ' + (pad.top + innerH).toFixed(2) + ' L ' + x + ' ' + y;
-                    started = true;
-                } else {
-                    linePath += ' L ' + x + ' ' + y;
-                    areaPath += ' L ' + x + ' ' + y;
-                }
-                if (index === values.length - 1) {
-                    areaPath += ' L ' + x + ' ' + (pad.top + innerH).toFixed(2) + ' Z';
-                }
-            });
-
-            var thresholdY = threshold != null ? yAt(threshold).toFixed(2) : null;
-            var xTicks = labels.map(function(label, index){
-                if (index === 0 || index === labels.length - 1 || index === Math.floor(labels.length / 2)) {
-                    return '<text x="' + xAt(index).toFixed(2) + '" y="' + (height - 4) + '" text-anchor="middle" fill="#64748b" font-size="10">' + label + '</text>';
-                }
-                return '';
-            }).join('');
-
-            return [
-                '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + (opts.label || 'Trend chart') + '">',
-                '<line x1="' + pad.left + '" y1="' + (pad.top + innerH) + '" x2="' + (width - pad.right) + '" y2="' + (pad.top + innerH) + '" stroke="#e2e8f0" stroke-width="1"/>',
-                thresholdY ? '<line x1="' + pad.left + '" y1="' + thresholdY + '" x2="' + (width - pad.right) + '" y2="' + thresholdY + '" stroke="#dd3a03" stroke-width="1" stroke-dasharray="4 4"/>' : '',
-                areaPath ? '<path d="' + areaPath + '" fill="rgba(3,252,194,0.18)"/>' : '',
-                linePath ? '<path d="' + linePath + '" fill="none" stroke="' + (opts.color || '#03fcc2') + '" stroke-width="2"/>' : '',
-                xTicks,
-                '</svg>'
-            ].join('');
-        }
-
-        function renderTrends(points) {
-            if (!Array.isArray(points) || !points.length) {
-                trendEl.innerHTML = '<em>No trend points yet.</em>';
-                return;
-            }
-
-            var rows = points.slice(-20);
-            var labels = rows.map(function(point){ return (point.taken_at || '').slice(5, 10); });
-            var hitValues = toPoints(rows, 'hit_ratio');
-            var evictionValues = toPoints(rows, 'evictions');
-            var memoryValues = toPoints(rows, 'memory_pressure');
-
-            var html = '<div class="pcm-trend-charts">'
-                + '<div class="pcm-trend-chart"><h5>Hit Ratio % <span>threshold 70%</span></h5>' + lineChartSvg(hitValues, labels, 70, { label: 'Object cache hit ratio trend', minMax: 100, color: '#03fcc2' }) + '</div>'
-                + '<div class="pcm-trend-chart"><h5>Evictions <span>watch for spikes</span></h5>' + lineChartSvg(evictionValues, labels, null, { label: 'Object cache evictions trend', minMax: 10, color: '#dd3a03' }) + '</div>'
-                + '<div class="pcm-trend-chart"><h5>Memory Pressure % <span>threshold 90%</span></h5>' + lineChartSvg(memoryValues, labels, 90, { label: 'Object cache memory pressure trend', minMax: 100, color: '#dd3a03' }) + '</div>'
-                + '</div>';
-
-            html += '<details class="pcm-trend-details"><summary>Details table</summary>';
-            html += '<table class="widefat striped" style="max-width:100%;"><thead><tr><th>Date</th><th>Hit %</th><th>Evictions</th><th>Mem %</th></tr></thead><tbody>';
-            rows.forEach(function(point){
-                html += '<tr>'
-                    + '<td>' + (point.taken_at || '') + '</td>'
-                    + '<td>' + (point.hit_ratio == null ? 'n/a' : point.hit_ratio) + '</td>'
-                    + '<td>' + (point.evictions == null ? 'n/a' : point.evictions) + '</td>'
-                    + '<td>' + (point.memory_pressure == null ? 'n/a' : point.memory_pressure) + '</td>'
-                    + '</tr>';
-            });
-            html += '</tbody></table></details>';
-            trendEl.innerHTML = html;
-        }
-
-        var ociRetryCount = 0;
-        var ociMaxRetries = 2;
-
-        function loadSnapshot(refresh) {
-            window.pcmRenderSkeletonRows(latestEl, 5, ['84%', '91%', '78%', '72%', '86%']);
-            return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' }, { timeout: 15000 })
-                .then(function(payload){
-                    if (!payload || !payload.success) {
-                        throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load object cache snapshot endpoint.'));
-                    }
-                    ociRetryCount = 0;
-                    var debugInfo = (payload.data && payload.data.debug) ? payload.data.debug : [];
-                    if (payload.data && payload.data.feature_disabled) {
-                        summaryEl.textContent = 'Caching Suite is disabled. Enable it in Feature Flags to collect diagnostics.';
-                        latestEl.innerHTML = '<em>Enable the Caching Suite feature flag, then click Refresh to collect a snapshot.</em>';
-                        return;
-                    }
-                    var isStale = payload.data && payload.data.stale;
-                    var snap = payload.data ? payload.data.snapshot : null;
-                    renderLatest(snap, isStale, debugInfo);
-                });
-        }
-
-        function loadTrends() {
-            window.pcmRenderSkeletonRows(trendEl, 4, ['100%', '96%', '98%', '92%']);
-            return window.pcmPost({ action: 'pcm_object_cache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' }, { timeout: 15000 })
-                .then(function(payload){
-                    if (!payload || !payload.success) {
-                        throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load object cache trends endpoint.'));
-                    }
-                    renderTrends(payload && payload.success ? payload.data.points : []);
-                });
-        }
-
-        function loadAll(refresh) {
-            return Promise.all([loadSnapshot(refresh), loadTrends()]);
-        }
-
-        function loadWithRetry(refresh) {
-            return loadAll(refresh).catch(function(error){
-                if (error && (error.isTimeout || error.message === 'timeout') && ociRetryCount < ociMaxRetries) {
-                    ociRetryCount++;
-                    summaryEl.textContent = 'Retrying… (attempt ' + (ociRetryCount + 1) + '/' + (ociMaxRetries + 1) + ')';
-                    // Exponential backoff: 2s, 4s.
-                    var delay = Math.pow(2, ociRetryCount) * 1000;
-                    return new Promise(function(resolve){ setTimeout(resolve, delay); })
-                        .then(function(){ return loadWithRetry(false); });
-                }
-                throw error;
-            });
-        }
-
-        refreshBtn.addEventListener('click', function(){
-            refreshBtn.disabled = true;
-            refreshBtn.style.opacity = '0.6';
-            summaryEl.textContent = 'Refreshing…';
-            ociRetryCount = 0;
-            loadWithRetry(true)
-                .catch(function(error){ showError(latestEl, error); })
-                .finally(function(){ refreshBtn.disabled = false; refreshBtn.style.opacity = ''; });
-        });
-
-        section.addEventListener('click', function(event){
-            if (!event.target.closest('[data-action="pcm-retry"]')) return;
-            ociRetryCount = 0;
-            loadWithRetry(false).catch(function(error){ showError(latestEl, error); });
-        });
-
-        loadWithRetry(false).catch(function(error){
-            showError(latestEl, error);
-        });
-    })();
-});
-
-window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
+    if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
     var escapeHtml = window.pcmEscapeHtml;
-    var container = document.getElementById('pcm-cache-insights-content');
-    var statusEl  = document.getElementById('pcm-cache-insights-status');
-    var refreshBtn = document.getElementById('pcm-cache-insights-refresh');
+    var refreshBtn = document.getElementById('pcm-cache-overview-refresh');
+    var statusEl   = document.getElementById('pcm-cache-overview-status');
+    var cardsEl    = document.getElementById('pcm-cache-overview-cards');
+    var trendEl    = document.getElementById('pcm-cache-overview-trend');
+    var section    = document.getElementById('pcm-feature-cache-overview');
+    if (!refreshBtn || !cardsEl || !trendEl || !section) return;
+
+    function showError(targetEl, error) {
+        window.pcmRenderDeepDiveDependencyError(targetEl, 'Cache Overview', 'reload-section', error);
+    }
 
     function renderCard(label, value, statusClass) {
         return '<div class="pcm-cache-insight-card">' +
@@ -903,68 +683,192 @@ window.pcmOnSectionReady('pcm-feature-cache-insights', function(){
         '</div>';
     }
 
+    function statusIcon(ok) {
+        return ok
+            ? '<span class="dashicons dashicons-yes-alt" style="color:#16a34a;vertical-align:middle;margin-right:2px;" aria-hidden="true"></span>'
+            : '<span class="dashicons dashicons-dismiss" style="color:#dc2626;vertical-align:middle;margin-right:2px;" aria-hidden="true"></span>';
+    }
+
+    /* ── SVG line chart (reused from former OCI handler) ── */
+    function lineChartSvg(values, labels, threshold, opts) {
+        opts = opts || {};
+        var width = 520, height = 140;
+        var pad = { top: 12, right: 12, bottom: 20, left: 28 };
+        var valid = values.filter(function(v){ return v != null; });
+        var maxVal = valid.length ? Math.max.apply(null, valid.concat([threshold || 0])) : 100;
+        maxVal = Math.max(maxVal, opts.minMax || 100);
+        var innerW = width - pad.left - pad.right;
+        var innerH = height - pad.top - pad.bottom;
+        var safeLen = Math.max(values.length - 1, 1);
+        function xAt(i) { return pad.left + ((innerW * i) / safeLen); }
+        function yAt(v) { return pad.top + innerH - ((Math.max(v, 0) / maxVal) * innerH); }
+
+        var linePath = '', areaPath = '', started = false;
+        values.forEach(function(v, i){
+            if (v == null) {
+                if (started) { areaPath += ' L ' + xAt(i - 1).toFixed(2) + ' ' + (pad.top + innerH).toFixed(2) + ' Z'; started = false; }
+                return;
+            }
+            var x = xAt(i).toFixed(2), y = yAt(v).toFixed(2);
+            if (!started) {
+                linePath += (linePath ? ' M ' : 'M ') + x + ' ' + y;
+                areaPath += (areaPath ? ' M ' : 'M ') + x + ' ' + (pad.top + innerH).toFixed(2) + ' L ' + x + ' ' + y;
+                started = true;
+            } else {
+                linePath += ' L ' + x + ' ' + y;
+                areaPath += ' L ' + x + ' ' + y;
+            }
+            if (i === values.length - 1) { areaPath += ' L ' + x + ' ' + (pad.top + innerH).toFixed(2) + ' Z'; }
+        });
+
+        var thresholdY = threshold != null ? yAt(threshold).toFixed(2) : null;
+        var xTicks = labels.map(function(l, i){
+            if (i === 0 || i === labels.length - 1 || i === Math.floor(labels.length / 2))
+                return '<text x="' + xAt(i).toFixed(2) + '" y="' + (height - 4) + '" text-anchor="middle" fill="#64748b" font-size="10">' + l + '</text>';
+            return '';
+        }).join('');
+
+        return [
+            '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + (opts.label || 'Trend chart') + '">',
+            '<line x1="' + pad.left + '" y1="' + (pad.top + innerH) + '" x2="' + (width - pad.right) + '" y2="' + (pad.top + innerH) + '" stroke="#e2e8f0" stroke-width="1"/>',
+            thresholdY ? '<line x1="' + pad.left + '" y1="' + thresholdY + '" x2="' + (width - pad.right) + '" y2="' + thresholdY + '" stroke="#dd3a03" stroke-width="1" stroke-dasharray="4 4"/>' : '',
+            areaPath ? '<path d="' + areaPath + '" fill="rgba(3,252,194,0.18)"/>' : '',
+            linePath ? '<path d="' + linePath + '" fill="none" stroke="' + (opts.color || '#03fcc2') + '" stroke-width="2"/>' : '',
+            xTicks,
+            '</svg>'
+        ].join('');
+    }
+
+    /* ── Render status cards from Cache Insights data ── */
+    function renderCards(d) {
+        var cards = [];
+
+        // Batcache
+        var bcStatus = d.batcache_status || 'unknown';
+        var bcLabel = bcStatus.charAt(0).toUpperCase() + bcStatus.slice(1);
+        var bcClass = bcStatus === 'active' ? 'pcm-ci-status-ok' : (bcStatus === 'broken' ? 'pcm-ci-status-bad' : 'pcm-ci-status-warn');
+        if (d.batcache_max_age) bcLabel += ' (TTL ' + d.batcache_max_age + 's)';
+        cards.push(renderCard('Batcache', escapeHtml(bcLabel), bcClass));
+
+        // Object Cache
+        var ocType = d.object_cache_type || 'unknown';
+        var ocClass = (ocType === 'Default (none)' || ocType === 'unknown') ? 'pcm-ci-status-warn' : 'pcm-ci-status-ok';
+        cards.push(renderCard('Object Cache', escapeHtml(ocType), ocClass));
+
+        // Hit Ratio (prefer OCI snapshot value, fall back to insights value)
+        var hr = d._hit_ratio;
+        if (typeof hr === 'number') {
+            var hrClass = hr >= 80 ? 'pcm-ci-status-ok' : (hr >= 50 ? 'pcm-ci-status-warn' : 'pcm-ci-status-bad');
+            cards.push(renderCard('Hit Ratio', hr + '%', hrClass));
+        } else if (typeof d.object_cache_hit_ratio === 'number') {
+            var hrClass2 = d.object_cache_hit_ratio >= 80 ? 'pcm-ci-status-ok' : (d.object_cache_hit_ratio >= 50 ? 'pcm-ci-status-warn' : 'pcm-ci-status-bad');
+            cards.push(renderCard('Hit Ratio', d.object_cache_hit_ratio + '%', hrClass2));
+        }
+
+        // PHP OPcache — dashicons instead of emoji
+        var opcacheOk = d.opcache_enabled;
+        cards.push(renderCard(
+            'PHP OPcache',
+            statusIcon(opcacheOk) + (opcacheOk ? ' Enabled' : ' Disabled'),
+            opcacheOk ? 'pcm-ci-status-ok' : 'pcm-ci-status-bad'
+        ));
+
+        cardsEl.innerHTML = cards.join('');
+    }
+
+    /* ── Render 7-day hit ratio trend chart ── */
+    function renderTrend(points) {
+        if (!Array.isArray(points) || !points.length) {
+            trendEl.innerHTML = '<em>No trend data yet.</em>';
+            return;
+        }
+        var rows = points.slice(-20);
+        var labels = rows.map(function(p){ return (p.taken_at || '').slice(5, 10); });
+        var hitValues = rows.map(function(p){ var v = Number(p.hit_ratio); return Number.isFinite(v) ? v : null; });
+
+        trendEl.innerHTML =
+            '<div class="pcm-trend-charts">' +
+            '<div class="pcm-trend-chart"><h5>Hit Ratio % <span>7-day trend &middot; threshold 70%</span></h5>' +
+            lineChartSvg(hitValues, labels, 70, { label: 'Object cache hit ratio trend', minMax: 100, color: '#03fcc2' }) +
+            '</div></div>';
+    }
+
+    /* ── Data loading ── */
+    var retryCount = 0, maxRetries = 2;
+
     function loadInsights() {
-        if (statusEl) statusEl.textContent = 'Loading\u2026';
-        window.pcmPost({ action: 'pcm_cache_insights', nonce: window.pcmGetCacheabilityNonce() }, { timeout: 10000 })
-            .then(function(res) {
-                if (!res || !res.success || !res.data) {
-                    var detail = (res && res.data && res.data.message) ? res.data.message : 'Unable to load cache insights.';
-                    container.innerHTML = '<p>' + escapeHtml(detail) + '</p>';
-                    if (statusEl) statusEl.textContent = '';
-                    return;
+        return window.pcmPost({ action: 'pcm_cache_insights', nonce: window.pcmGetCacheabilityNonce() }, { timeout: 10000 });
+    }
+
+    function loadSnapshot(refresh) {
+        return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' }, { timeout: 15000 });
+    }
+
+    function loadTrends() {
+        return window.pcmPost({ action: 'pcm_object_cache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' }, { timeout: 15000 });
+    }
+
+    function loadAll(refresh) {
+        window.pcmRenderSkeletonRows(cardsEl, 4, ['48%', '48%', '48%', '48%']);
+        window.pcmRenderSkeletonRows(trendEl, 3, ['100%', '96%', '98%']);
+
+        return Promise.all([loadInsights(), loadSnapshot(refresh), loadTrends()])
+            .then(function(results) {
+                var insightsRes = results[0];
+                var snapshotRes = results[1];
+                var trendsRes   = results[2];
+
+                // Build card data — merge insights + snapshot hit ratio
+                var cardData = (insightsRes && insightsRes.success && insightsRes.data) ? insightsRes.data : {};
+                if (snapshotRes && snapshotRes.success && snapshotRes.data) {
+                    var snap = snapshotRes.data.snapshot;
+                    if (snap && snap.hit_ratio != null) {
+                        cardData._hit_ratio = Number(snap.hit_ratio);
+                    }
                 }
-                var d = res.data;
-                var cards = [];
+                renderCards(cardData);
 
-                // Batcache
-                var bcStatus = d.batcache_status || 'unknown';
-                var bcLabel = bcStatus.charAt(0).toUpperCase() + bcStatus.slice(1);
-                var bcClass = bcStatus === 'active' ? 'pcm-ci-status-ok' : (bcStatus === 'broken' ? 'pcm-ci-status-bad' : 'pcm-ci-status-warn');
-                if (d.batcache_max_age) bcLabel += ' (TTL ' + d.batcache_max_age + 's)';
-                cards.push(renderCard('Batcache', bcLabel, bcClass));
+                // Trend chart
+                var trendPoints = (trendsRes && trendsRes.success && trendsRes.data) ? trendsRes.data.points : [];
+                renderTrend(trendPoints);
 
-                // Object Cache
-                var ocType = d.object_cache_type || 'unknown';
-                var ocClass = (ocType === 'Default (none)' || ocType === 'unknown') ? 'pcm-ci-status-warn' : 'pcm-ci-status-ok';
-                cards.push(renderCard('Object Cache', escapeHtml(ocType), ocClass));
-
-                // Hit Ratio
-                if (typeof d.object_cache_hit_ratio === 'number') {
-                    var hrClass = d.object_cache_hit_ratio >= 80 ? 'pcm-ci-status-ok' : (d.object_cache_hit_ratio >= 50 ? 'pcm-ci-status-warn' : 'pcm-ci-status-bad');
-                    cards.push(renderCard('Hit Ratio', d.object_cache_hit_ratio + '%', hrClass));
-                }
-
-                // PHP OPcache
-                var opcacheOk = d.opcache_enabled;
-                cards.push(renderCard(
-                    'PHP OPcache',
-                    (opcacheOk ? '\u2705 Enabled' : '\u274C Disabled'),
-                    opcacheOk ? 'pcm-ci-status-ok' : 'pcm-ci-status-bad'
-                ));
-
-                container.innerHTML = cards.join('');
-                if (statusEl) statusEl.textContent = '';
-            })
-            .catch(function(err) {
-                var msg;
-                if (err && (err.isTimeout || err.message === 'timeout')) {
-                    msg = 'Cache insights request timed out. Click Refresh to try again.';
-                } else if (err && err.status >= 500) {
-                    msg = 'Server error loading cache insights (HTTP ' + err.status + '). Check PHP error logs.';
-                } else if (err && err.status === 403) {
-                    msg = 'Permission denied (HTTP 403). Try reloading the page to refresh your session.';
-                } else if (err && err.status > 0) {
-                    msg = 'Error loading cache insights (HTTP ' + err.status + '). Click Refresh to try again.';
-                } else {
-                    msg = 'Error loading cache insights: ' + (err && err.message ? err.message : 'unknown error') + '. Click Refresh to try again.';
-                }
-                container.innerHTML = '<p>' + msg + '</p>';
-                if (statusEl) statusEl.textContent = '';
+                retryCount = 0;
             });
     }
 
-    if (refreshBtn) refreshBtn.addEventListener('click', loadInsights);
-    loadInsights();
+    function loadWithRetry(refresh) {
+        return loadAll(refresh).catch(function(error) {
+            if (error && (error.isTimeout || error.message === 'timeout') && retryCount < maxRetries) {
+                retryCount++;
+                if (statusEl) statusEl.textContent = 'Retrying\u2026 (attempt ' + (retryCount + 1) + '/' + (maxRetries + 1) + ')';
+                var delay = Math.pow(2, retryCount) * 1000;
+                return new Promise(function(resolve){ setTimeout(resolve, delay); })
+                    .then(function(){ return loadWithRetry(false); });
+            }
+            throw error;
+        });
+    }
+
+    refreshBtn.addEventListener('click', function(){
+        refreshBtn.disabled = true;
+        refreshBtn.style.opacity = '0.6';
+        if (statusEl) statusEl.textContent = 'Refreshing\u2026';
+        retryCount = 0;
+        loadWithRetry(true)
+            .catch(function(error){ showError(cardsEl, error); })
+            .finally(function(){ refreshBtn.disabled = false; refreshBtn.style.opacity = ''; if (statusEl) statusEl.textContent = ''; });
+    });
+
+    section.addEventListener('click', function(event){
+        if (!event.target.closest('[data-action="pcm-retry"]')) return;
+        retryCount = 0;
+        loadWithRetry(false).catch(function(error){ showError(cardsEl, error); });
+    });
+
+    loadWithRetry(false).catch(function(error){
+        showError(cardsEl, error);
+    });
+})();
 });
 
 (function(){

@@ -518,8 +518,7 @@ function pressable_cache_management_display_settings_page() {
     <?php if ( $is_deep_dive_tab ) : ?>
     <nav class="pcm-anchor-nav" id="pcm-deep-dive-nav" aria-label="Deep Dive sections">
         <a href="#pcm-feature-cacheability-advisor">Cacheability</a>
-        <a href="#pcm-feature-object-cache-intelligence">Object Cache</a>
-        <a href="#pcm-feature-cache-insights">Cache Insights</a>
+        <a href="#pcm-feature-cache-overview">Cache Overview</a>
     </nav>
     <?php endif; ?>
 
@@ -562,48 +561,18 @@ function pressable_cache_management_display_settings_page() {
     </div>
     <?php endif; ?>
 
-    <?php if ( $is_deep_dive_tab && $pcm_module_available['object_cache'] && pcm_object_cache_intelligence_is_enabled() ) : ?>
-    <div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-object-cache-intelligence" data-section="object-cache">
-        <h3 class="pcm-card-title"><span class="dashicons dashicons-database pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
-        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Inspect object cache health, hit ratio, evictions, and memory pressure trends.', 'pressable_cache_management' ); ?></p>
-        <div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
-        <template class="pcm-lazy-template">
-        <p class="pcm-feature-desc"><?php echo esc_html__( 'Data source: we first read the active object-cache drop-in stats (global $wp_object_cache), then fall back to PHP Memcached extension stats when available. Evictions can show n/a when the provider does not expose that metric; memory pressure can show 0% when memory limit bytes are unavailable.', 'pressable_cache_management' ); ?></p>
-        <p>
-            <button type="button" class="pcm-btn-secondary" id="pcm-oci-refresh-btn"><?php echo esc_html__( 'Refresh diagnostics', 'pressable_cache_management' ); ?></button>
-            <span id="pcm-oci-summary" class="pcm-inline-status" aria-live="polite" role="status"></span>
-        </p>
-        <div class="pcm-responsive-two-col pcm-grid-2col">
-            <div>
-                <h4 class="pcm-section-subhead"><?php echo esc_html__( 'Latest Snapshot', 'pressable_cache_management' ); ?></h4>
-                <div id="pcm-oci-latest" class="pcm-panel-text"></div>
-            </div>
-            <div>
-                <h4 class="pcm-section-subhead"><?php echo esc_html__( '7-day Trend', 'pressable_cache_management' ); ?></h4>
-                <div id="pcm-oci-trends" class="pcm-trend-panel pcm-panel-text"></div>
-            </div>
-        </div>
-        </template>
-    </div>
-    <?php elseif ( $is_deep_dive_tab ) : ?>
-    <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-object-cache-intelligence">
-        <h3 class="pcm-card-title"><span class="dashicons dashicons-database pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Object Cache Intelligence', 'pressable_cache_management' ); ?></h3>
-        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
-        <p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
-    </div>
-    <?php endif; ?>
-
     <?php if ( $is_deep_dive_tab ) : ?>
-    <div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-cache-insights" data-section="cache-insights">
-        <h3 class="pcm-card-title"><span class="dashicons dashicons-dashboard pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Cache Insights', 'pressable_cache_management' ); ?></h3>
-        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Quick overview of your caching stack status.', 'pressable_cache_management' ); ?></p>
+    <div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-cache-overview" data-section="cache-overview">
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-performance pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Cache Overview', 'pressable_cache_management' ); ?></h3>
+        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Caching stack status, object cache hit ratio, and 7-day trend.', 'pressable_cache_management' ); ?></p>
         <div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
         <template class="pcm-lazy-template">
         <p>
-            <button type="button" class="pcm-btn-secondary" id="pcm-cache-insights-refresh"><?php echo esc_html__( 'Refresh', 'pressable_cache_management' ); ?></button>
-            <span id="pcm-cache-insights-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
+            <button type="button" class="pcm-btn-secondary" id="pcm-cache-overview-refresh"><?php echo esc_html__( 'Refresh', 'pressable_cache_management' ); ?></button>
+            <span id="pcm-cache-overview-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
         </p>
-        <div id="pcm-cache-insights-content" class="pcm-cache-insights-grid"></div>
+        <div id="pcm-cache-overview-cards" class="pcm-cache-insights-grid"></div>
+        <div id="pcm-cache-overview-trend" class="pcm-trend-panel pcm-panel-text" style="margin-top:16px;"></div>
         </template>
     </div>
     <?php endif; ?>
