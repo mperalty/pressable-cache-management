@@ -381,16 +381,10 @@ function pressable_cache_management_display_settings_page() {
         <?php if ( $caching_suite_enabled ) : ?>
         <a href="admin.php?page=pressable_cache_management&tab=deep_dive_tab"
            class="nav-tab <?php echo $is_deep_dive_tab ? 'nav-tab-active' : ''; ?>" id="pcm-deep-dive-tab">Deep Dive</a>
-        <?php else : ?>
-        <a href="admin.php?page=pressable_cache_management&tab=deep_dive_tab"
-           class="nav-tab nav-tab-disabled" id="pcm-deep-dive-tab" aria-disabled="true">Deep Dive</a>
         <?php endif; ?>
         <?php if ( $redirect_enabled ) : ?>
         <a href="admin.php?page=pressable_cache_management&tab=redirects_tab"
-           class="nav-tab <?php echo $is_redirects_tab ? 'nav-tab-active' : ''; ?>">Redirects</a>
-        <?php else : ?>
-        <a href="admin.php?page=pressable_cache_management&tab=redirects_tab"
-           class="nav-tab nav-tab-disabled" aria-disabled="true">Redirects</a>
+           class="nav-tab <?php echo $is_redirects_tab ? 'nav-tab-active' : ''; ?>" id="pcm-redirects-tab">Redirects</a>
         <?php endif; ?>
         <a href="admin.php?page=pressable_cache_management&tab=settings_tab"
            class="nav-tab <?php echo $is_settings_tab ? 'nav-tab-active' : ''; ?>">Settings</a>
@@ -452,8 +446,7 @@ function pressable_cache_management_display_settings_page() {
                     <div class="pcm-feature-chips">
                         <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Analyzes headers and cache directives to highlight uncached opportunities." aria-describedby="pcm-chip-desc-1"><?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-1" role="tooltip"><?php echo esc_html__( 'Analyzes headers and cache directives to highlight uncached opportunities.', 'pressable_cache_management' ); ?></span></span>
                         <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Surfaces noisy query strings and cookie patterns that break cache hit rates." aria-describedby="pcm-chip-desc-2"><?php echo esc_html__( 'Cache-Busting Detector', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-2" role="tooltip"><?php echo esc_html__( 'Surfaces noisy query strings and cookie patterns that break cache hit rates.', 'pressable_cache_management' ); ?></span></span>
-                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Tracks trend telemetry, reports, and exports for cache health visibility." aria-describedby="pcm-chip-desc-3"><?php echo esc_html__( 'Observability Reporting', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-3" role="tooltip"><?php echo esc_html__( 'Tracks trend telemetry, reports, and exports for cache health visibility.', 'pressable_cache_management' ); ?></span></span>
-                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Generates recommended next actions when anti-patterns are detected." aria-describedby="pcm-chip-desc-4"><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-4" role="tooltip"><?php echo esc_html__( 'Generates recommended next actions when anti-patterns are detected.', 'pressable_cache_management' ); ?></span></span>
+                        <span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Generates recommended next actions when anti-patterns are detected." aria-describedby="pcm-chip-desc-3"><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-3" role="tooltip"><?php echo esc_html__( 'Generates recommended next actions when anti-patterns are detected.', 'pressable_cache_management' ); ?></span></span>
                     </div>
                     <span class="pcm-ts-inline" id="pcm-caching-suite-inline-status"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $caching_suite_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
                 </div>
@@ -736,31 +729,6 @@ function pressable_cache_management_display_settings_page() {
     <?php endif; ?>
 
     <?php if ( $is_settings_tab ) : ?>
-    <div class="pcm-card pcm-card-hover pcm-card-mb-scroll" id="pcm-feature-observability-reporting">
-        <h3 class="pcm-card-title"><span class="dashicons dashicons-chart-bar pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Observability & Reporting', 'pressable_cache_management' ); ?></h3>
-        <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Review trend rollups and export JSON/CSV diagnostics artifacts.', 'pressable_cache_management' ); ?></p>
-        <?php if ( ! function_exists( 'pcm_reporting_is_enabled' ) || ! pcm_reporting_is_enabled() ) : ?>
-        <div class="pcm-warning-banner">
-            <span aria-hidden="true" class="pcm-warning-banner-icon"><span class="dashicons dashicons-warning"></span></span>
-            <span><?php echo esc_html__( 'Observability is currently disabled because Caching Suite features are turned off. Enable Caching Suite features above to load trends and exports.', 'pressable_cache_management' ); ?></span>
-        </div>
-        <?php else : ?>
-        <p>
-            <select id="pcm-report-range">
-                <option value="24h">24h</option>
-                <option value="7d" selected>7d</option>
-                <option value="30d">30d</option>
-            </select>
-            <button type="button" class="pcm-btn-secondary" id="pcm-report-load"><?php echo esc_html__( 'Load Trends', 'pressable_cache_management' ); ?></button>
-            <button type="button" class="pcm-btn-secondary" id="pcm-report-export-json"><?php echo esc_html__( 'Export JSON', 'pressable_cache_management' ); ?></button>
-            <button type="button" class="pcm-btn-secondary" id="pcm-report-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
-        </p>
-        <div id="pcm-report-output" class="pcm-report-output"></div>
-        <?php endif; ?>
-    </div>
-    <?php endif; ?>
-
-    <?php if ( $is_settings_tab ) : ?>
     <div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-security-privacy">
         <h3 class="pcm-card-title"><span class="dashicons dashicons-shield pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
         <p class="pcm-text-muted-intro"><?php echo esc_html__( 'Configure retention and redaction policy, then review audit log history for privileged actions.', 'pressable_cache_management' ); ?></p>
@@ -774,14 +742,6 @@ function pressable_cache_management_display_settings_page() {
             <div>
                 <h4 class="pcm-section-subhead"><?php echo esc_html__( 'Privacy Settings', 'pressable_cache_management' ); ?></h4>
                 <p><label><?php echo esc_html__( 'Retention Days', 'pressable_cache_management' ); ?> <input type="number" id="pcm-privacy-retention" min="7" max="365" value="<?php echo esc_attr( isset( $privacy_settings['retention_days'] ) ? (int) $privacy_settings['retention_days'] : 90 ); ?>" /></label></p>
-                <p><label><?php echo esc_html__( 'Redaction Level', 'pressable_cache_management' ); ?>
-                    <select id="pcm-privacy-redaction"><option value="minimal" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "minimal" ); ?>>minimal</option><option value="standard" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "standard" ); ?>>standard</option><option value="strict" <?php selected( $privacy_settings['redaction_level'] ?? "standard", "strict" ); ?>>strict</option></select>
-                </label></p>
-                <div class="pcm-redaction-hints pcm-text-muted-intro" style="margin: 4px 0 12px; font-size: 12px; line-height: 1.5;">
-                    <strong><?php echo esc_html__( 'Minimal:', 'pressable_cache_management' ); ?></strong> <?php echo esc_html__( 'Only passwords and secrets are redacted. Emails, usernames, and IPs remain visible in exports and logs.', 'pressable_cache_management' ); ?><br />
-                    <strong><?php echo esc_html__( 'Standard:', 'pressable_cache_management' ); ?></strong> <?php echo esc_html__( 'Emails and auth tokens are masked. Usernames and IPs are preserved for diagnostics.', 'pressable_cache_management' ); ?><br />
-                    <strong><?php echo esc_html__( 'Strict:', 'pressable_cache_management' ); ?></strong> <?php echo esc_html__( 'All personally identifiable data (emails, usernames, IPs, tokens) are fully redacted in exports.', 'pressable_cache_management' ); ?>
-                </div>
                 <p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
                 <p><button type="button" class="pcm-btn-primary" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
                 <span id="pcm-privacy-status" class="pcm-privacy-status" aria-live="polite" role="status"></span></p>

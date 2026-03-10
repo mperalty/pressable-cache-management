@@ -99,16 +99,6 @@
             }
         }
 
-        function pcmSetTabDisabled(tab, disabled) {
-            if (!tab) return;
-            tab.classList.toggle('nav-tab-disabled', disabled);
-            if (disabled) {
-                tab.setAttribute('aria-disabled', 'true');
-            } else {
-                tab.removeAttribute('aria-disabled');
-            }
-        }
-
         function pcmSyncCachingSuiteUi(enabled) {
             var badge = document.getElementById('pcm-caching-suite-status-badge');
             var inlineStatus = document.getElementById('pcm-caching-suite-inline-status');
@@ -126,7 +116,7 @@
 
             if (enabled) {
                 if (deepDiveTab) {
-                    pcmSetTabDisabled(deepDiveTab, false);
+                    deepDiveTab.style.display = '';
                 } else if (tabsNav) {
                     deepDiveTab = document.createElement('a');
                     deepDiveTab.id = 'pcm-deep-dive-tab';
@@ -140,8 +130,8 @@
                         tabsNav.appendChild(deepDiveTab);
                     }
                 }
-            } else {
-                pcmSetTabDisabled(deepDiveTab, true);
+            } else if (deepDiveTab) {
+                deepDiveTab.style.display = 'none';
             }
         }
 
@@ -175,7 +165,6 @@
         if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
         var initialSettings = (window.pcmSettingsData && window.pcmSettingsData.privacySettings) || {};
         var retentionEl = document.getElementById('pcm-privacy-retention');
-        var redactionEl = document.getElementById('pcm-privacy-redaction');
         var auditEnabledEl = document.getElementById('pcm-privacy-audit-enabled');
         var statusEl = document.getElementById('pcm-privacy-status');
         var auditLogEl = document.getElementById('pcm-audit-log');
@@ -189,13 +178,12 @@
         // Without this guard, attempting to bind events from other tabs throws
         // and prevents the rest of settings.js (including Edge Cache controls)
         // from running.
-        if (!retentionEl || !redactionEl || !auditEnabledEl || !statusEl || !auditLogEl || !loadMoreEl) {
+        if (!retentionEl || !auditEnabledEl || !statusEl || !auditLogEl || !loadMoreEl) {
             return;
         }
 
         function renderSettings(s) {
             retentionEl.value = s.retention_days || 90;
-            redactionEl.value = s.redaction_level || 'standard';
             auditEnabledEl.checked = !!s.audit_log_enabled;
         }
 
@@ -252,7 +240,7 @@
                 nonce: window.pcmGetCacheabilityNonce(),
                 settings: JSON.stringify({
                     retention_days: retentionEl.value,
-                    redaction_level: redactionEl.value,
+                    redaction_level: 'standard',
                     audit_log_enabled: auditEnabledEl.checked,
                     export_restrictions: 'admin_only'
                 })

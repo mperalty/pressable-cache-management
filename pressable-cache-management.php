@@ -188,7 +188,6 @@ function pcm_load_feature_modules(): void {
     require_once $dir . 'php-opcache-awareness/opcache-awareness.php';
     require_once $dir . 'redirect-assistant/assistant.php';
     require_once $dir . 'security-privacy/security-privacy.php';
-    require_once $dir . 'observability-reporting/reporting.php';
     require_once $dir . 'guided-remediation-playbooks/playbooks.php';
 }
 if ( is_admin() || wp_doing_ajax() ) {
