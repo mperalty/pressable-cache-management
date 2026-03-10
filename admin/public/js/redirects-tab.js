@@ -32,23 +32,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showStatus(el, msg, isError) {
         if (!el) return;
-        el.innerHTML = '<div style="padding:10px;border-radius:6px;margin-top:8px;' +
-            (isError ? 'background:#fef2f2;color:#dc2626;border:1px solid #fecaca;' : 'background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;') +
-            '">' + escapeHtml(msg) + '</div>';
+        var klass = isError ? 'pcm-ra-status-error' : 'pcm-ra-status-success';
+        el.innerHTML = '<div class="' + klass + '">' + escapeHtml(msg) + '</div>';
     }
 
-    function escapeHtml(value) {
-        var str = String(value == null ? '' : value);
-        return str.replace(/[&<>"']/g, function(char) {
-            return {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            }[char] || char;
-        });
-    }
+    var escapeHtml = window.pcmEscapeHtml;
 
     function defaultRule() {
         return {
@@ -158,27 +146,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
         rulesBody.innerHTML = ruleState.map(function(rule) {
             var invalid = (errorMap[rule.id] || []).length > 0;
-            var invalidStyle = invalid ? 'border:1px solid #dc2626;background:#fef2f2;' : 'border:1px solid #cbd5e1;';
+            var inputClass = invalid ? 'pcm-ra-input pcm-ra-input-invalid' : 'pcm-ra-input';
             return '<tr data-rule-id="' + escapeHtml(rule.id) + '">' +
-                '<td style="padding:6px;vertical-align:top;"><input data-field="source_pattern" type="text" value="' + escapeHtml(rule.source_pattern) + '" style="width:160px;' + invalidStyle + '"></td>' +
-                '<td style="padding:6px;vertical-align:top;"><input data-field="target_pattern" type="text" value="' + escapeHtml(rule.target_pattern) + '" style="width:180px;border:1px solid #cbd5e1;"></td>' +
-                '<td style="padding:6px;vertical-align:top;"><select data-field="match_type" style="width:95px;border:1px solid #cbd5e1;">' +
+                '<td class="pcm-ra-td"><input data-field="source_pattern" type="text" value="' + escapeHtml(rule.source_pattern) + '" class="' + inputClass + ' pcm-ra-input-source"></td>' +
+                '<td class="pcm-ra-td"><input data-field="target_pattern" type="text" value="' + escapeHtml(rule.target_pattern) + '" class="pcm-ra-input pcm-ra-input-target"></td>' +
+                '<td class="pcm-ra-td"><select data-field="match_type" class="pcm-ra-select pcm-ra-select-match">' +
                     '<option value="exact"' + (rule.match_type === 'exact' ? ' selected' : '') + '>exact</option>' +
                     '<option value="wildcard"' + (rule.match_type === 'wildcard' ? ' selected' : '') + '>wildcard</option>' +
                     '<option value="regex"' + (rule.match_type === 'regex' ? ' selected' : '') + '>regex</option>' +
                 '</select></td>' +
-                '<td style="padding:6px;vertical-align:top;"><select data-field="status_code" style="width:80px;border:1px solid #cbd5e1;">' +
+                '<td class="pcm-ra-td"><select data-field="status_code" class="pcm-ra-select pcm-ra-select-code">' +
                     '<option value="301"' + (parseInt(rule.status_code, 10) === 301 ? ' selected' : '') + '>301</option>' +
                     '<option value="302"' + (parseInt(rule.status_code, 10) === 302 ? ' selected' : '') + '>302</option>' +
                     '<option value="307"' + (parseInt(rule.status_code, 10) === 307 ? ' selected' : '') + '>307</option>' +
                 '</select></td>' +
-                '<td style="padding:6px;vertical-align:top;"><input data-field="enabled" type="checkbox"' + (rule.enabled ? ' checked' : '') + '></td>' +
-                '<td style="padding:6px;vertical-align:top;"><button type="button" class="button-link-delete" data-delete-rule="1">Delete</button></td>' +
+                '<td class="pcm-ra-td"><input data-field="enabled" type="checkbox"' + (rule.enabled ? ' checked' : '') + '></td>' +
+                '<td class="pcm-ra-td"><button type="button" class="button-link-delete" data-delete-rule="1">Delete</button></td>' +
             '</tr>';
         }).join('');
 
         if (!ruleState.length) {
-            rulesBody.innerHTML = '<tr><td colspan="6" style="padding:8px;color:#64748b;">No rules yet. Click + Add Rule.</td></tr>';
+            rulesBody.innerHTML = '<tr><td colspan="6" class="pcm-ra-td pcm-ra-empty">No rules yet. Click + Add Rule.</td></tr>';
         }
 
         ruleErrors.innerHTML = validationErrors.map(function(item) {
@@ -237,11 +225,11 @@ document.addEventListener('DOMContentLoaded', function() {
         var html = candidates.map(function(c, idx) {
             var source = escapeHtml(c.source_pattern || '');
             var target = escapeHtml(c.target_pattern || '');
-            return '<div class="pcm-ra-candidate-item" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;">' +
-                '<span class="pcm-ra-candidate-source" style="font-family:monospace;font-size:13px;color:#1e293b;">' + source + '</span>' +
-                '<span style="color:#94a3b8;">&rarr;</span>' +
-                '<span class="pcm-ra-candidate-target" style="font-family:monospace;font-size:13px;color:#059669;">' + target + '</span>' +
-                '<button type="button" class="pcm-btn-text pcm-ra-candidate-add" data-index="' + idx + '" style="margin-left:auto;">Add</button>' +
+            return '<div class="pcm-ra-candidate-item">' +
+                '<span class="pcm-ra-candidate-source">' + source + '</span>' +
+                '<span class="pcm-ra-candidate-arrow">&rarr;</span>' +
+                '<span class="pcm-ra-candidate-target">' + target + '</span>' +
+                '<button type="button" class="pcm-btn-text pcm-ra-candidate-add" data-index="' + idx + '">Add</button>' +
             '</div>';
         }).join('');
 
@@ -275,12 +263,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        var html = '<table class="pcm-table-full" style="width:100%;border-collapse:collapse;font-size:12px;">' +
+        var html = '<table class="pcm-table-full pcm-ra-sim-table">' +
             '<thead><tr>' +
-            '<th style="text-align:left;padding:6px;border-bottom:1px solid #e2e8f0;">Input</th>' +
-            '<th style="text-align:left;padding:6px;border-bottom:1px solid #e2e8f0;">Match</th>' +
-            '<th style="text-align:left;padding:6px;border-bottom:1px solid #e2e8f0;">Result</th>' +
-            '<th style="text-align:left;padding:6px;border-bottom:1px solid #e2e8f0;">Status</th>' +
+            '<th class="pcm-ra-th">Input</th>' +
+            '<th class="pcm-ra-th">Match</th>' +
+            '<th class="pcm-ra-th">Result</th>' +
+            '<th class="pcm-ra-th">Status</th>' +
             '</tr></thead><tbody>';
 
         results.forEach(function(item) {
@@ -289,13 +277,12 @@ document.addEventListener('DOMContentLoaded', function() {
             var rowClass = isOk ? 'pcm-ra-sim-ok' : 'pcm-ra-sim-miss';
             var dotClass = isOk ? 'pcm-ra-status-dot-ok' : 'pcm-ra-status-dot-miss';
             var statusLabel = isOk ? 'OK' : 'No match';
-            var rowBg = isOk ? 'background:#f0fdf4;' : 'background:#fef2f2;';
 
-            html += '<tr class="' + rowClass + '" style="' + rowBg + '">' +
-                '<td style="padding:6px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.input_url || '') + '</td>' +
-                '<td style="padding:6px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(matchedRule ? ('Rule: ' + matchedRule.source_pattern + ' \u2192 ' + matchedRule.target_pattern) : 'No match') + '</td>' +
-                '<td style="padding:6px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.result_url || (matchedRule ? matchedRule.target_pattern : '')) + '</td>' +
-                '<td style="padding:6px;border-bottom:1px solid #f1f5f9;"><span class="pcm-ra-status-dot ' + dotClass + '" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;' + (isOk ? 'background:#16a34a;' : 'background:#dc2626;') + '"></span>' + statusLabel + '</td>' +
+            html += '<tr class="' + rowClass + '">' +
+                '<td class="pcm-ra-td">' + escapeHtml(item.input_url || '') + '</td>' +
+                '<td class="pcm-ra-td">' + escapeHtml(matchedRule ? ('Rule: ' + matchedRule.source_pattern + ' \u2192 ' + matchedRule.target_pattern) : 'No match') + '</td>' +
+                '<td class="pcm-ra-td">' + escapeHtml(item.result_url || (matchedRule ? matchedRule.target_pattern : '')) + '</td>' +
+                '<td class="pcm-ra-td"><span class="pcm-ra-status-dot ' + dotClass + '"></span>' + statusLabel + '</td>' +
             '</tr>';
         });
 

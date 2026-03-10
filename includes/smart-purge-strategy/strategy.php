@@ -854,12 +854,12 @@ add_action( 'init', 'pcm_smart_purge_maybe_schedule_runner' );
  * @return void
  */
 function pcm_smart_purge_handle_settings_post(): void {
-    if ( ! is_admin() || empty( $_POST['pcm_smart_purge_settings_submit'] ) ) {
+    if ( empty( $_POST['pcm_smart_purge_settings_submit'] ) ) {
         return;
     }
 
     if ( ! current_user_can( 'manage_options' ) ) {
-        return;
+        wp_die( 'Unauthorized' );
     }
 
     check_admin_referer( 'pcm_smart_purge_settings_action', 'pcm_smart_purge_settings_nonce' );
@@ -867,12 +867,12 @@ function pcm_smart_purge_handle_settings_post(): void {
     $active         = ! empty( $_POST['pcm_smart_purge_active_mode'] );
     $enable_prewarm = ! empty( $_POST['pcm_smart_purge_enable_prewarm'] );
 
-    $raw_cooldown = intval( wp_unslash( $_POST['pcm_smart_purge_cooldown_seconds'] ?? 120 ) );
-    $raw_defer    = intval( wp_unslash( $_POST['pcm_smart_purge_defer_seconds'] ?? 60 ) );
-    $raw_prewarm_cap = intval( wp_unslash( $_POST['pcm_smart_purge_prewarm_url_cap'] ?? 10 ) );
-    $raw_prewarm_batch_size = intval( wp_unslash( $_POST['pcm_smart_purge_prewarm_batch_size'] ?? 3 ) );
-    $raw_prewarm_repeat_hits = intval( wp_unslash( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ?? 2 ) );
-    $raw_important_urls = wp_unslash( $_POST['pcm_smart_purge_important_urls'] ?? '' );
+    $raw_cooldown = isset( $_POST['pcm_smart_purge_cooldown_seconds'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_cooldown_seconds'] ) ) : 120;
+    $raw_defer    = isset( $_POST['pcm_smart_purge_defer_seconds'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_defer_seconds'] ) ) : 60;
+    $raw_prewarm_cap = isset( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_url_cap'] ) ) : 10;
+    $raw_prewarm_batch_size = isset( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_batch_size'] ) ) : 3;
+    $raw_prewarm_repeat_hits = isset( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ? absint( wp_unslash( $_POST['pcm_smart_purge_prewarm_repeat_hits'] ) ) : 2;
+    $raw_important_urls = isset( $_POST['pcm_smart_purge_important_urls'] ) ? sanitize_textarea_field( wp_unslash( $_POST['pcm_smart_purge_important_urls'] ) ) : '';
 
     $notices = array();
 

@@ -21,42 +21,19 @@ if (isset($options['cache_wpp_cookies_pages']) && !empty($options['cache_wpp_coo
         'pcm_cache_wpp_cookies_pages.php'
     );
 
-    //Display admin notice
-    function cache_wpp_cookies_pages_admin_notice( string $message = '', string $classes = 'notice-success' ): void
-    {
-
-        if (!empty($message))
-        {
-            printf('<div class="notice %2$s">%1$s</div>', $message, $classes);
-        }
-    }
-
     function pcm_cache_wpp_cookies_pages_admin_notice(): void
     {
+        $state = get_option( PCM_Options::CACHE_WPP_COOKIES_PAGES_NOTICE->value, 'activating');
+        if ('activating' !== $state || ! current_user_can('manage_options')) return;
 
-        $cache_wpp_cookies_pages_activate_display_notice = get_option( PCM_Options::CACHE_WPP_COOKIES_PAGES_NOTICE->value, 'activating');
-
-        if ('activating' === $cache_wpp_cookies_pages_activate_display_notice && current_user_can('manage_options'))
-        {
-
-            add_action('admin_notices', function ()
-            {
-
-                $screen = get_current_screen();
-
-                //Display admin notice for this plugin page only
-                if ($screen->id !== 'toplevel_page_pressable_cache_management') return;
-
-                $message = sprintf('<p>Batcache will now cache pages with wpp_ cookies.</p>');
-
-                cache_wpp_cookies_pages_admin_notice($message, 'notice notice-success is-dismissible');
-            });
-
-            update_option( PCM_Options::CACHE_WPP_COOKIES_PAGES_NOTICE->value, 'activated');
-
-        }
+        add_action('admin_notices', function () {
+            $screen = get_current_screen();
+            if ( ! $screen || $screen->id !== 'toplevel_page_pressable_cache_management') return;
+            pcm_admin_notice( __( 'Batcache will now cache pages with wpp_ cookies.', 'pressable_cache_management' ), 'success' );
+        });
+        update_option( PCM_Options::CACHE_WPP_COOKIES_PAGES_NOTICE->value, 'activated');
     }
-    add_action('init', 'pcm_cache_wpp_cookies_pages_admin_notice');
+    add_action('admin_notices', 'pcm_cache_wpp_cookies_pages_admin_notice');
 
 }
 else

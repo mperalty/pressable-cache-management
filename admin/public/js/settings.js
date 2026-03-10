@@ -188,14 +188,7 @@
             auditEnabledEl.checked = !!s.audit_log_enabled;
         }
 
-        function escHtml(value) {
-            return String(value == null ? '' : value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
+        var escHtml = window.pcmEscapeHtml;
 
         function renderAuditRows(rows) {
             if (!rows.length) {
@@ -329,22 +322,17 @@ jQuery(document).ready(function($){
 
         var overlay = document.createElement('div');
         overlay.id = 'pcm-settings-confirm-overlay';
-        overlay.style.cssText =
-            'display:none;position:fixed;inset:0;background:rgba(4,0,36,.45);'
-            + 'z-index:999999;align-items:center;justify-content:center;';
+        overlay.className = 'pcm-modal-overlay';
 
         overlay.innerHTML =
-            '<div id="pcm-settings-confirm-dialog" style="background:#fff;border-radius:12px;padding:28px 32px;max-width:500px;width:90%;'
-            + 'box-shadow:0 8px 40px rgba(4,0,36,.18);font-family:sans-serif;position:relative;">'
-            + '<div style="width:48px;height:4px;background:#03fcc2;border-radius:4px;margin-bottom:16px;"></div>'
-            + '<p id="pcm-settings-confirm-msg" style="margin:0 0 22px;font-size:14px;color:#040024;line-height:1.6;"></p>'
-            + '<label id="pcm-settings-confirm-remember" style="display:none;margin:0 0 18px;font-size:12.5px;color:#6b7280;cursor:pointer;user-select:none;">'
-            + '<input type="checkbox" id="pcm-settings-confirm-skip" style="margin-right:6px;vertical-align:middle;">Don\'t ask again</label>'
-            + '<div style="display:flex;justify-content:flex-end;gap:10px;">'
-            + '<button id="pcm-settings-confirm-cancel" type="button" style="background:#fff;color:#040024;border:1px solid #cbd5e1;border-radius:8px;'
-            + 'padding:10px 20px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:sans-serif;">Cancel</button>'
-            + '<button id="pcm-settings-confirm-ok" type="button" style="background:#dd3a03;color:#fff;border:none;border-radius:8px;'
-            + 'padding:10px 24px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:sans-serif;">Confirm</button>'
+            '<div id="pcm-settings-confirm-dialog" class="pcm-modal-dialog pcm-modal-dialog-wide">'
+            + '<div class="pcm-modal-accent"></div>'
+            + '<p id="pcm-settings-confirm-msg" class="pcm-modal-message"></p>'
+            + '<label id="pcm-settings-confirm-remember" class="pcm-modal-remember">'
+            + '<input type="checkbox" id="pcm-settings-confirm-skip">Don\'t ask again</label>'
+            + '<div class="pcm-modal-btn-row">'
+            + '<button id="pcm-settings-confirm-cancel" type="button" class="pcm-modal-cancel">Cancel</button>'
+            + '<button id="pcm-settings-confirm-ok" type="button" class="pcm-modal-ok">Confirm</button>'
             + '</div>'
             + '</div>';
 

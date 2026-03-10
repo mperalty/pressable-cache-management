@@ -100,14 +100,7 @@ window.pcmOnSectionReady = function(sectionId, initFn) {
 (function(){
         if (window.pcmRenderDeepDiveDependencyError) return;
 
-        function escapeHtml(input) {
-            return String(input || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
+        var escapeHtml = window.pcmEscapeHtml;
 
         function payloadError(payload, fallback) {
             if (payload && payload.data && payload.data.message) return payload.data.message;
@@ -353,14 +346,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                 });
         }
 
-        function escapeHtml(input) {
-            return String(input || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
+        var escapeHtml = window.pcmEscapeHtml;
 
         function renderPlaybook(playbook, ruleId, progress) {
             if (!playbook || !playbook.meta || !playbook.meta.playbook_id) {

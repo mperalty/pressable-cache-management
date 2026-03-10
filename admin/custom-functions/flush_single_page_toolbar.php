@@ -22,14 +22,12 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
                     add_action( 'admin_enqueue_scripts', array( $this, 'load_toolbar_js' ) );
                     add_action( 'admin_enqueue_scripts', array( $this, 'load_remove_branding_toolbar_js' ) );
                     add_action( 'admin_enqueue_scripts', array( $this, 'load_toolbar_css' ) );
-                } else {
-                    if ( is_admin() || is_admin_bar_showing() ) {
-                        add_action( 'wp_before_admin_bar_render', array( $this, 'pcm_toolbar_for_page_preview' ) );
-                        add_action( 'wp_enqueue_scripts', array( $this, 'load_toolbar_js' ) );
-                        add_action( 'admin_enqueue_scripts', array( $this, 'load_remove_branding_toolbar_js' ) );
-                        add_action( 'wp_enqueue_scripts', array( $this, 'load_toolbar_css' ) );
-                        add_action( 'wp_footer', array( $this, 'print_my_inline_script' ) );
-                    }
+                } elseif ( is_admin_bar_showing() ) {
+                    add_action( 'wp_before_admin_bar_render', array( $this, 'pcm_toolbar_for_page_preview' ) );
+                    add_action( 'wp_enqueue_scripts', array( $this, 'load_toolbar_js' ) );
+                    add_action( 'admin_enqueue_scripts', array( $this, 'load_remove_branding_toolbar_js' ) );
+                    add_action( 'wp_enqueue_scripts', array( $this, 'load_toolbar_css' ) );
+                    add_action( 'wp_footer', array( $this, 'print_my_inline_script' ) );
                 }
 
                 // AJAX: flush batcache for current page
@@ -41,14 +39,7 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
             public function pcm_delete_current_page_cache(): void {
                 pcm_verify_ajax_request( 'nonce', 'pcm_nonce', method: 'GET' );
 
-                global $batcache, $wp_object_cache;
-
-                if ( ! isset( $batcache ) || ! is_object( $batcache ) || ! method_exists( $wp_object_cache, 'incr' ) ) {
-                    return;
-                }
-
-                $batcache->configure_groups();
-                $path = urldecode( esc_url_raw( wp_unslash( $_GET['path'] ) ) );
+                $path = esc_url_raw( urldecode( wp_unslash( $_GET['path'] ) ) );
 
                 // Validate path: must start with / and contain no traversal sequences
                 $parsed = wp_parse_url( $path, PHP_URL_PATH );
@@ -58,29 +49,12 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
                 $path = $parsed;
 
                 $url = get_home_url() . $path;
-                $url = apply_filters( 'batcache_manager_link', $url );
-                if ( empty( $url ) ) return;
 
-                do_action( 'batcache_manager_before_flush', $url );
-                $url = set_url_scheme( $url, 'http' );
-                update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, $url );
-
-                $url_key = md5( $url );
-                if ( is_object( $batcache ) ) {
-                    wp_cache_add( "{$url_key}_version", 0, $batcache->group );
-                    wp_cache_incr( "{$url_key}_version", 1, $batcache->group );
+                if ( ! pcm_flush_batcache_url( $url ) ) {
+                    wp_send_json_error( array( 'reason' => 'Batcache not available' ) );
                 }
 
-                if ( property_exists( $wp_object_cache, 'no_remote_groups' ) ) {
-                    $k = array_search( $batcache->group, (array) $wp_object_cache->no_remote_groups );
-                    if ( false !== $k ) {
-                        unset( $wp_object_cache->no_remote_groups[ $k ] );
-                        wp_cache_set( "{$url_key}_version", $batcache->group );
-                        $wp_object_cache->no_remote_groups[ $k ] = $batcache->group;
-                    }
-                }
-
-                do_action( 'batcache_manager_after_flush', $url );
+                update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, set_url_scheme( $url, 'http' ) );
                 update_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
                 wp_send_json_success( array( 'flushed' => 'batcache' ) );
             }
@@ -88,7 +62,7 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
             public function pcm_purge_current_page_edge_cache(): void {
                 pcm_verify_ajax_request( 'nonce', 'pcm_nonce', method: 'GET' );
 
-                $path = urldecode( esc_url_raw( wp_unslash( $_GET['path'] ) ) );
+                $path = esc_url_raw( urldecode( wp_unslash( $_GET['path'] ) ) );
 
                 // Validate path: must start with / and contain no traversal sequences
                 $parsed = wp_parse_url( $path, PHP_URL_PATH );
@@ -144,7 +118,7 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
             public function print_my_inline_script(): void { ?>
                 <script>
                 var pcm_ajaxurl = "<?php echo esc_url( admin_url('admin-ajax.php') ); ?>";
-                var pcm_nonce   = "<?php echo wp_create_nonce('pcm_nonce'); ?>";
+                var pcm_nonce   = "<?php echo esc_js( wp_create_nonce('pcm_nonce') ); ?>";
                 </script>
                 <?php
             }
@@ -153,7 +127,7 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
                 global $wp_admin_bar;
 
                 $branding_opts     = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
-                $branding_disabled = $branding_opts && 'disable' == $branding_opts['branding_on_off_radio_button'];
+                $branding_disabled = $branding_opts && 'disable' === $branding_opts['branding_on_off_radio_button'];
                 $edge_cache_on     = ( get_option( PCM_Options::EDGE_CACHE_ENABLED->value ) === 'enabled' );
 
                 // Single label: include Edge Cache in the title when it is active
@@ -191,7 +165,8 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
                 }
             }
 
-            // Empty admin-side toolbar (handled by object_cache_admin_bar.php)
+            // Admin-side toolbar rendering is handled by cache-purge-admin-bar.php — this
+            // method exists only as a hook target registered in add() above.
             public function PcmFlushCacheAdminbar(): void {}
         }
     }
@@ -199,16 +174,16 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
     add_action( 'init', 'pcm_show_flush_cache_option_for_single_page' );
 
     function pcm_show_flush_cache_option_for_single_page(): void {
-        $current_user = wp_get_current_user();
-        if ( current_user_can('manage_woocommerce') || current_user_can('administrator') ) {
+        if ( current_user_can( 'manage_options' ) ) {
             $toolbar = new PcmFlushCacheAdminbar();
             $toolbar->add();
         } else {
             if ( ! function_exists('load_admin_toolbar_css') ) {
                 function load_admin_toolbar_css() {
-                    $css_path = plugin_dir_path( dirname( __FILE__ ) ) . 'public/css/toolbar.css';
+                    // Use lightweight frontend-only CSS (no base64 loader, no admin styles)
+                    $css_path = dirname( dirname( plugin_dir_path( __FILE__ ) ) ) . '/public/css/pcm-toolbar.css';
                     wp_enqueue_style( 'pressable-cache-management-toolbar',
-                        plugin_dir_url( dirname( __FILE__ ) ) . 'public/css/toolbar.css',
+                        plugins_url( 'public/css/pcm-toolbar.css', dirname( dirname( __FILE__ ) ) . '/pressable-cache-management.php' ),
                         array(), file_exists( $css_path ) ? (string) filemtime( $css_path ) : '3.0.0', 'all' );
                 }
             }

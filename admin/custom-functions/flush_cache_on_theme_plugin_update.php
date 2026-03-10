@@ -17,7 +17,7 @@ if ( isset( $options['flush_cache_theme_plugin_checkbox'] ) && ! empty( $options
             return;
         }
 
-        wp_cache_flush();
+        pcm_schedule_deferred_flush();
 
         // ── Resolve the name of the updated item ────────────────────────────
         $name = '';

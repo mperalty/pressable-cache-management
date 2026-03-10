@@ -21,42 +21,19 @@ if (isset($options['exclude_query_string_gclid_checkbox']) && !empty($options['e
         'pcm_exclude_query_string_gclid.php'
     );
 
-     //Display admin notice
-    function exclude_query_string_gclid_admin_notice( string $message = '', string $classes = 'notice-success' ): void
-    {
-
-        if (!empty($message))
-        {
-            printf('<div class="notice %2$s">%1$s</div>', $message, $classes);
-        }
-    }
-
     function pcm_exclude_query_string_gclid_admin_notice(): void
     {
+        $state = get_option( PCM_Options::EXCLUDE_QUERY_STRING_GCLID_NOTICE->value, 'activating');
+        if ('activating' !== $state || ! current_user_can('manage_options')) return;
 
-        $exclude_query_string_gclid_activate_display_notice = get_option( PCM_Options::EXCLUDE_QUERY_STRING_GCLID_NOTICE->value, 'activating');
-
-        if ('activating' === $exclude_query_string_gclid_activate_display_notice && current_user_can('manage_options'))
-        {
-
-            add_action('admin_notices', function ()
-            {
-
-                $screen = get_current_screen();
-
-                //Display admin notice for this plugin page only
-                if ($screen->id !== 'toplevel_page_pressable_cache_management') return;
-
-                $message = '<p> Google Ads URL with query string (gclid) will be excluded from Batcache.</p>';
-
-                exclude_query_string_gclid_admin_notice($message, 'notice notice-success is-dismissible');
-            });
-
-            update_option( PCM_Options::EXCLUDE_QUERY_STRING_GCLID_NOTICE->value, 'activated');
-
-        }
+        add_action('admin_notices', function () {
+            $screen = get_current_screen();
+            if ( ! $screen || $screen->id !== 'toplevel_page_pressable_cache_management') return;
+            pcm_admin_notice( __( 'Google Ads URL with query string (gclid) will be excluded from Batcache.', 'pressable_cache_management' ), 'success' );
+        });
+        update_option( PCM_Options::EXCLUDE_QUERY_STRING_GCLID_NOTICE->value, 'activated');
     }
-    add_action('init', 'pcm_exclude_query_string_gclid_admin_notice');
+    add_action('admin_notices', 'pcm_exclude_query_string_gclid_admin_notice');
 
 
 

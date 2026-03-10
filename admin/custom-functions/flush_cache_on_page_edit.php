@@ -36,47 +36,14 @@ if ( isset( $options['flush_cache_page_edit_checkbox'] ) && ! empty( $options['f
             return;
         }
 
-        // Get the public URL for this post
         $url = get_permalink( $post_id );
         if ( empty( $url ) ) {
             return;
         }
 
-        global $batcache, $wp_object_cache;
-
-        // Batcache must be loaded and the object cache must support incr()
-        if ( ! isset( $batcache ) || ! is_object( $batcache ) || ! method_exists( $wp_object_cache, 'incr' ) ) {
+        if ( ! pcm_flush_batcache_url( $url ) ) {
             return;
         }
-
-        $batcache->configure_groups();
-
-        $url = apply_filters( 'batcache_manager_link', $url );
-        if ( empty( $url ) ) {
-            return;
-        }
-
-        do_action( 'batcache_manager_before_flush', $url );
-
-        // Batcache keys off the http:// version of the URL
-        $url     = set_url_scheme( $url, 'http' );
-        $url_key = md5( $url );
-
-        // Increment the version key — Batcache treats the cached copy as stale
-        wp_cache_add( "{$url_key}_version", 0, $batcache->group );
-        wp_cache_incr( "{$url_key}_version", 1, $batcache->group );
-
-        // Handle sites where the Batcache group is excluded from remote sync
-        if ( property_exists( $wp_object_cache, 'no_remote_groups' ) ) {
-            $k = array_search( $batcache->group, (array) $wp_object_cache->no_remote_groups );
-            if ( false !== $k ) {
-                unset( $wp_object_cache->no_remote_groups[ $k ] );
-                wp_cache_set( "{$url_key}_version", $batcache->group );
-                $wp_object_cache->no_remote_groups[ $k ] = $batcache->group;
-            }
-        }
-
-        do_action( 'batcache_manager_after_flush', $url );
 
         // Record the flush for display on the settings page
         $post_type_name = get_post_type_object( $post->post_type )?->labels->singular_name
@@ -87,8 +54,7 @@ if ( isset( $options['flush_cache_page_edit_checkbox'] ) && ! empty( $options['f
                . ' edit: ' . esc_html( $post->post_title ) . '</b>';
 
         update_option( PCM_Options::FLUSH_CACHE_PAGE_EDIT_TIMESTAMP->value, $stamp );
-        // Also write the flushed URL so the settings page can show it
-        update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, $url );
+        update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, set_url_scheme( $url, 'http' ) );
     }
 
     add_action( 'save_post', 'pcm_flush_batcache_on_page_edit', 10, 3 );

@@ -35,7 +35,7 @@ function pressable_cache_management_add_toplevel_menu(): void
     $remove_pressable_branding_tab_options = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
    
     
-if ($remove_pressable_branding_tab_options && 'disable'  == $remove_pressable_branding_tab_options['branding_on_off_radio_button'] )
+if ($remove_pressable_branding_tab_options && 'disable' === $remove_pressable_branding_tab_options['branding_on_off_radio_button'] )
 {
 
         add_menu_page(esc_html__('Cache Management Settings', 'pressable_cache_management') , esc_html__('Cache Control', 'pressable_cache_management') , 'manage_options', 'pressable_cache_management', 'pressable_cache_management_display_settings_page',

@@ -12,10 +12,7 @@ if (!defined('ABSPATH'))
 add_action( 'admin_bar_menu', 'pcm_cache_add_item', 100 );
 
 function pcm_cache_add_item( \WP_Admin_Bar $admin_bar ): void {
-
 	if ( is_admin() ) {
-		global $pagenow;
-
 		$admin_bar->add_menu(
 			array(
 				'id'    => 'cache-purge',
@@ -23,8 +20,6 @@ function pcm_cache_add_item( \WP_Admin_Bar $admin_bar ): void {
 				'href'  => '#',
 			)
 		);
-		// $admin_bar->add_menu( array( 'id'=>'settings','title'=>'Cache Settings', 'parent'=> 'cache-purge', 'href'=>'admin.php?page=pressable_cache_management' ) );
-
 	}
 }
 
@@ -48,13 +43,6 @@ function pcm_cache_purge_action_js(): void { ?>
   </script>
 
 
-<style type="text/css">
-	
-/*#wp-admin-bar-cache-purge .ab-item { 
-  background-color: #0AD8C7;
-}
-*/
-</style>
 
 
 	<?php
@@ -73,6 +61,6 @@ function pcm_pressable_cache_purge_callback(): void {
 
 	update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, $object_cache_flush_time );
 	$response = 'Object Cache Purged';
-	echo $response;
+	echo esc_html( $response );
 	wp_die();
 }

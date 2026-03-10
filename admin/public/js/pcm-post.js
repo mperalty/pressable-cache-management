@@ -57,14 +57,7 @@
     };
 
     window.pcmHandleError = window.pcmHandleError || function(context, error, targetEl) {
-        function esc(value) {
-            return String(value == null ? '' : value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
+        var esc = window.pcmEscapeHtml;
 
         var isNonceError = error && (error.status === 403 || /nonce|forbidden|permission|rest_forbidden/i.test(error.message || ''));
 
@@ -76,7 +69,7 @@
                     targetEl.innerHTML = '<div class="pcm-inline-error" role="alert" aria-live="assertive"><strong>' + esc(context) + ':</strong> ' + esc(refreshed) + '</div>';
                 }
             }).catch(function() {
-                var expired = 'Your session expired. Please <a href="" onclick="location.reload();return false;">reload the page</a> to continue.';
+                var expired = 'Your session expired. Please <a href="" class="pcm-reload-link" href="#">reload the page</a> to continue.';
                 if (targetEl) {
                     targetEl.innerHTML = '<div class="pcm-inline-error" role="alert" aria-live="assertive"><strong>' + esc(context) + ':</strong> ' + expired + '</div>';
                 }
@@ -88,7 +81,7 @@
         if (error && (error.isTimeout || error.message === 'timeout')) {
             message = 'The request timed out. <a href="#" class="pcm-retry-link">Try again</a>';
         } else if (isNonceError) {
-            message = 'Your session expired. Please <a href="" onclick="location.reload();return false;">reload the page</a> to continue.';
+            message = 'Your session expired. Please <a href="" class="pcm-reload-link" href="#">reload the page</a> to continue.';
         } else if (error && error.status >= 500) {
             message = 'Server error (HTTP ' + error.status + '). Check your PHP error logs for details.';
         } else {
@@ -107,6 +100,14 @@
                     } else {
                         location.reload();
                     }
+                });
+            }
+            // Bind reload links (replaces inline onclick="location.reload()")
+            var reloadLinks = targetEl.querySelectorAll('.pcm-reload-link');
+            for (var i = 0; i < reloadLinks.length; i++) {
+                reloadLinks[i].addEventListener('click', function(e) {
+                    e.preventDefault();
+                    location.reload();
                 });
             }
         }

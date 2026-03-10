@@ -22,35 +22,19 @@ if ( isset( $options['flush_object_cache_for_single_page'] ) && ! empty( $option
 
     function flush_object_cache_for_single_page_notice(): void {
         $state = get_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value, 'activating' );
+        if ( 'activating' !== $state ) return;
+        if ( ! ( current_user_can('administrator') || current_user_can('editor') || current_user_can('manage_woocommerce') ) ) return;
 
-        if ( 'activating' === $state &&
-            ( current_user_can('administrator') || current_user_can('editor') || current_user_can('manage_woocommerce') )
-        ) {
-            add_action( 'admin_notices', function() {
-                $screen = get_current_screen();
-                if ( ! isset( $screen ) || $screen->id !== 'toplevel_page_pressable_cache_management' ) return;
+        $screen = get_current_screen();
+        if ( ! $screen || $screen->id !== 'toplevel_page_pressable_cache_management' ) return;
 
-                $wrap = 'display:flex;align-items:center;justify-content:space-between;gap:12px;'
-                      . 'border-left:4px solid #03fcc2;background:#fff;border-radius:0 8px 8px 0;'
-                      . 'padding:14px 18px;box-shadow:0 2px 8px rgba(4,0,36,.07);'
-                      . 'margin:10px 0;font-family:sans-serif;';
-                $btn     = 'background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;line-height:1;padding:0;';
-                $pcm_nid = 'pcm-sp-notice-' . substr( md5( microtime() ), 0, 8 );
-                echo '<div style="max-width:1120px;margin:0 auto;padding:0 20px;box-sizing:border-box;">';
-                echo '<div id="' . $pcm_nid . '" style="' . $wrap . '">';
-                echo '<p style="margin:0;font-size:13px;color:#040024;">'
-                   . esc_html__( 'You can Flush Cache for Individual page or post from page preview.', 'pressable_cache_management' )
-                   . '</p>';
-                echo '<button type="button" class="pcm-dismiss-notice" data-pcm-dismiss="' . esc_attr( $pcm_nid ) . '" style="' . $btn . '"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button>';
-                echo '</div>';
-                echo '</div>';
-                echo '<script>document.querySelector(\'[data-pcm-dismiss="' . esc_js( $pcm_nid ) . '"]\').addEventListener("click",function(){document.getElementById("' . esc_js( $pcm_nid ) . '").remove();});</script>';
-            });
-
-            update_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value, 'activated' );
-        }
+        pcm_admin_notice(
+            __( 'You can Flush Cache for Individual page or post from page preview.', 'pressable_cache_management' ),
+            'success'
+        );
+        update_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value, 'activated' );
     }
-    add_action( 'init', 'flush_object_cache_for_single_page_notice' );
+    add_action( 'admin_notices', 'flush_object_cache_for_single_page_notice' );
 
 } else {
     update_option( PCM_Options::FLUSH_SINGLE_PAGE_NOTICE->value, 'activating' );
@@ -70,7 +54,7 @@ if ( ! class_exists( 'FlushObjectCachePageColumn' ) ) {
             if ( current_user_can('administrator') || current_user_can('editor') || current_user_can('manage_woocommerce') ) {
                 $actions['flush_object_cache_url'] =
                     '<a data-id="' . esc_attr( $post->ID ) . '"'
-                    . ' data-nonce="' . wp_create_nonce( 'flush-object-cache_' . $post->ID ) . '"'
+                    . ' data-nonce="' . esc_attr( wp_create_nonce( 'flush-object-cache_' . $post->ID ) ) . '"'
                     . ' id="flush-object-cache-url-' . esc_attr( $post->ID ) . '"'
                     . ' style="cursor:pointer;">'
                     . esc_html__( 'Flush Cache', 'pressable_cache_management' ) . '</a>';
@@ -87,42 +71,16 @@ if ( ! class_exists( 'FlushObjectCachePageColumn' ) ) {
             $nonce_action = 'flush-object-cache_' . $post_id;
             pcm_verify_ajax_request( 'nonce', $nonce_action, method: 'GET', capability: 'edit_posts' );
 
-            $url_key    = get_permalink( intval( $_GET['id'] ) );
-            $page_title = get_the_title( intval( $_GET['id'] ) );
+            $url        = get_permalink( $post_id );
+            $page_title = get_the_title( $post_id );
             update_option( PCM_Options::PAGE_TITLE->value, $page_title );
 
-            global $batcache, $wp_object_cache;
-
-            if ( ! isset( $batcache ) || ! is_object( $batcache ) || ! method_exists( $wp_object_cache, 'incr' ) ) {
+            if ( ! $url || ! pcm_flush_batcache_url( $url ) ) {
                 wp_send_json_error( array( 'reason' => 'Batcache not available' ) );
             }
 
-            $batcache->configure_groups();
-            $url = apply_filters( 'batcache_manager_link', $url_key );
-            if ( empty( $url ) ) {
-                wp_send_json_error( array( 'reason' => 'Empty URL after filter' ) );
-            }
-
-            do_action( 'batcache_manager_before_flush', $url );
-            $url     = set_url_scheme( $url, 'http' );
-            $url_key = md5( $url );
-
-            wp_cache_add( "{$url_key}_version", 0, $batcache->group );
-            wp_cache_incr( "{$url_key}_version", 1, $batcache->group );
-
-            if ( property_exists( $wp_object_cache, 'no_remote_groups' ) ) {
-                $k = array_search( $batcache->group, (array) $wp_object_cache->no_remote_groups );
-                if ( false !== $k ) {
-                    unset( $wp_object_cache->no_remote_groups[ $k ] );
-                    wp_cache_set( "{$url_key}_version", $batcache->group );
-                    $wp_object_cache->no_remote_groups[ $k ] = $batcache->group;
-                }
-            }
-
-            do_action( 'batcache_manager_after_flush', $url );
             update_option( PCM_Options::FLUSH_SINGLE_PAGE_TIMESTAMP->value, pcm_format_flush_timestamp() );
-            // Also store the flushed URL so it shows on the settings page
-            update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, $url );
+            update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, set_url_scheme( $url, 'http' ) );
 
             wp_send_json_success( array( 'flushed' => true ) );
         }

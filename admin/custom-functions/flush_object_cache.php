@@ -57,20 +57,8 @@ add_action( 'wp_ajax_pcm_flush_object_cache', 'pcm_ajax_flush_object_cache' );
 
 if ( isset( $_POST['flush_object_cache_nonce'] ) ) {
     if ( pcm_verify_request( 'flush_object_cache_nonce', 'flush_object_cache_nonce' ) && pcm_flush_all_caches() ) {
-        function flush_cache_notice__success(): void {
-            $pcm_nid = 'pcm-obj-notice-' . substr( md5( microtime() ), 0, 8 );
-            $wrap = 'display:flex;align-items:center;justify-content:space-between;gap:12px;'
-                  . 'border-left:4px solid #03fcc2;background:#fff;border-radius:0 8px 8px 0;'
-                  . 'padding:14px 18px;box-shadow:0 2px 8px rgba(4,0,36,.07);'
-                  . 'margin:10px 20px 10px 0;font-family:sans-serif;';
-            $btn  = 'background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;line-height:1;padding:0;';
-            echo '<div id="' . $pcm_nid . '" style="' . $wrap . '">';
-            echo '<p style="margin:0;font-size:13px;color:#040024;">'
-               . esc_html__( 'Object Cache Flushed Successfully.', 'pressable_cache_management' )
-               . '</p>';
-            echo '<button type="button" onclick="document.getElementById(\'' . $pcm_nid . '\').remove();" style="' . $btn . '"><span class="dashicons dashicons-dismiss" aria-hidden="true"></span></button>';
-            echo '</div>';
-        }
-        add_action( 'admin_notices', 'flush_cache_notice__success' );
+        add_action( 'admin_notices', function(): void {
+            pcm_admin_notice( __( 'Object Cache Flushed Successfully.', 'pressable_cache_management' ), 'success' );
+        });
     }
 }

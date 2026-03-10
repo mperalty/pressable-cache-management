@@ -146,29 +146,38 @@ if ( is_admin() ) {
     require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_batcache_for_woo_individual_page.php';
     require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/exclude_pages_from_batcache.php';
     require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_batcache_for_particular_page.php';
-    require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_cache_on_comment_delete.php';
     require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/remove_pressable_branding.php';
 }
 
 // ─── Front-end + admin cache flush triggers ──────────────────────────────────
 require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_cache_on_theme_plugin_update.php';
-require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_cache_on_page_edit.php';
-require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_cache_on_page_post_delete.php';
+require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/cache-flush-dispatcher.php';
 require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/flush_single_page_toolbar.php';
 
-// ─── 2026 Cacheability Advisor scaffolding ───────────────────────────────────
-require_once plugin_dir_path( __FILE__ ) . 'includes/cacheability-advisor/storage.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/cache-busters/detector-framework.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/object-cache-intelligence/intelligence.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/php-opcache-awareness/opcache-awareness.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/redirect-assistant/assistant.php';
+// ─── Smart purge must load early (hooks into save_post at priority 20) ────────
 require_once plugin_dir_path( __FILE__ ) . 'includes/smart-purge-strategy/strategy.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/security-privacy/security-privacy.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/observability-reporting/reporting.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/guided-remediation-playbooks/playbooks.php';
 
+// ─── Microcache hooks into save_post at priority 20, must load early ─────────
 if ( (bool) apply_filters( 'pcm_enable_durable_origin_microcache', (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false ) ) ) {
     require_once plugin_dir_path( __FILE__ ) . 'includes/durable-origin-microcache/microcache.php';
+}
+
+// ─── Defer heavy feature modules to admin_init for admin, or wp_loaded for AJAX ──
+function pcm_load_feature_modules(): void {
+    $dir = plugin_dir_path( __FILE__ ) . 'includes/';
+    require_once $dir . 'cacheability-advisor/storage.php';
+    require_once $dir . 'cache-busters/detector-framework.php';
+    require_once $dir . 'object-cache-intelligence/intelligence.php';
+    require_once $dir . 'php-opcache-awareness/opcache-awareness.php';
+    require_once $dir . 'redirect-assistant/assistant.php';
+    require_once $dir . 'security-privacy/security-privacy.php';
+    require_once $dir . 'observability-reporting/reporting.php';
+    require_once $dir . 'guided-remediation-playbooks/playbooks.php';
+}
+if ( is_admin() || wp_doing_ajax() ) {
+    add_action( 'admin_init', 'pcm_load_feature_modules' );
+} else {
+    add_action( 'wp_loaded', 'pcm_load_feature_modules' );
 }
 
 // ─── Settings link on plugin list page ──────────────────────────────────────

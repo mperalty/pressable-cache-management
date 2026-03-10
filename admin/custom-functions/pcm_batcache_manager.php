@@ -43,7 +43,23 @@ class Batcache_Manager {
     /**
      *
      */
-    private function __construct() {
+    /** @var bool Whether hooks have been registered. */
+    private bool $hooks_registered = false;
+
+    private function __construct() {}
+
+    /**
+     * Register cache-clearing hooks.
+     *
+     * Deferred from the constructor so that hook registration only happens
+     * when the Batcache_Manager is actually needed (lazy initialization).
+     * Called automatically by get_instance() when the batcache globals
+     * are available.
+     */
+    public function register_hooks(): void {
+        if ( $this->hooks_registered ) {
+            return;
+        }
 
         global $batcache, $wp_object_cache;
 
@@ -51,6 +67,8 @@ class Batcache_Manager {
         if ( ! isset( $batcache ) || ! is_object( $batcache ) || ! method_exists( $wp_object_cache, 'incr' ) ) {
             return;
         }
+
+        $this->hooks_registered = true;
 
         $batcache->configure_groups();
 
@@ -90,9 +108,9 @@ class Batcache_Manager {
      * @return    object    A single instance of this class.
      */
     public static function get_instance(): self {
-        // If the single instance hasn't been set, set it now.
-        if ( null == self::$instance ) {
-            self::$instance = new self;
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+            self::$instance->register_hooks();
         }
 
         return self::$instance;
@@ -416,39 +434,8 @@ class Batcache_Manager {
      *
      * @return bool|false|int
      */
-    public static function clear_url( string $url ): bool|int {
-        global $batcache, $wp_object_cache;
-
-        $url = apply_filters( 'batcache_manager_link', $url );
-
-        if ( empty( $url ) ) {
-            return false;
-        }
-
-        do_action( 'batcache_manager_before_flush', $url );
-
-        // Force to http
-        $url = set_url_scheme( $url, 'http' );
-
-        $url_key = md5( $url );
-
-        wp_cache_add( "{$url_key}_version", 0, $batcache->group );
-        $retval = wp_cache_incr( "{$url_key}_version", 1, $batcache->group );
-
-        // $batcache_no_remote_group_key = array_search( $batcache->group, (array) $wp_object_cache->no_remote_groups );
-        $batcache_no_remote_group_key = property_exists($wp_object_cache, 'no_remote_groups') ? array_search( $batcache->group, (array) $wp_object_cache->no_remote_groups ) : false;
-
-        if ( false !== $batcache_no_remote_group_key ) {
-            // The *_version key needs to be replicated remotely, otherwise invalidation won't work.
-            // The race condition here should be acceptable.
-            unset( $wp_object_cache->no_remote_groups[ $batcache_no_remote_group_key ] );
-            $retval                                                             = wp_cache_set( "{$url_key}_version", $retval, $batcache->group );
-            $wp_object_cache->no_remote_groups[ $batcache_no_remote_group_key ] = $batcache->group;
-        }
-
-        do_action( 'batcache_manager_after_flush', $url, $retval );
-
-        return $retval;
+    public static function clear_url( string $url ): bool {
+        return pcm_flush_batcache_url( $url );
     }
 
     /**
@@ -464,6 +451,13 @@ class Batcache_Manager {
 
 }
 
-global $batcache_manager;
-
-$batcache_manager = Batcache_Manager::get_instance();
+/**
+ * Lazy factory: defer Batcache_Manager initialization until `init` so that
+ * hook registration doesn't run on every admin page load unconditionally.
+ * The $batcache global is only available after advanced-cache.php loads.
+ */
+function pcm_batcache_manager_init(): void {
+    global $batcache_manager;
+    $batcache_manager = Batcache_Manager::get_instance();
+}
+add_action( 'init', 'pcm_batcache_manager_init' );

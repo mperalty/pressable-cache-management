@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/Users/Malcolm/Documents/pressable-cache-management-main/admin/public/js/*.js /c/Users/Malcolm/Documents/pressable-cache-management-main/public/css/*.css)"
+    ]
+  }
+}

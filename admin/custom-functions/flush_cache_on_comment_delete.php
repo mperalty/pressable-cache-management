@@ -34,7 +34,7 @@ function pcm_flush_cache_on_comment_removal( string $comment_id, \WP_Comment $co
 
 	$flushed_comments[ $comment_id ] = true;
 
-	wp_cache_flush();
+	pcm_schedule_deferred_flush();
 
 	// Save timestamp to database when cache is flushed on comment removal.
 	$object_cache_flush_time = pcm_format_flush_timestamp();

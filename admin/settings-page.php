@@ -66,7 +66,7 @@ if ( ! function_exists( 'pcm_branded_notice' ) ) {
         $id   = 'pcm-notice-' . substr( md5( $message . $border_color . microtime() ), 0, 8 );
         echo '<div id="' . esc_attr( $id ) . '" class="pcm-branded-notice" style="border-left-color:' . esc_attr( $border_color ) . ';"><div class="pcm-branded-notice-body">';
         if ( $is_html ) {
-            echo $message;
+            echo wp_kses_post( $message );
         } else {
             echo '<p class="pcm-branded-notice-text">' . esc_html( $message ) . '</p>';
         }
@@ -90,17 +90,14 @@ function pcm_get_batcache_status() {
 
 // ── AJAX: browser reports the header value it observed ───────────────────────
 function pcm_ajax_report_batcache_header() {
-    check_ajax_referer( 'pcm_batcache_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( 'Unauthorized', 403 );
-    }
+    pcm_verify_ajax_request( 'nonce', 'pcm_batcache_nonce' );
 
     $raw = isset( $_POST['x_nananana'] ) ? sanitize_text_field( wp_unslash( $_POST['x_nananana'] ) ) : '';
     $val = strtolower( trim( $raw ) );
 
     $status = match ( true ) {
         str_contains( $val, 'batcache' )                                        => 'active',
-        isset( $_POST['is_cloudflare'] ) && $_POST['is_cloudflare'] === '1'     => 'cloudflare',
+        ( isset( $_POST['is_cloudflare'] ) && sanitize_text_field( wp_unslash( $_POST['is_cloudflare'] ) ) === '1' ) => 'cloudflare',
         default                                                                 => 'broken',
     };
 
@@ -235,6 +232,14 @@ function pressable_cache_management_display_settings_page() {
     $base_js_path = plugin_dir_path( __FILE__ ) . 'public/js/';
 
     wp_enqueue_script(
+        'pcm-utils',
+        $base_js_url . 'pcm-utils.js',
+        array(),
+        file_exists( $base_js_path . 'pcm-utils.js' ) ? (string) filemtime( $base_js_path . 'pcm-utils.js' ) : false,
+        true
+    );
+
+    wp_enqueue_script(
         'pcm-modal-a11y',
         $base_js_url . 'pcm-modal-a11y.js',
         array(),
@@ -245,7 +250,7 @@ function pressable_cache_management_display_settings_page() {
     wp_enqueue_script(
         'pcm-post',
         $base_js_url . 'pcm-post.js',
-        array(),
+        array( 'pcm-utils' ),
         file_exists( $base_js_path . 'pcm-post.js' ) ? (string) filemtime( $base_js_path . 'pcm-post.js' ) : false,
         true
     );
@@ -253,26 +258,32 @@ function pressable_cache_management_display_settings_page() {
     wp_enqueue_script(
         'pcm-settings-page-settings',
         $base_js_url . 'settings.js',
-        array( 'jquery', 'pcm-post', 'pcm-modal-a11y' ),
+        array( 'jquery', 'pcm-post', 'pcm-modal-a11y', 'pcm-utils' ),
         file_exists( $base_js_path . 'settings.js' ) ? (string) filemtime( $base_js_path . 'settings.js' ) : false,
         true
     );
 
-    wp_enqueue_script(
-        'pcm-settings-page-object-cache',
-        $base_js_url . 'object-cache-tab.js',
-        array( 'pcm-post' ),
-        file_exists( $base_js_path . 'object-cache-tab.js' ) ? (string) filemtime( $base_js_path . 'object-cache-tab.js' ) : false,
-        true
-    );
+    // Only load tab-specific JS when the corresponding tab is active.
+    // This avoids loading ~2,300 lines of JS on tabs that don't need them.
+    if ( $is_object_tab ) {
+        wp_enqueue_script(
+            'pcm-settings-page-object-cache',
+            $base_js_url . 'object-cache-tab.js',
+            array( 'pcm-post' ),
+            file_exists( $base_js_path . 'object-cache-tab.js' ) ? (string) filemtime( $base_js_path . 'object-cache-tab.js' ) : false,
+            true
+        );
+    }
 
-    wp_enqueue_script(
-        'pcm-settings-page-deep-dive',
-        $base_js_url . 'deep-dive.js',
-        array( 'pcm-post' ),
-        file_exists( $base_js_path . 'deep-dive.js' ) ? (string) filemtime( $base_js_path . 'deep-dive.js' ) : false,
-        true
-    );
+    if ( $is_deep_dive_tab ) {
+        wp_enqueue_script(
+            'pcm-settings-page-deep-dive',
+            $base_js_url . 'deep-dive.js',
+            array( 'pcm-post' ),
+            file_exists( $base_js_path . 'deep-dive.js' ) ? (string) filemtime( $base_js_path . 'deep-dive.js' ) : false,
+            true
+        );
+    }
 
     if ( 'redirects_tab' === $tab ) {
         wp_enqueue_script(
@@ -314,34 +325,38 @@ function pressable_cache_management_display_settings_page() {
         $pcm_batcache_max_age = 86400;
     }
 
-    wp_localize_script(
-        'pcm-settings-page-object-cache',
-        'pcmObjectCacheData',
-        array(
-            'nonces'          => array(
-                'batcache' => wp_create_nonce( 'pcm_batcache_nonce' ),
-            ),
-            'siteUrl'         => trailingslashit( get_site_url() ),
-            'isUnknown'       => $bc_is_unknown,
-            'batcacheMaxAge'  => $pcm_batcache_max_age,
-            'strings'         => array(
-                'alreadyChecking' => __( 'Already checking…', 'pressable_cache_management' ),
-                'checking'        => __( 'Checking…', 'pressable_cache_management' ),
-                'checkFailed'     => __( 'Check Failed', 'pressable_cache_management' ),
-            ),
-        )
-    );
+    if ( $is_object_tab ) {
+        wp_localize_script(
+            'pcm-settings-page-object-cache',
+            'pcmObjectCacheData',
+            array(
+                'nonces'          => array(
+                    'batcache' => wp_create_nonce( 'pcm_batcache_nonce' ),
+                ),
+                'siteUrl'         => trailingslashit( get_site_url() ),
+                'isUnknown'       => $bc_is_unknown,
+                'batcacheMaxAge'  => $pcm_batcache_max_age,
+                'strings'         => array(
+                    'alreadyChecking' => __( 'Already checking…', 'pressable_cache_management' ),
+                    'checking'        => __( 'Checking…', 'pressable_cache_management' ),
+                    'checkFailed'     => __( 'Check Failed', 'pressable_cache_management' ),
+                ),
+            )
+        );
+    }
 
-    wp_localize_script(
-        'pcm-settings-page-deep-dive',
-        'pcmDeepDiveData',
-        array(
-            'nonces' => array(
-                'cacheabilityScan' => wp_create_nonce( 'pcm_cacheability_scan' ),
-            ),
-            'siteUrl' => trailingslashit( get_site_url() ),
-        )
-    );
+    if ( $is_deep_dive_tab ) {
+        wp_localize_script(
+            'pcm-settings-page-deep-dive',
+            'pcmDeepDiveData',
+            array(
+                'nonces' => array(
+                    'cacheabilityScan' => wp_create_nonce( 'pcm_cacheability_scan' ),
+                ),
+                'siteUrl' => trailingslashit( get_site_url() ),
+            )
+        );
+    }
     ?>
     <div class="wrap pcm-wrap pcm-page-wrap">
     <div class="pcm-page-inner">
@@ -983,7 +998,7 @@ function pressable_cache_management_display_settings_page() {
                 <h3 class="pcm-card-title"><span class="dashicons dashicons-update pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Global Controls', 'pressable_cache_management' ); ?></h3>
                 <p class="pcm-section-title"><?php echo esc_html__( 'Flush Object Cache', 'pressable_cache_management' ); ?></p>
                 <form method="post" id="pcm-flush-form">
-                    <input type="hidden" name="flush_object_cache_nonce" value="<?php echo wp_create_nonce('flush_object_cache_nonce'); ?>">
+                    <input type="hidden" name="flush_object_cache_nonce" value="<?php echo esc_attr( wp_create_nonce('flush_object_cache_nonce') ); ?>">
                     <input type="submit" value="<?php esc_attr_e('Flush Cache for all Pages','pressable_cache_management'); ?>"
                            class="pcm-btn-primary pcm-btn-block" id="pcm-flush-btn">
                 </form>
@@ -1040,7 +1055,7 @@ function pressable_cache_management_display_settings_page() {
                     <div>
                         <div class="pcm-toggle-title"><?php echo wp_kses_post($rule['title']); ?></div>
                         <div class="pcm-toggle-desc"><?php echo wp_kses_post($rule['desc']); ?></div>
-                        <span class="pcm-ts-inline"><strong><?php echo __('Last flushed at:', 'pressable_cache_management'); ?></strong> <?php echo $rule['ts'] ? wp_kses_post( str_replace( array("\n", "\r"), ' ', $rule['ts'] ) ) : '&#8212;'; ?></span>
+                        <span class="pcm-ts-inline"><strong><?php echo esc_html__('Last flushed at:', 'pressable_cache_management'); ?></strong> <?php echo $rule['ts'] ? esc_html( $rule['ts'] ) : '&#8212;'; ?></span>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -1091,8 +1106,8 @@ function pressable_cache_management_display_settings_page() {
                     <div>
                         <div class="pcm-toggle-title"><?php echo esc_html__( 'Flush Batcache for Individual Pages', 'pressable_cache_management' ); ?></div>
                         <div class="pcm-toggle-desc"><?php echo esc_html__( 'Flush Batcache for individual pages from page preview toolbar.', 'pressable_cache_management' ); ?></div>
-                        <span class="pcm-ts-inline"><strong><?php echo __('Last flushed at:', 'pressable_cache_management'); ?></strong> <?php echo $sp_ts ? wp_kses_post( str_replace( array("\n", "\r"), ' ', $sp_ts ) ) : '&#8212;'; ?></span>
-                        <span class="pcm-ts-inline"><strong><?php echo __('Page URL:', 'pressable_cache_management'); ?></strong> <?php echo $sp_url ? esc_html( $sp_url ) : '&#8212;'; ?></span>
+                        <span class="pcm-ts-inline"><strong><?php echo esc_html__('Last flushed at:', 'pressable_cache_management'); ?></strong> <?php echo $sp_ts ? esc_html( $sp_ts ) : '&#8212;'; ?></span>
+                        <span class="pcm-ts-inline"><strong><?php echo esc_html__('Page URL:', 'pressable_cache_management'); ?></strong> <?php echo $sp_url ? esc_html( $sp_url ) : '&#8212;'; ?></span>
                     </div>
                 </div>
 
@@ -1112,7 +1127,7 @@ function pressable_cache_management_display_settings_page() {
                     <div>
                         <div class="pcm-toggle-title"><?php echo esc_html__( 'Flush cache automatically when published pages/posts are deleted.', 'pressable_cache_management' ); ?></div>
                         <div class="pcm-toggle-desc"><?php echo esc_html__( 'Flushes Batcache for the specific page when it is deleted.', 'pressable_cache_management' ); ?></div>
-                        <span class="pcm-ts-inline"><strong><?php echo __('Last flushed at:', 'pressable_cache_management'); ?></strong> <?php echo $del_ts ? wp_kses_post( str_replace( array("\n", "\r"), ' ', $del_ts ) ) : '&#8212;'; ?></span>
+                        <span class="pcm-ts-inline"><strong><?php echo esc_html__('Last flushed at:', 'pressable_cache_management'); ?></strong> <?php echo $del_ts ? esc_html( $del_ts ) : '&#8212;'; ?></span>
                     </div>
                 </div>
 
@@ -1173,6 +1188,21 @@ function pressable_cache_management_display_settings_page() {
         </div><!-- /RIGHT -->
     </div><!-- /grid -->
 
+    <!-- MU-Plugin Health Check -->
+    <?php
+    $missing_mu = pcm_check_mu_plugin_health();
+    if ( ! empty( $missing_mu ) ) : ?>
+    <div class="pcm-card pcm-card-mb pcm-notice-error-inline">
+        <h3 class="pcm-card-title"><span class="dashicons dashicons-warning pcm-title-icon" aria-hidden="true" style="color:#dd3a03;"></span> <?php echo esc_html__( 'MU-Plugin Health', 'pressable_cache_management' ); ?></h3>
+        <p><?php echo esc_html__( 'The following MU-plugin files are expected but missing. Try toggling the related feature off and on again, or check file permissions.', 'pressable_cache_management' ); ?></p>
+        <ul>
+            <?php foreach ( $missing_mu as $file ) : ?>
+                <li><code><?php echo esc_html( $file ); ?></code></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+    <?php endif; ?>
+
     <!-- Save button -->
     <div class="pcm-save-row">
         <button type="submit" name="submit" form="pcm-main-settings-form" class="pcm-btn-primary"><span class="dashicons dashicons-yes" aria-hidden="true"></span> <?php echo esc_html__( 'Save Settings', 'pressable_cache_management' ); ?></button>
@@ -1222,7 +1252,7 @@ function pressable_cache_management_display_settings_page() {
                 </p>
                 <form method="post" id="purge_edge_cache_nonce_form_static" class="pcm-ec-purge-form">
                     <?php settings_fields('edge_cache_settings_tab_options'); ?>
-                    <input type="hidden" name="purge_edge_cache_nonce" value="<?php echo wp_create_nonce('purge_edge_cache_nonce'); ?>">
+                    <input type="hidden" name="purge_edge_cache_nonce" value="<?php echo esc_attr( wp_create_nonce('purge_edge_cache_nonce') ); ?>">
                     <input id="purge-edge-cache-button-input"
                            name="edge_cache_settings_tab_options[purge_edge_cache_button]"
                            type="submit"

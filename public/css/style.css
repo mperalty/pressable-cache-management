@@ -9,6 +9,9 @@
   --pcm-text: #040024;
   --pcm-border: #e2e8f0;
   --pcm-muted: #475569;
+  --pcm-brand-orange: #dd3a03;
+  --pcm-brand-dark: #040024;
+  --pcm-brand-teal: #03fcc2;
 }
 
 body.admin-color-modern .pcm-wrap {
@@ -26,21 +29,22 @@ body.admin-color-modern .pcm-wrap {
 }
 
 /* ---- Tab Navigation ---- */
-.pcm-wrap .nav-tab-wrapper {
+/* Double .pcm-wrap specificity to override wp-admin .nav-tab defaults without !important */
+.pcm-wrap.pcm-wrap .nav-tab-wrapper {
   border-bottom: 2px solid #e0e3e8;
   margin-bottom: 28px;
   padding-bottom: 0;
-  background: transparent !important; /* !important: overrides wp-admin .nav-tab-wrapper */
+  background: transparent;
 }
 
-.pcm-wrap .nav-tab {
+.pcm-wrap.pcm-wrap .nav-tab {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #475569;
-  background: transparent !important; /* !important: overrides wp-admin .nav-tab */
-  border: none !important; /* !important: overrides wp-admin .nav-tab */
-  border-bottom: 2px solid transparent !important; /* !important: overrides wp-admin .nav-tab */
+  color: var(--pcm-muted, #475569);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
   padding: 10px 20px;
   margin-bottom: -2px;
   transition: color 0.2s, border-color 0.2s;
@@ -48,30 +52,30 @@ body.admin-color-modern .pcm-wrap {
   text-decoration: none;
 }
 
-.pcm-wrap .nav-tab:hover {
-  color: #040024;
-  border-bottom-color: #94a3b8 !important; /* !important: overrides wp-admin .nav-tab */
-  background: transparent !important; /* !important: overrides wp-admin .nav-tab:hover */
+.pcm-wrap.pcm-wrap .nav-tab:hover {
+  color: var(--pcm-brand-dark, #040024);
+  border-bottom-color: #94a3b8;
+  background: transparent;
 }
 
-.pcm-wrap .nav-tab-active,
-.pcm-wrap .nav-tab-active:hover {
-  color: #040024;
-  border-bottom: 2px solid #040024 !important; /* !important: overrides wp-admin .nav-tab-active */
+.pcm-wrap.pcm-wrap .nav-tab-active,
+.pcm-wrap.pcm-wrap .nav-tab-active:hover {
+  color: var(--pcm-brand-dark, #040024);
+  border-bottom: 2px solid var(--pcm-brand-dark, #040024);
   font-weight: 700;
-  background: transparent !important; /* !important: overrides wp-admin .nav-tab-active */
+  background: transparent;
 }
 
-.pcm-wrap .nav-tab-hidden {
-  display: none !important; /* !important: overrides any wp-admin display rules */
+.pcm-wrap.pcm-wrap .nav-tab-hidden {
+  display: none;
 }
 
 /* ---- Disabled Tab (e.g. Deep Dive when Caching Suite is off) ---- */
-.pcm-wrap .nav-tab-disabled {
+.pcm-wrap.pcm-wrap .nav-tab-disabled {
   opacity: 0.45;
   cursor: not-allowed;
   color: var(--pcm-muted);
-  border-bottom-color: transparent !important; /* !important: overrides wp-admin .nav-tab */
+  border-bottom-color: transparent;
   position: relative;
 }
 
@@ -84,9 +88,9 @@ body.admin-color-modern .pcm-wrap {
   vertical-align: middle;
 }
 
-.pcm-wrap .nav-tab-disabled:hover {
+.pcm-wrap.pcm-wrap .nav-tab-disabled:hover {
   color: var(--pcm-muted);
-  border-bottom-color: transparent !important; /* !important: overrides wp-admin .nav-tab */
+  border-bottom-color: transparent;
 }
 
 /* ---- Logo ---- */
@@ -2614,3 +2618,108 @@ body.admin-color-modern .pcm-wrap .pcm-ra-sim-loop { background: #2e1a1a; }
     font-size: 13px;
     color: var(--pcm-text, #111827);
 }
+
+/* ── Shared modal button hover (replaces JS hover handlers) ── */
+.pcm-modal-ok-btn { background: var(--pcm-brand-orange, #dd3a03); transition: background .2s; }
+.pcm-modal-ok-btn:hover { background: #b82f00; }
+
+/* ── Confirm modal (settings.js) ── */
+.pcm-modal-dialog-wide { max-width: 500px; }
+
+.pcm-modal-remember {
+  display: none;
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  color: var(--pcm-muted, #6b7280);
+  cursor: pointer;
+  user-select: none;
+}
+.pcm-modal-remember input { margin-right: 6px; vertical-align: middle; }
+
+.pcm-modal-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.pcm-modal-cancel {
+  background: var(--pcm-card-bg, #fff);
+  color: var(--pcm-text, #040024);
+  border: 1px solid var(--pcm-border, #cbd5e1);
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: sans-serif;
+}
+.pcm-modal-cancel:hover { background: #f8fafc; }
+
+/* ── Redirects rules table ── */
+.pcm-ra-td {
+  padding: 6px;
+  vertical-align: top;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+body.admin-color-modern .pcm-ra-td { border-bottom-color: #3c434a; }
+
+.pcm-ra-th {
+  text-align: left;
+  padding: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+body.admin-color-modern .pcm-ra-th { border-bottom-color: #3c434a; }
+
+.pcm-ra-sim-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.pcm-ra-sim-miss { background: #fef2f2; }
+body.admin-color-modern .pcm-ra-sim-miss { background: #2e1a1a; }
+
+.pcm-ra-status-dot-miss { background: #dc2626; }
+
+.pcm-ra-input {
+  border: 1px solid var(--pcm-border, #cbd5e1);
+}
+
+.pcm-ra-input-source { width: 160px; }
+.pcm-ra-input-target { width: 180px; }
+.pcm-ra-input-invalid { border-color: #dc2626; background: #fef2f2; }
+
+.pcm-ra-select {
+  border: 1px solid var(--pcm-border, #cbd5e1);
+}
+
+.pcm-ra-select-match { width: 95px; }
+.pcm-ra-select-code { width: 80px; }
+
+.pcm-ra-empty { color: #64748b; padding: 8px; }
+
+.pcm-ra-candidate-arrow { color: #94a3b8; }
+
+/* Redirects status messages */
+.pcm-ra-status-success {
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 8px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.pcm-ra-status-error {
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+body.admin-color-modern .pcm-ra-status-success { background: #1a2e1a; border-color: #2d4a2d; }
+body.admin-color-modern .pcm-ra-status-error { background: #2e1a1a; border-color: #4a2d2d; }

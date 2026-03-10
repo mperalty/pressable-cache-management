@@ -1,69 +1,11 @@
 /**
  * Pressable Cache Management - Flush cache for individual page column
- * Branded modal popup replaces browser alert()
+ * Uses shared pcmShowModal from pcm-utils.js
  *
  * Public API: none (all behaviour is event-driven)
  */
 (function(window, document) {
     'use strict';
-
-    /* ── Branded modal (injected once) ─────────────────────────────────────── */
-    function pcmEnsureModal() {
-        if (document.getElementById('pcm-col-modal-overlay')) return;
-
-        var overlay = document.createElement('div');
-        overlay.id  = 'pcm-col-modal-overlay';
-        overlay.style.cssText =
-            'display:none;position:fixed;inset:0;background:rgba(4,0,36,.45);'
-            + 'z-index:999999;align-items:center;justify-content:center;';
-
-        overlay.innerHTML =
-            '<div id="pcm-col-modal-dialog" style="background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:90%;'
-            + 'box-shadow:0 8px 40px rgba(4,0,36,.18);font-family:sans-serif;position:relative;">'
-            + '<div style="width:48px;height:4px;background:#03fcc2;border-radius:4px;margin-bottom:16px;"></div>'
-            + '<p id="pcm-col-modal-msg" style="margin:0 0 22px;font-size:14px;color:#040024;line-height:1.6;"></p>'
-            + '<button id="pcm-col-modal-ok" style="background:#dd3a03;color:#fff;border:none;border-radius:8px;'
-            + 'padding:10px 28px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:sans-serif;'
-            + 'transition:background .2s;">OK</button>'
-            + '</div>';
-
-        document.body.appendChild(overlay);
-
-        overlay.style.display = 'flex'; overlay.style.display = 'none'; // force style parse
-
-        var dialog = document.getElementById('pcm-col-modal-dialog');
-
-        function closeColumnModal() {
-            overlay.style.display = 'none';
-            window.pcmModalA11y.onClose(overlay);
-        }
-
-        document.getElementById('pcm-col-modal-ok').addEventListener('click', closeColumnModal);
-        overlay.addEventListener('click', function(e) {
-            if (e.target === overlay) closeColumnModal();
-        });
-
-        window.pcmModalA11y.setup({
-            overlay: overlay,
-            dialog: dialog,
-            labelId: 'pcm-col-modal-msg',
-            onClose: closeColumnModal
-        });
-
-        // hover on OK button
-        var okBtn = document.getElementById('pcm-col-modal-ok');
-        okBtn.addEventListener('mouseenter', function() { okBtn.style.background = '#b82f00'; });
-        okBtn.addEventListener('mouseleave', function() { okBtn.style.background = '#dd3a03'; });
-    }
-
-    function pcmShowColumnModal(msg, triggerEl) {
-        pcmEnsureModal();
-        document.getElementById('pcm-col-modal-msg').textContent = msg;
-        var overlay = document.getElementById('pcm-col-modal-overlay');
-        var dialog  = document.getElementById('pcm-col-modal-dialog');
-        overlay.style.display = 'flex';
-        window.pcmModalA11y.onOpen(overlay, dialog, triggerEl);
-    }
 
     function flush_object_cache_column_button_action() {
         jQuery(document).ready(function($) {
@@ -93,9 +35,9 @@
                     success: function(data) {
                         $('#flush-object-cache-url-' + post_id).css({ cursor: 'pointer', opacity: 1, pointerEvents: 'auto' }).data('pcm-busy', false);
                         if (typeof data.success !== 'undefined' && data.success === true) {
-                            pcmShowColumnModal('Batcache flushed successfully \u2705', triggerEl);
+                            window.pcmShowModal('Batcache flushed successfully \u2705', triggerEl);
                         } else {
-                            pcmShowColumnModal("Failed to flush cache for '" + postTitle + "'. The server returned an unexpected response.", triggerEl);
+                            window.pcmShowModal("Failed to flush cache for '" + postTitle + "'. The server returned an unexpected response.", triggerEl);
                         }
                     },
                     error: function(jqXHR, textStatus) {
@@ -110,7 +52,7 @@
                         } else {
                             msg = "Could not connect. Check your site is accessible.";
                         }
-                        pcmShowColumnModal(msg, triggerEl);
+                        window.pcmShowModal(msg, triggerEl);
                     }
                 });
                 return false;
