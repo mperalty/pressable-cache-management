@@ -1,0 +1,21 @@
+parameters:
+    level: 5
+    paths:
+        - admin
+        - includes
+        - pressable-cache-management.php
+        - remove-mu-plugins-batcache-on-uninstall.php
+        - remove-old-mu-plugins.php
+        - scripts
+        - uninstall.php
+    excludePaths:
+        analyse:
+            - includes/plugin-update-checker/*
+            - includes/plugin-update-checker/**/*
+    scanFiles:
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+        - vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
+        - vendor/php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
+        - vendor/php-stubs/wp-cli-stubs/wp-cli-i18n-stubs.php
+        - vendor/php-stubs/wp-cli-stubs/wp-cli-tools-stubs.php
+    tmpDir: .phpstan-cache

@@ -2,10 +2,9 @@
 
 
 // disable direct file access
-if (!defined('ABSPATH'))
-{
+if ( ! defined( 'ABSPATH' ) ) {
 
-    exit;
+	exit;
 
 }
 
@@ -27,20 +26,21 @@ function pcm_cache_add_item( \WP_Admin_Bar $admin_bar ): void {
 
 add_action( 'admin_footer', 'pcm_cache_purge_action_js' );
 
-function pcm_cache_purge_action_js(): void { ?>
-  <script type="text/javascript" >
-	 jQuery("li#wp-admin-bar-cache-purge .ab-item").on( "click", function() {
+function pcm_cache_purge_action_js(): void {
+	?>
+	<script type="text/javascript" >
+	jQuery("li#wp-admin-bar-cache-purge .ab-item").on( "click", function() {
 		var data = {
-					  'action': 'pressable_cache_purge',
-					  '_ajax_nonce': '<?php echo esc_js( wp_create_nonce( 'pressable_cache_purge' ) ); ?>',
+						'action': 'pressable_cache_purge',
+						'_ajax_nonce': '<?php echo esc_js( wp_create_nonce( 'pressable_cache_purge' ) ); ?>',
 					};
 
 		jQuery.post(ajaxurl, data, function(response) {
-		   alert( response );
+			alert( response );
 		});
 
-	  });
-  </script>
+		});
+	</script>
 
 
 

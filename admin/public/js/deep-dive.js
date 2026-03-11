@@ -531,17 +531,24 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
 
         function processScanQueue(runId, total) {
             var remaining = total;
+            var storageFailures = 0;
             function processNext() {
                 return window.pcmPost({ action: 'pcm_cacheability_scan_process_next', nonce: window.pcmGetCacheabilityNonce(), run_id: runId })
                     .then(function(payload) {
                         if (!payload || !payload.success || !payload.data) {
                             throw new Error('Scan processing failed');
                         }
+                        if (payload.data.stored === false) {
+                            storageFailures++;
+                        }
                         remaining = payload.data.remaining || 0;
                         var scanned = total - remaining;
                         runStatus.textContent = 'Scanning… ' + scanned + '/' + total + ' URLs processed.';
                         if (!payload.data.done) {
                             return processNext();
+                        }
+                        if (storageFailures > 0) {
+                            return { storageFailures: storageFailures };
                         }
                     });
             }
@@ -559,9 +566,16 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     }
                     var runId = payload.data.run_id;
                     var total = payload.data.remaining || 0;
+                    if (total === 0) {
+                        throw new Error('No URLs to scan. Check that your site has published content.');
+                    }
                     runStatus.textContent = 'Scanning… 0/' + total + ' URLs processed.';
-                    return processScanQueue(runId, total).then(function() {
-                        runStatus.textContent = 'Scan completed for run #' + runId + '.';
+                    return processScanQueue(runId, total).then(function(queueResult) {
+                        if (queueResult && queueResult.storageFailures > 0) {
+                            runStatus.textContent = 'Scan completed for run #' + runId + ' with ' + queueResult.storageFailures + ' storage error(s). Check PHP error logs.';
+                        } else {
+                            runStatus.textContent = 'Scan completed for run #' + runId + '.';
+                        }
                         return loadRunDetails(runId);
                     });
                 })
@@ -763,11 +777,62 @@ window.pcmOnSectionReady('pcm-feature-cache-overview', function(){
         ].join('');
     }
 
+    /* ── Browser-side Batcache probe ── */
+    var ddBatcacheNonce = (window.pcmDeepDiveData && window.pcmDeepDiveData.nonces && window.pcmDeepDiveData.nonces.batcache) || '';
+    var ddSiteUrl       = (window.pcmDeepDiveData && window.pcmDeepDiveData.siteUrl) || '/';
+    var ddBatcacheMaxAge = (window.pcmDeepDiveData && window.pcmDeepDiveData.batcacheMaxAge) || null;
+
+    function probeBatcacheFromBrowser() {
+        if (!ddBatcacheNonce) return;
+
+        fetch(ddSiteUrl, {
+            method: 'GET',
+            cache: 'reload',
+            credentials: 'omit',
+            redirect: 'follow',
+            headers: { 'Pragma': 'no-cache' }
+        })
+        .then(function(resp) {
+            var xNananana    = resp.headers.get('x-nananana') || '';
+            var serverHdr    = resp.headers.get('server') || '';
+            var isCloudflare = serverHdr.toLowerCase().indexOf('cloudflare') !== -1 ? '1' : '0';
+
+            return window.pcmPost({
+                action: 'pcm_report_batcache_header',
+                nonce: ddBatcacheNonce,
+                x_nananana: xNananana,
+                is_cloudflare: isCloudflare
+            });
+        })
+        .then(function(res) {
+            if (!res || !res.success || !res.data) return;
+            var status = res.data.status || 'unknown';
+            var label  = status.charAt(0).toUpperCase() + status.slice(1);
+            var cls    = status === 'active' ? 'pcm-ci-status-ok' : (status === 'broken' ? 'pcm-ci-status-bad' : 'pcm-ci-status-warn');
+
+            if (ddBatcacheMaxAge) label += ' (TTL ' + ddBatcacheMaxAge + 's)';
+
+            var now = new Date();
+            var timeStr = ('0' + now.getUTCHours()).slice(-2) + ':' + ('0' + now.getUTCMinutes()).slice(-2);
+            label += '<br><span style="font-size:10px;color:#6b7280;">Measured from browser headers. Last checked ' + timeStr + ' UTC.</span>';
+
+            var bcCard = cardsEl.querySelector('.pcm-cache-insight-card:first-child');
+            if (bcCard) {
+                var valueEl = bcCard.querySelector('.pcm-ci-value');
+                if (valueEl) {
+                    valueEl.className = 'pcm-ci-value ' + cls;
+                    valueEl.innerHTML = label;
+                }
+            }
+        })
+        .catch(function() { /* probe failed — keep loopback value */ });
+    }
+
     /* ── Render status cards from Cache Insights data ── */
     function renderCards(d) {
         var cards = [];
 
-        // Batcache
+        // Batcache — initial render from loopback; browser probe overwrites below
         var bcStatus = d.batcache_status || 'unknown';
         var bcLabel = bcStatus.charAt(0).toUpperCase() + bcStatus.slice(1);
         var bcClass = bcStatus === 'active' ? 'pcm-ci-status-ok' : (bcStatus === 'broken' ? 'pcm-ci-status-bad' : 'pcm-ci-status-warn');
@@ -851,6 +916,7 @@ window.pcmOnSectionReady('pcm-feature-cache-overview', function(){
                     }
                 }
                 renderCards(cardData);
+                probeBatcacheFromBrowser();
 
                 // Trend chart
                 var trendPoints = (trendsRes && trendsRes.success && trendsRes.data) ? trendsRes.data.points : [];

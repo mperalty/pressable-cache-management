@@ -11,7 +11,7 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
 
 $pcm_callbacks_dir = plugin_dir_path( __FILE__ );

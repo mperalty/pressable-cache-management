@@ -6,8 +6,17 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
+
+$pcm_reporting_dir = plugin_dir_path( __FILE__ );
+
+require_once $pcm_reporting_dir . 'class-pcm-metric-registry.php';
+require_once $pcm_reporting_dir . 'class-pcm-metric-rollup-storage.php';
+require_once $pcm_reporting_dir . 'class-pcm-metric-rollup-service.php';
+require_once $pcm_reporting_dir . 'class-pcm-report-export-service.php';
+require_once $pcm_reporting_dir . 'class-pcm-report-digest-service.php';
+require_once $pcm_reporting_dir . 'class-pcm-reporting-cli-command.php';
 
 /**
  * Feature flag for reporting.
@@ -15,392 +24,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_reporting_is_enabled(): bool {
-    $enabled = (bool) get_option( PCM_Options::ENABLE_OBSERVABILITY_REPORTING->value, false );
+	$enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
 
-    return (bool) apply_filters( 'pcm_enable_observability_reporting', $enabled );
-}
-
-/**
- * Canonical metrics registry.
- */
-class PCM_Metric_Registry {
-    /**
-     * @return array<string, array<string, string>>
-     */
-    public function get_catalog(): array {
-        return array(
-            'cacheability_score'     => array( 'unit' => 'score', 'source' => 'cacheability_advisor' ),
-            'cache_buster_incidence' => array( 'unit' => 'count', 'source' => 'cache_busters' ),
-            'batcache_hits'          => array( 'unit' => 'count', 'source' => 'runtime_headers' ),
-        );
-    }
-
-    /**
-     * @param string $metric_key Metric key.
-     *
-     * @return bool
-     */
-    public function has_metric( string $metric_key ): bool {
-        $catalog = $this->get_catalog();
-
-        return isset( $catalog[ $metric_key ] );
-    }
-}
-
-/**
- * Lightweight rollup storage using options in v1 scaffolding.
- */
-class PCM_Metric_Rollup_Storage {
-    protected string $key = 'pcm_metric_rollups_v1';
-
-    protected int $max_rows = 2000;
-
-    private ?array $rows_cache = null;
-
-    private bool $dirty = false;
-
-    /**
-     * @param array $row Rollup row.
-     */
-    public function append_rollup( array $row ): void {
-        $rows   = $this->get_rollups();
-        $rows[] = $row;
-        $this->rows_cache = $rows;
-        $this->dirty      = true;
-    }
-
-    /**
-     * Flush any pending writes to the database.
-     */
-    public function flush(): void {
-        if ( ! $this->dirty || null === $this->rows_cache ) {
-            return;
-        }
-
-        update_option( $this->key, array_slice( $this->rows_cache, -1 * $this->max_rows ), false );
-        $this->rows_cache = array_slice( $this->rows_cache, -1 * $this->max_rows );
-        $this->dirty      = false;
-    }
-
-    /**
-     * @return array
-     */
-    public function get_rollups(): array {
-        if ( null !== $this->rows_cache ) {
-            return $this->rows_cache;
-        }
-
-        $rows              = get_option( $this->key, array() );
-        $this->rows_cache  = is_array( $rows ) ? $rows : array();
-
-        return $this->rows_cache;
-    }
-
-    /**
-     * @param int $retention_days Retention period.
-     */
-    public function cleanup( int $retention_days = 90 ): void {
-        $this->flush();
-
-        $rows       = $this->get_rollups();
-        $retention  = max( 7, min( 365, absint( $retention_days ) ) );
-        $cutoff_ts  = time() - ( DAY_IN_SECONDS * $retention );
-
-        $rows = array_values(
-            array_filter(
-                $rows,
-                static function ( $row ) use ( $cutoff_ts ) {
-                    $bucket_start = isset( $row['bucket_start'] ) ? strtotime( $row['bucket_start'] ) : 0;
-
-                    return $bucket_start >= $cutoff_ts;
-                }
-            )
-        );
-
-        update_option( $this->key, $rows, false );
-        $this->rows_cache = $rows;
-        $this->dirty      = false;
-    }
-}
-
-/**
- * Rollup service.
- */
-class PCM_Metric_Rollup_Service {
-    protected readonly PCM_Metric_Registry $registry;
-
-    protected readonly PCM_Metric_Rollup_Storage $storage;
-
-    public function __construct(
-        ?PCM_Metric_Registry $registry = null,
-        ?PCM_Metric_Rollup_Storage $storage = null,
-    ) {
-        $this->registry = $registry ?? new PCM_Metric_Registry();
-        $this->storage  = $storage ?? new PCM_Metric_Rollup_Storage();
-    }
-
-    /**
-     * @param string $metric_key Metric key.
-     * @param float  $value Metric value.
-     * @param array  $dimensions Dimensions.
-     * @param string $bucket_size Bucket size label.
-     */
-    public function write_rollup( string $metric_key, float $value, array $dimensions = array(), string $bucket_size = '1d' ): bool {
-        $metric_key = sanitize_key( $metric_key );
-
-        if ( ! $this->registry->has_metric( $metric_key ) ) {
-            return false;
-        }
-
-        $row = array(
-            'metric_key'      => $metric_key,
-            'bucket_start'    => gmdate( 'Y-m-d 00:00:00' ),
-            'bucket_size'     => sanitize_text_field( $bucket_size ),
-            'value'           => round( (float) $value, 4 ),
-            'dimensions_json' => (array) $dimensions,
-        );
-
-        $this->storage->append_rollup( $row );
-
-        return true;
-    }
-
-    /**
-     * Flush pending rollup writes to the database.
-     */
-    public function flush_storage(): void {
-        $this->storage->flush();
-    }
-
-    /**
-     * Run cleanup on the rollup storage.
-     *
-     * @param int $retention_days Retention period.
-     */
-    public function cleanup_storage( int $retention_days = 90 ): void {
-        $this->storage->cleanup( $retention_days );
-    }
-
-    /**
-     * @param string $range 24h|7d|30d.
-     * @param array  $metric_keys Metric keys.
-     *
-     * @return array
-     */
-    public function query_trends( string $range = '7d', array $metric_keys = array() ): array {
-        $range_days = array(
-            '24h' => 1,
-            '7d'  => 7,
-            '30d' => 30,
-        );
-
-        $days     = $range_days[ $range ] ?? 7;
-        $cutoff   = time() - ( DAY_IN_SECONDS * $days );
-        $keys     = array_map( 'sanitize_key', (array) $metric_keys );
-        $rollups  = $this->storage->get_rollups();
-
-        return array_values(
-            array_filter(
-                $rollups,
-                static function ( $row ) use ( $cutoff, $keys ) {
-                    $bucket_ts = isset( $row['bucket_start'] ) ? strtotime( $row['bucket_start'] ) : 0;
-                    if ( $bucket_ts < $cutoff ) {
-                        return false;
-                    }
-
-                    if ( empty( $keys ) ) {
-                        return true;
-                    }
-
-                    return isset( $row['metric_key'] ) && in_array( $row['metric_key'], $keys, true );
-                }
-            )
-        );
-    }
-}
-
-/**
- * Export service for JSON / CSV with capability checks and basic redaction.
- */
-class PCM_Report_Export_Service {
-    protected readonly PCM_Metric_Rollup_Service $rollup_service;
-
-    public function __construct(
-        ?PCM_Metric_Rollup_Service $rollup_service = null,
-    ) {
-        $this->rollup_service = $rollup_service ?? new PCM_Metric_Rollup_Service();
-    }
-
-    /**
-     * @param string $format json|csv
-     * @param string $range Date range key.
-     * @param array  $metric_keys Filters.
-     *
-     * @return array
-     */
-    public function export( string $format = 'json', string $range = '7d', array $metric_keys = array() ): array {
-        if ( function_exists( 'pcm_get_privacy_settings' ) ) {
-            $privacy = pcm_get_privacy_settings();
-            if ( 'admin_only' === $privacy['export_restrictions'] && ! current_user_can( 'manage_options' ) ) {
-                return array(
-                    'success' => false,
-                    'error'   => 'permission_denied',
-                );
-            }
-        }
-
-        if ( function_exists( 'pcm_current_user_can' ) ) {
-            $can_export = pcm_current_user_can( 'pcm_export_reports' );
-        } else {
-            $can_export = current_user_can( 'manage_options' );
-        }
-
-        if ( ! $can_export ) {
-            return array(
-                'success' => false,
-                'error'   => 'permission_denied',
-            );
-        }
-
-        $rows = $this->rollup_service->query_trends( $range, $metric_keys );
-        $rows = $this->redact_rows( $rows );
-
-        if ( 'csv' === $format ) {
-            return array(
-                'success' => true,
-                'format'  => 'csv',
-                'content' => $this->to_csv( $rows ),
-            );
-        }
-
-        return array(
-            'success' => true,
-            'format'  => 'json',
-            'content' => wp_json_encode( $rows ),
-        );
-    }
-
-    /**
-     * @param array $rows Rows.
-     *
-     * @return array
-     */
-    protected function redact_rows( array $rows ): array {
-        foreach ( $rows as $index => $row ) {
-            $dimensions = isset( $row['dimensions_json'] ) ? (array) $row['dimensions_json'] : array();
-
-            if ( function_exists( 'pcm_privacy_redact_value' ) ) {
-                $rows[ $index ]['dimensions_json'] = pcm_privacy_redact_value( $dimensions );
-                continue;
-            }
-
-            if ( isset( $dimensions['email'] ) ) {
-                unset( $dimensions['email'] );
-            }
-            if ( isset( $dimensions['user_login'] ) ) {
-                unset( $dimensions['user_login'] );
-            }
-
-            $rows[ $index ]['dimensions_json'] = $dimensions;
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @param array $rows Rows.
-     *
-     * @return string
-     */
-    protected function to_csv( array $rows ): string {
-        $fp = fopen( 'php://temp', 'r+' );
-        fputcsv( $fp, array( 'metric_key', 'bucket_start', 'bucket_size', 'value', 'dimensions_json' ) );
-
-        foreach ( $rows as $row ) {
-            fputcsv(
-                $fp,
-                array(
-                    $row['metric_key'] ?? '',
-                    $row['bucket_start'] ?? '',
-                    $row['bucket_size'] ?? '',
-                    $row['value'] ?? '',
-                    wp_json_encode( $row['dimensions_json'] ?? array() ),
-                )
-            );
-        }
-
-        rewind( $fp );
-        $csv = stream_get_contents( $fp );
-        fclose( $fp );
-
-        return (string) $csv;
-    }
-}
-
-/**
- * Weekly digest scheduler and sender.
- */
-class PCM_Report_Digest_Service {
-    protected readonly PCM_Metric_Rollup_Service $rollup_service;
-
-    public function __construct(
-        ?PCM_Metric_Rollup_Service $rollup_service = null,
-    ) {
-        $this->rollup_service = $rollup_service ?? new PCM_Metric_Rollup_Service();
-    }
-
-    /**
-     * @return void
-     */
-    public function send_weekly_digest(): void {
-        if ( ! pcm_reporting_is_enabled() ) {
-            return;
-        }
-
-        $recipients = get_option( PCM_Options::REPORT_DIGEST_RECIPIENTS->value, get_option( 'admin_email' ) );
-        $recipients = array_filter( array_map( 'sanitize_email', array_map( 'trim', explode( ',', (string) $recipients ) ) ) );
-
-        if ( empty( $recipients ) ) {
-            return;
-        }
-
-        $rows = $this->rollup_service->query_trends( '7d' );
-
-        $subject = __( '[Pressable Cache Management] Weekly cache report', 'pressable_cache_management' );
-        $body    = $this->build_digest_body( $rows );
-
-        foreach ( $recipients as $email ) {
-            wp_mail( $email, $subject, $body );
-        }
-    }
-
-    /**
-     * @param array $rows Rows.
-     *
-     * @return string
-     */
-    protected function build_digest_body( array $rows ): string {
-        $lines = array();
-        $lines[] = 'Pressable Cache Management Weekly Digest';
-        $lines[] = 'Generated: ' . gmdate( 'Y-m-d H:i:s' ) . ' UTC';
-        $lines[] = '';
-        $lines[] = 'Top metric snapshots (last 7 days):';
-
-        $top = array_slice( $rows, -10 );
-        foreach ( $top as $row ) {
-            $lines[] = sprintf(
-                '- %s @ %s = %s',
-                $row['metric_key'] ?? 'unknown_metric',
-                $row['bucket_start'] ?? 'unknown_time',
-                $row['value'] ?? 'n/a'
-            );
-        }
-
-        $lines[] = '';
-        $lines[] = 'Review full diagnostics in WP Admin > Pressable Cache Management > Reports.';
-
-        return implode( "\n", $lines );
-    }
+	return (bool) apply_filters( 'pcm_enable_observability_reporting', $enabled );
 }
 
 /**
@@ -411,21 +37,21 @@ class PCM_Report_Digest_Service {
  * @return array
  */
 function pcm_reporting_register_schedules( array $schedules ): array {
-    if ( ! isset( $schedules['pcm_daily'] ) ) {
-        $schedules['pcm_daily'] = array(
-            'interval' => DAY_IN_SECONDS,
-            'display'  => __( 'Once Daily (PCM Reporting)', 'pressable_cache_management' ),
-        );
-    }
+	if ( ! isset( $schedules['pcm_daily'] ) ) {
+		$schedules['pcm_daily'] = array(
+			'interval' => DAY_IN_SECONDS,
+			'display'  => __( 'Once Daily (PCM Reporting)', 'pressable_cache_management' ),
+		);
+	}
 
-    if ( ! isset( $schedules['pcm_weekly'] ) ) {
-        $schedules['pcm_weekly'] = array(
-            'interval' => WEEK_IN_SECONDS,
-            'display'  => __( 'Once Weekly (PCM Reporting)', 'pressable_cache_management' ),
-        );
-    }
+	if ( ! isset( $schedules['pcm_weekly'] ) ) {
+		$schedules['pcm_weekly'] = array(
+			'interval' => WEEK_IN_SECONDS,
+			'display'  => __( 'Once Weekly (PCM Reporting)', 'pressable_cache_management' ),
+		);
+	}
 
-    return $schedules;
+	return $schedules;
 }
 add_filter( 'cron_schedules', 'pcm_reporting_register_schedules' );
 
@@ -435,17 +61,17 @@ add_filter( 'cron_schedules', 'pcm_reporting_register_schedules' );
  * @return void
  */
 function pcm_reporting_maybe_schedule_jobs(): void {
-    if ( ! pcm_reporting_is_enabled() ) {
-        return;
-    }
+	if ( ! pcm_reporting_is_enabled() ) {
+		return;
+	}
 
-    if ( ! wp_next_scheduled( 'pcm_reporting_daily_rollup' ) ) {
-        wp_schedule_event( time() + 120, 'pcm_daily', 'pcm_reporting_daily_rollup' );
-    }
+	if ( ! wp_next_scheduled( 'pcm_reporting_daily_rollup' ) ) {
+		wp_schedule_event( time() + 120, 'pcm_daily', 'pcm_reporting_daily_rollup' );
+	}
 
-    if ( ! wp_next_scheduled( 'pcm_reporting_weekly_digest' ) ) {
-        wp_schedule_event( time() + 300, 'pcm_weekly', 'pcm_reporting_weekly_digest' );
-    }
+	if ( ! wp_next_scheduled( 'pcm_reporting_weekly_digest' ) ) {
+		wp_schedule_event( time() + 300, 'pcm_weekly', 'pcm_reporting_weekly_digest' );
+	}
 }
 add_action( 'init', 'pcm_reporting_maybe_schedule_jobs' );
 
@@ -455,22 +81,22 @@ add_action( 'init', 'pcm_reporting_maybe_schedule_jobs' );
  * @return void
  */
 function pcm_reporting_daily_rollup(): void {
-    if ( ! pcm_reporting_is_enabled() ) {
-        return;
-    }
+	if ( ! pcm_reporting_is_enabled() ) {
+		return;
+	}
 
-    $rollups = new PCM_Metric_Rollup_Service();
+	$rollups = new PCM_Metric_Rollup_Service();
 
-    $cacheability_score = pcm_reporting_latest_cacheability_score();
-    $rollups->write_rollup( 'cacheability_score', $cacheability_score );
+	$cacheability_score = pcm_reporting_latest_cacheability_score();
+	$rollups->write_rollup( 'cacheability_score', $cacheability_score );
 
-    $cache_buster_incidence = function_exists( 'pcm_cache_busters_get_total_incidence' ) ? (float) pcm_cache_busters_get_total_incidence( '7d' ) : 0.0;
-    $rollups->write_rollup( 'cache_buster_incidence', $cache_buster_incidence );
+	$cache_buster_incidence = function_exists( 'pcm_cache_busters_get_total_incidence' ) ? (float) pcm_cache_busters_get_total_incidence( '7d' ) : 0.0;
+	$rollups->write_rollup( 'cache_buster_incidence', $cache_buster_incidence );
 
-    $rollups->write_rollup( 'batcache_hits', (float) pcm_reporting_latest_batcache_hits() );
+	$rollups->write_rollup( 'batcache_hits', (float) pcm_reporting_latest_batcache_hits() );
 
-    $rollups->flush_storage();
-    $rollups->cleanup_storage( (int) get_option( PCM_Options::REPORTING_RETENTION_DAYS->value, 90 ) );
+	$rollups->flush_storage();
+	$rollups->cleanup_storage( (int) get_option( PCM_Options::REPORTING_RETENTION_DAYS->value, 90 ) );
 }
 add_action( 'pcm_reporting_daily_rollup', 'pcm_reporting_daily_rollup' );
 
@@ -480,8 +106,8 @@ add_action( 'pcm_reporting_daily_rollup', 'pcm_reporting_daily_rollup' );
  * @return void
  */
 function pcm_reporting_weekly_digest(): void {
-    $service = new PCM_Report_Digest_Service();
-    $service->send_weekly_digest();
+	$service = new PCM_Report_Digest_Service();
+	$service->send_weekly_digest();
 }
 add_action( 'pcm_reporting_weekly_digest', 'pcm_reporting_weekly_digest' );
 
@@ -490,26 +116,28 @@ add_action( 'pcm_reporting_weekly_digest', 'pcm_reporting_weekly_digest' );
  * @return float
  */
 function pcm_reporting_latest_cacheability_score(): float {
-    global $wpdb;
+	global $wpdb;
 
-    $runs_table = $wpdb->prefix . 'pcm_scan_runs';
-    $urls_table = $wpdb->prefix . 'pcm_scan_urls';
+	$runs_table = $wpdb->prefix . 'pcm_scan_runs';
+	$urls_table = $wpdb->prefix . 'pcm_scan_urls';
 
-    $run_id = (int) $wpdb->get_var( "SELECT id FROM {$runs_table} WHERE status = 'completed' ORDER BY id DESC LIMIT 1" );
-    if ( $run_id <= 0 ) {
-        return (float) get_option( PCM_Options::LATEST_CACHEABILITY_SCORE->value, 0 );
-    }
+	// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is built from trusted $wpdb->prefix.
+	$run_id = (int) $wpdb->get_var( "SELECT id FROM {$runs_table} WHERE status = 'completed' ORDER BY id DESC LIMIT 1" );
+	if ( $run_id <= 0 ) {
+		return (float) get_option( PCM_Options::LATEST_CACHEABILITY_SCORE->value, 0 );
+	}
 
-    $avg = $wpdb->get_var( $wpdb->prepare( "SELECT AVG(score) FROM {$urls_table} WHERE run_id = %d", $run_id ) );
+	// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is built from trusted $wpdb->prefix.
+	$avg = $wpdb->get_var( $wpdb->prepare( "SELECT AVG(score) FROM {$urls_table} WHERE run_id = %d", $run_id ) );
 
-    return null !== $avg ? (float) round( (float) $avg, 2 ) : 0.0;
+	return null !== $avg ? (float) round( (float) $avg, 2 ) : 0.0;
 }
 
 /**
  * @return int
  */
 function pcm_reporting_latest_batcache_hits(): int {
-    return (int) get_option( PCM_Options::BATCACHE_HITS_24H->value, 0 );
+	return (int) get_option( PCM_Options::BATCACHE_HITS_24H->value, 0 );
 }
 
 /**
@@ -518,28 +146,28 @@ function pcm_reporting_latest_batcache_hits(): int {
  * @return void
  */
 function pcm_ajax_reporting_trends(): void {
-    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
-    } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+	if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+		pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_view_diagnostics' );
+	} else {
+		check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
 
-        $can_view = function_exists( 'pcm_current_user_can' ) ? pcm_current_user_can( 'pcm_view_diagnostics' ) : current_user_can( 'manage_options' );
-        if ( ! $can_view ) {
-            wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
-        }
-    }
+		$can_view = function_exists( 'pcm_current_user_can' ) ? pcm_current_user_can( 'pcm_view_diagnostics' ) : current_user_can( 'manage_options' );
+		if ( ! $can_view ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+	}
 
-    $range       = isset( $_REQUEST['range'] ) ? sanitize_key( wp_unslash( $_REQUEST['range'] ) ) : '7d';
-    $metric_keys = isset( $_REQUEST['metric_keys'] ) ? (array) wp_unslash( $_REQUEST['metric_keys'] ) : array();
+	$range       = isset( $_REQUEST['range'] ) ? sanitize_key( wp_unslash( $_REQUEST['range'] ) ) : '7d';
+	$metric_keys = isset( $_REQUEST['metric_keys'] ) ? (array) wp_unslash( $_REQUEST['metric_keys'] ) : array();
 
-    $service = new PCM_Metric_Rollup_Service();
+	$service = new PCM_Metric_Rollup_Service();
 
-    wp_send_json_success(
-        array(
-            'range'  => $range,
-            'rows'   => $service->query_trends( $range, $metric_keys ),
-        )
-    );
+	wp_send_json_success(
+		array(
+			'range' => $range,
+			'rows'  => $service->query_trends( $range, $metric_keys ),
+		)
+	);
 }
 add_action( 'wp_ajax_pcm_reporting_trends', 'pcm_ajax_reporting_trends' );
 
@@ -549,92 +177,27 @@ add_action( 'wp_ajax_pcm_reporting_trends', 'pcm_ajax_reporting_trends' );
  * @return void
  */
 function pcm_ajax_reporting_export(): void {
-    if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_export_reports' );
-    } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
-    }
+	if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
+		pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_export_reports' );
+	} else {
+		check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+	}
 
-    $format      = isset( $_REQUEST['format'] ) ? sanitize_key( wp_unslash( $_REQUEST['format'] ) ) : 'json';
-    $range       = isset( $_REQUEST['range'] ) ? sanitize_key( wp_unslash( $_REQUEST['range'] ) ) : '7d';
-    $metric_keys = isset( $_REQUEST['metric_keys'] ) ? (array) wp_unslash( $_REQUEST['metric_keys'] ) : array();
+	$format      = isset( $_REQUEST['format'] ) ? sanitize_key( wp_unslash( $_REQUEST['format'] ) ) : 'json';
+	$range       = isset( $_REQUEST['range'] ) ? sanitize_key( wp_unslash( $_REQUEST['range'] ) ) : '7d';
+	$metric_keys = isset( $_REQUEST['metric_keys'] ) ? (array) wp_unslash( $_REQUEST['metric_keys'] ) : array();
 
-    $exporter = new PCM_Report_Export_Service();
-    $result   = $exporter->export( $format, $range, $metric_keys );
+	$exporter = new PCM_Report_Export_Service();
+	$result   = $exporter->export( $format, $range, $metric_keys );
 
-    if ( empty( $result['success'] ) ) {
-        wp_send_json_error( $result, 403 );
-    }
+	if ( empty( $result['success'] ) ) {
+		wp_send_json_error( $result, 403 );
+	}
 
-    wp_send_json_success( $result );
+	wp_send_json_success( $result );
 }
 add_action( 'wp_ajax_pcm_reporting_export', 'pcm_ajax_reporting_export' );
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-    /**
-     * WP-CLI reporting commands (A7.4).
-     */
-    class PCM_Reporting_CLI_Command {
-        /**
-         * Trigger daily rollup.
-         *
-         * ## EXAMPLES
-         *     wp pcm-report rollup
-         */
-        public function rollup(): void {
-            pcm_reporting_daily_rollup();
-            \WP_CLI::success( 'Daily rollup executed.' );
-        }
-
-        /**
-         * Show trend rows.
-         *
-         * ## OPTIONS
-         * [--range=<range>]
-         * : 24h, 7d, or 30d.
-         *
-         * ## EXAMPLES
-         *     wp pcm-report trends --range=7d
-         */
-        public function trends( array $args, array $assoc_args ): void {
-            unset( $args );
-
-            $range = isset( $assoc_args['range'] ) ? sanitize_key( $assoc_args['range'] ) : '7d';
-            $service = new PCM_Metric_Rollup_Service();
-            $rows = $service->query_trends( $range );
-
-            \WP_CLI::line( wp_json_encode( $rows ) );
-        }
-
-        /**
-         * Export reporting rows.
-         *
-         * ## OPTIONS
-         * [--format=<format>]
-         * : json or csv
-         * [--range=<range>]
-         * : 24h, 7d, or 30d.
-         *
-         * ## EXAMPLES
-         *     wp pcm-report export --format=csv --range=7d
-         */
-        public function export( array $args, array $assoc_args ): void {
-            unset( $args );
-
-            $format = isset( $assoc_args['format'] ) ? sanitize_key( $assoc_args['format'] ) : 'json';
-            $range  = isset( $assoc_args['range'] ) ? sanitize_key( $assoc_args['range'] ) : '7d';
-
-            $service = new PCM_Report_Export_Service();
-            $result  = $service->export( $format, $range );
-
-            if ( empty( $result['success'] ) ) {
-                \WP_CLI::error( 'Export failed: ' . ( $result['error'] ?? 'unknown' ) );
-                return;
-            }
-
-            \WP_CLI::line( isset( $result['content'] ) ? (string) $result['content'] : '' );
-        }
-    }
-
-    \WP_CLI::add_command( 'pcm-report', 'PCM_Reporting_CLI_Command' );
+	\WP_CLI::add_command( 'pcm-report', 'PCM_Reporting_CLI_Command' );
 }

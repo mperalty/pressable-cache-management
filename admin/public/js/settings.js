@@ -244,9 +244,7 @@
                 nonce: getPrivacyNonce(),
                 settings: JSON.stringify({
                     retention_days: retentionEl.value,
-                    redaction_level: 'standard',
-                    audit_log_enabled: auditEnabledEl.checked,
-                    export_restrictions: 'admin_only'
+                    audit_log_enabled: auditEnabledEl.checked
                 })
             }).then(function(res){
                 statusEl.textContent = (res && res.success) ? 'Saved.' : 'Save failed.';

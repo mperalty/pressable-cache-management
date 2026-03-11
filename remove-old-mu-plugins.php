@@ -15,29 +15,24 @@ if ( get_option( 'pcm_legacy_migration_done' ) ) {
 	return;
 }
 
-// Check if this particular plugin version is updated.
-$current_version = '3.4.4';
-if ( version_compare( $current_version, '3.4.4', '>=' ) ) {
+// Library that writes/removes the batcache function to wp-config.php.
+require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/wp-write-to-file-lib.php';
 
-	// Library that writes/removes the batcache function to wp-config.php.
-	require_once plugin_dir_path( __FILE__ ) . 'admin/custom-functions/wp-write-to-file-lib.php';
+/*
+ * Remove Batcache extending.
+ * Remove Batcache extending from wp-config.php file.
+*/
 
-	/*
-	 * Remove Batcache extending.
-	 * Remove Batcache extending from wp-config.php file.
-	*/
+$delete_config_file = true;
 
-	$delete_config_file = true;
+global $wp_rewrite;
+$global_config_file = file_exists( ABSPATH . 'wp-config.php' ) ? ABSPATH . 'wp-config.php' : dirname( ABSPATH ) . '/wp-config.php';
 
-	global $wp_rewrite;
-	$global_config_file = file_exists( ABSPATH . 'wp-config.php' ) ? ABSPATH . 'wp-config.php' : dirname( ABSPATH ) . '/wp-config.php';
-
-	if ( apply_filters( 'wpsc_enable_wp_config_edit', true ) ) {
-		$line = 'global $batcache; if ( is_object($batcache) ) { $batcache->max_age = 86400; $batcache->seconds = 3600;  };';
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		if ( str_contains( file_get_contents( $global_config_file ), $line ) && ( ! pcm_is_writeable_wp_config( $global_config_file ) || ! pcm_config_file_replace_line( 'global *\$batcache; if *\( *is_object', '', $global_config_file ) ) ) {
-			wp_die( esc_html( "Could not remove Extending Batcache settings from $global_config_file. Please edit that file and remove the line containing the function 'global  $batcache;'. Then refresh this page. orcontact Pressable Support for help" ) );
-		}
+if ( apply_filters( 'wpsc_enable_wp_config_edit', true ) ) {
+	$line = 'global $batcache; if ( is_object($batcache) ) { $batcache->max_age = 86400; $batcache->seconds = 3600;  };';
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	if ( str_contains( file_get_contents( $global_config_file ), $line ) && ( ! pcm_is_writeable_wp_config( $global_config_file ) || ! pcm_config_file_replace_line( 'global *\$batcache; if *\( *is_object', '', $global_config_file ) ) ) {
+		wp_die( esc_html( 'Could not remove Extending Batcache settings from ' . $global_config_file . ". Please edit that file and remove the line containing the function 'global \$batcache;'. Then refresh this page. or contact Pressable Support for help" ) );
 	}
 }
 

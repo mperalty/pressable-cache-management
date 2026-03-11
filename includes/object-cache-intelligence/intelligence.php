@@ -13,7 +13,7 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
 
 /**
@@ -22,13 +22,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return bool
  */
 function pcm_object_cache_intelligence_is_enabled(): bool {
-    static $cached = null;
-    if ( $cached === null ) {
-        $enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
-        $cached  = (bool) apply_filters( 'pcm_enable_object_cache_intelligence', $enabled );
-    }
+	static $cached = null;
+	if ( null === $cached ) {
+		$enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
+		$cached  = (bool) apply_filters( 'pcm_enable_object_cache_intelligence', $enabled );
+	}
 
-    return $cached;
+	return $cached;
 }
 
 // ─── Helper functions (used by providers, evaluator, and storage) ────────────
@@ -40,16 +40,16 @@ function pcm_object_cache_intelligence_is_enabled(): bool {
  * @return float|null
  */
 function pcm_calculate_hit_ratio( ?int $hits, ?int $misses ): ?float {
-    if ( null === $hits || null === $misses ) {
-        return null;
-    }
+	if ( null === $hits || null === $misses ) {
+		return null;
+	}
 
-    $total = absint( $hits ) + absint( $misses );
-    if ( 0 === $total ) {
-        return null;
-    }
+	$total = absint( $hits ) + absint( $misses );
+	if ( 0 === $total ) {
+		return null;
+	}
 
-    return round( ( absint( $hits ) / $total ) * 100, 2 );
+	return round( ( absint( $hits ) / $total ) * 100, 2 );
 }
 
 /**
@@ -58,44 +58,44 @@ function pcm_calculate_hit_ratio( ?int $hits, ?int $misses ): ?float {
  * @return float
  */
 function pcm_calculate_memory_pressure( array $metrics ): float {
-    $used  = isset( $metrics['bytes_used'] ) ? absint( $metrics['bytes_used'] ) : 0;
-    $limit = isset( $metrics['bytes_limit'] ) ? absint( $metrics['bytes_limit'] ) : 0;
+	$used  = isset( $metrics['bytes_used'] ) ? absint( $metrics['bytes_used'] ) : 0;
+	$limit = isset( $metrics['bytes_limit'] ) ? absint( $metrics['bytes_limit'] ) : 0;
 
-    if ( $limit <= 0 ) {
-        return 0.0;
-    }
+	if ( $limit <= 0 ) {
+		return 0.0;
+	}
 
-    return round( ( $used / $limit ) * 100, 2 );
+	return round( ( $used / $limit ) * 100, 2 );
 }
 
 /**
  * @return array<int,array{host:string,port:int}>
  */
 function pcm_object_cache_memcached_servers_from_constant(): array {
-    $servers = array();
+	$servers = array();
 
-    if ( ! defined( 'WP_MEMCACHED_SERVERS' ) || ! is_array( WP_MEMCACHED_SERVERS ) ) {
-        return $servers;
-    }
+	if ( ! defined( 'WP_MEMCACHED_SERVERS' ) || ! is_array( WP_MEMCACHED_SERVERS ) ) {
+		return $servers;
+	}
 
-    foreach ( WP_MEMCACHED_SERVERS as $server_group ) {
-        if ( is_array( $server_group ) ) {
-            foreach ( $server_group as $server_def ) {
-                $parsed = pcm_object_cache_parse_memcache_server( $server_def );
-                if ( ! empty( $parsed ) ) {
-                    $servers[] = $parsed;
-                }
-            }
-            continue;
-        }
+	foreach ( WP_MEMCACHED_SERVERS as $server_group ) {
+		if ( is_array( $server_group ) ) {
+			foreach ( $server_group as $server_def ) {
+				$parsed = pcm_object_cache_parse_memcache_server( $server_def );
+				if ( ! empty( $parsed ) ) {
+					$servers[] = $parsed;
+				}
+			}
+			continue;
+		}
 
-        $parsed = pcm_object_cache_parse_memcache_server( $server_group );
-        if ( ! empty( $parsed ) ) {
-            $servers[] = $parsed;
-        }
-    }
+		$parsed = pcm_object_cache_parse_memcache_server( $server_group );
+		if ( ! empty( $parsed ) ) {
+			$servers[] = $parsed;
+		}
+	}
 
-    return $servers;
+	return $servers;
 }
 
 /**
@@ -104,18 +104,18 @@ function pcm_object_cache_memcached_servers_from_constant(): array {
  * @return array<string,int|string>
  */
 function pcm_object_cache_parse_memcache_server( mixed $server_def ): array {
-    $parts = explode( ':', (string) $server_def );
-    $host  = isset( $parts[0] ) ? sanitize_text_field( $parts[0] ) : '';
-    $port  = isset( $parts[1] ) ? absint( $parts[1] ) : 11211;
+	$parts = explode( ':', (string) $server_def );
+	$host  = sanitize_text_field( $parts[0] );
+	$port  = isset( $parts[1] ) ? absint( $parts[1] ) : 11211;
 
-    if ( '' === $host ) {
-        return array();
-    }
+	if ( '' === $host ) {
+		return array();
+	}
 
-    return array(
-        'host' => $host,
-        'port' => $port > 0 ? $port : 11211,
-    );
+	return array(
+		'host' => $host,
+		'port' => $port > 0 ? $port : 11211,
+	);
 }
 
 /**
@@ -124,7 +124,7 @@ function pcm_object_cache_parse_memcache_server( mixed $server_def ): array {
  * @return float
  */
 function pcm_object_cache_bytes_to_gb( int $bytes ): float {
-    return round( absint( $bytes ) / 1024 / 1024 / 1024, 2 );
+	return round( absint( $bytes ) / 1024 / 1024 / 1024, 2 );
 }
 
 /**
@@ -133,22 +133,23 @@ function pcm_object_cache_bytes_to_gb( int $bytes ): float {
  * @return string
  */
 function pcm_object_cache_format_uptime( int $uptime_seconds ): string {
-    $uptime = absint( $uptime_seconds );
-    if ( $uptime <= 0 ) {
-        return 'n/a';
-    }
+	$uptime = absint( $uptime_seconds );
+	if ( $uptime <= 0 ) {
+		return 'n/a';
+	}
 
-    $days = floor( $uptime / DAY_IN_SECONDS );
-    $remaining = $uptime % DAY_IN_SECONDS;
-    $hours = floor( $remaining / HOUR_IN_SECONDS );
-    $minutes = floor( ( $remaining % HOUR_IN_SECONDS ) / MINUTE_IN_SECONDS );
+	$days      = floor( $uptime / DAY_IN_SECONDS );
+	$remaining = $uptime % DAY_IN_SECONDS;
+	$hours     = floor( $remaining / HOUR_IN_SECONDS );
+	$minutes   = floor( ( $remaining % HOUR_IN_SECONDS ) / MINUTE_IN_SECONDS );
 
-    return sprintf( '%dd %dh %dm', $days, $hours, $minutes );
+	return sprintf( '%dd %dh %dm', $days, $hours, $minutes );
 }
 
 // ─── Load split modules (order matters: interface → providers → evaluator → storage) ─
 $pcm_oci_dir = plugin_dir_path( __FILE__ );
 require_once $pcm_oci_dir . 'interface.php';
 require_once $pcm_oci_dir . 'providers.php';
-require_once $pcm_oci_dir . 'evaluator.php';
+require_once $pcm_oci_dir . 'class-pcm-object-cache-health-evaluator.php';
+require_once $pcm_oci_dir . 'class-pcm-object-cache-intelligence-service.php';
 require_once $pcm_oci_dir . 'storage.php';

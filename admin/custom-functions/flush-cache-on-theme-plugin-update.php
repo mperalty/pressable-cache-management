@@ -1,0 +1,77 @@
+<?php
+// Custom function - Flush cache automatically on themes and plugins update
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit();
+}
+
+$options = pcm_get_options();
+
+if ( isset( $options['flush_cache_theme_plugin_checkbox'] ) && ! empty( $options['flush_cache_theme_plugin_checkbox'] ) ) {
+
+	function pcm_plugins_themes_update_completed( object $upgrader_object, array $hook_extra ): void {
+
+		$type = $hook_extra['type'] ?? '';
+
+		if ( ! in_array( $type, array( 'plugin', 'theme' ), true ) ) {
+			return;
+		}
+
+		pcm_schedule_deferred_flush();
+
+		// ── Resolve the name of the updated item ────────────────────────────
+		$name = '';
+
+		// Multiple plugins updated at once
+		if ( 'plugin' === $type && isset( $hook_extra['plugins'] ) && is_array( $hook_extra['plugins'] ) ) {
+			$names = array();
+			foreach ( $hook_extra['plugins'] as $plugin_file ) {
+				$plugin_data = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_file, false, false );
+				if ( ! empty( $plugin_data['Name'] ) ) {
+					$names[] = $plugin_data['Name'];
+				}
+			}
+			$name = ! empty( $names ) ? implode( ', ', $names ) : 'Unknown plugin';
+		}
+
+		// Single plugin
+		if ( 'plugin' === $type && empty( $name ) ) {
+			if ( isset( $hook_extra['plugin'] ) ) {
+				$plugin_data = get_plugin_data( WP_PLUGIN_DIR . '/' . $hook_extra['plugin'], false, false );
+				$name        = ! empty( $plugin_data['Name'] ) ? $plugin_data['Name'] : $hook_extra['plugin'];
+			} elseif ( isset( $upgrader_object->skin->plugin_info['Name'] ) ) {
+				$name = $upgrader_object->skin->plugin_info['Name'];
+			} else {
+				$name = 'Unknown plugin';
+			}
+		}
+
+		// Theme
+		if ( 'theme' === $type ) {
+			if ( isset( $hook_extra['themes'] ) && is_array( $hook_extra['themes'] ) ) {
+				$theme_names = array();
+				foreach ( $hook_extra['themes'] as $stylesheet ) {
+					$theme = wp_get_theme( $stylesheet );
+					if ( $theme->exists() ) {
+						$theme_names[] = $theme->get( 'Name' );
+					}
+				}
+				$name = ! empty( $theme_names ) ? implode( ', ', $theme_names ) : 'Unknown theme';
+			} elseif ( isset( $hook_extra['theme'] ) ) {
+				$theme = wp_get_theme( $hook_extra['theme'] );
+				$name  = $theme->exists() ? $theme->get( 'Name' ) : $hook_extra['theme'];
+			} elseif ( isset( $upgrader_object->skin->theme_info['Name'] ) ) {
+				$name = $upgrader_object->skin->theme_info['Name'];
+			} else {
+				$name = 'Unknown theme';
+			}
+		}
+
+		// ── Record enriched timestamp via the canonical service helper ───────
+		$suffix    = ' — <b>' . esc_html( $name ) . ' ' . esc_html( $type ) . ' was updated</b>';
+		$timestamp = pcm_format_flush_timestamp() . $suffix;
+		update_option( PCM_Options::FLUSH_CACHE_THEME_PLUGIN_TIMESTAMP->value, $timestamp );
+	}
+
+	add_action( 'upgrader_process_complete', 'pcm_plugins_themes_update_completed', 10, 2 );
+}

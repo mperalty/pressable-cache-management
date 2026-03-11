@@ -1,0 +1,31 @@
+{
+    "name": "pressable/pressable-cache-management",
+    "description": "Development tooling for the Pressable Cache Management WordPress plugin.",
+    "type": "wordpress-plugin",
+    "require-dev": {
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.1",
+        "php-stubs/woocommerce-stubs": "^10.6",
+        "php-stubs/wp-cli-stubs": "^2.12",
+        "phpcompatibility/phpcompatibility-wp": "^2.1",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.1",
+        "squizlabs/php_codesniffer": "^3.10",
+        "szepeviktor/phpstan-wordpress": "^2.0",
+        "wp-coding-standards/wpcs": "^3.1"
+    },
+    "scripts": {
+        "lint": "@phpcs",
+        "lint:fix": "@phpcbf",
+        "phpcs": "@php -d memory_limit=1G vendor/bin/phpcs --standard=phpcs.xml.dist",
+        "phpcbf": "@php -d memory_limit=1G vendor/bin/phpcbf --standard=phpcs.xml.dist",
+        "stan": "@php vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=2G",
+        "stan:clear-cache": "@php vendor/bin/phpstan clear-result-cache --configuration=phpstan.neon.dist"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "phpstan/extension-installer": true
+        },
+        "sort-packages": true
+    }
+}

@@ -36,9 +36,8 @@ Pressable Cache Management gives you full control over object cache, Batcache, a
 == Installation ==
 
 1. Upload the `pressable-cache-management` folder to `/wp-content/plugins/`
-2. Run `composer install` inside the plugin directory to install the auto-update library
-3. Activate the plugin through the **Plugins** menu in WordPress
-4. Navigate to **Cache Management** in the admin sidebar
+2. Activate the plugin through the **Plugins** menu in WordPress
+3. Navigate to **Cache Management** in the admin sidebar
 
 == Changelog ==
 
