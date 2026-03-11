@@ -505,7 +505,14 @@ function pcm_ajax_cacheability_route_diagnosis(): void {
 	$diagnosis  = $repository->get_url_diagnosis( $run_id, $url );
 
 	if ( ! $diagnosis ) {
-		wp_send_json_error( array( 'message' => 'No diagnosis found for URL.' ), 404 );
+		wp_send_json_success(
+			array(
+				'run_id'    => $run_id,
+				'url'       => $url,
+				'available' => false,
+				'message'   => 'No route diagnosis is available for this URL yet. Run a fresh scan to populate diagnosis details.',
+			)
+		);
 	}
 
 	$findings_for_url = array_values(
@@ -523,6 +530,7 @@ function pcm_ajax_cacheability_route_diagnosis(): void {
 		array(
 			'run_id'    => $run_id,
 			'url'       => $url,
+			'available' => true,
 			'diagnosis' => $diagnosis,
 		)
 	);

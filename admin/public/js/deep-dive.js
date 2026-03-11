@@ -144,6 +144,31 @@ window.pcmOnSectionReady = function(sectionId, initFn) {
         };
 
         window.pcmPayloadErrorMessage = payloadError;
+        window.pcmRenderDeepDiveDependencyError = function(targetEl, dependencyLabel, retryAction, error, fallbackMessage) {
+            if (!targetEl) return;
+            var raw = error && error.message ? error.message : (fallbackMessage || 'Unexpected AJAX response.');
+            var detail;
+            if (error && (error.isTimeout || raw === 'timeout')) {
+                detail = 'The request timed out. This can happen when the object cache server is slow to respond. Click Retry or use the Refresh button to try again.';
+            } else if (error && error.status >= 500) {
+                detail = 'Server error (HTTP ' + error.status + '). Check your PHP error logs for details.';
+            } else if (error && error.status === 404) {
+                detail = 'The requested route diagnosis was not found. Run a fresh scan to regenerate cacheability details for this route.';
+            } else if (error && error.status === 403) {
+                detail = 'Permission denied or your session expired. Reload the page and try again.';
+            } else if (error && error.status >= 400) {
+                detail = 'Request failed (HTTP ' + error.status + ').';
+            } else {
+                detail = raw;
+            }
+            if (targetEl.style && targetEl.style.display === 'none') {
+                targetEl.style.display = 'block';
+            }
+            targetEl.innerHTML = '<div class="pcm-inline-error" role="alert" aria-live="assertive" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+                + '<span>' + escapeHtml(dependencyLabel) + ': ' + escapeHtml(detail) + '</span>'
+                + (retryAction ? '<button type="button" class="pcm-btn-text" data-action="pcm-retry" data-retry-action="' + escapeHtml(retryAction) + '">Retry</button>' : '')
+                + '</div>';
+        };
     })();
 
 window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
@@ -158,10 +183,37 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
         var section = document.getElementById('pcm-feature-cacheability-advisor');
         var currentRunId = 0;
+        var currentRunResults = [];
         if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !sensitivityWrap || !diagnosisWrap || !playbookWrap || !section) return;
 
         function showError(targetEl, retryAction, error, fallbackMessage) {
             window.pcmRenderDeepDiveDependencyError(targetEl, 'Cacheability Advisor', retryAction, error, fallbackMessage);
+        }
+
+        function hasDiagnosisData(result) {
+            return !!(result
+                && result.diagnosis
+                && typeof result.diagnosis === 'object'
+                && Object.keys(result.diagnosis).length);
+        }
+
+        function findResultByUrl(url) {
+            if (!url || !Array.isArray(currentRunResults)) return null;
+            for (var i = 0; i < currentRunResults.length; i++) {
+                if ((currentRunResults[i] && currentRunResults[i].url) === url) {
+                    return currentRunResults[i];
+                }
+            }
+            return null;
+        }
+
+        function renderDiagnosisUnavailable(message, url) {
+            var html = '<div class="pcm-panel-text">';
+            if (url) {
+                html += '<p><strong>URL:</strong> <span style="word-break:break-word;">' + escapeHtml(url) + '</span></p>';
+            }
+            html += '<em>' + escapeHtml(message || 'No route diagnosis is available yet.') + '</em></div>';
+            diagnosisWrap.innerHTML = html;
         }
 
         function renderScores(results) {
@@ -195,7 +247,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                 var routesHtml = '<ul style="margin:4px 0 0;padding-left:18px;">';
                 results.slice(0, 20).forEach(function(row){
                     var routeUrl = row.url || '';
-                    routesHtml += '<li><span style="word-break:break-word;">' + escapeHtml(routeUrl) + '</span></li>';
+                    routesHtml += '<li><button type="button" class="pcm-btn-text" data-action="open-diagnosis" data-url="' + escapeHtml(routeUrl) + '" style="padding:0;word-break:break-word;text-align:left;">' + escapeHtml(routeUrl) + '</button></li>';
                 });
                 routesHtml += '</ul>';
                 return routesHtml;
@@ -331,17 +383,33 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
             ].join('');
         }
 
-        function loadRouteDiagnosis(runId, url) {
+        function loadRouteDiagnosis(runId, url, preferredResult) {
             if (!runId || !url) return Promise.resolve();
+            var inlineResult = preferredResult || findResultByUrl(url);
+            if (hasDiagnosisData(inlineResult)) {
+                renderDiagnosis({
+                    url: url,
+                    diagnosis: inlineResult.diagnosis
+                });
+                return Promise.resolve();
+            }
             window.pcmRenderSkeletonRows(diagnosisWrap, 8, ['40%', '90%', '82%', '88%', '76%', '92%', '85%', '67%']);
             return window.pcmPost({ action: 'pcm_cacheability_route_diagnosis', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId), url: url })
                 .then(function(payload){
                     if (!payload || !payload.success || !payload.data) {
                         throw new Error(window.pcmPayloadErrorMessage(payload, 'Unable to load diagnosis endpoint.'));
                     }
+                    if (payload.data.available === false) {
+                        renderDiagnosisUnavailable(payload.data.message, url);
+                        return;
+                    }
                     renderDiagnosis(payload.data);
                 })
                 .catch(function(error){
+                    if (error && error.status === 404) {
+                        renderDiagnosisUnavailable('No route diagnosis is available for this URL yet. Run a fresh scan to populate diagnosis details.', url);
+                        return;
+                    }
                     showError(diagnosisWrap, 'reload-section', error);
                 });
         }
@@ -431,7 +499,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                 if (uniqueUrls.length) {
                     html += '<div class="pcm-finding-urls">';
                     uniqueUrls.forEach(function(url){
-                        html += '<div><span style="font-size:12px;word-break:break-word;">' + escapeHtml(url) + '</span></div>';
+                        html += '<div><button type="button" class="pcm-btn-text" data-action="open-diagnosis" data-url="' + escapeHtml(url) + '" style="padding:0;font-size:12px;word-break:break-word;text-align:left;">' + escapeHtml(url) + '</button></div>';
                     });
                     html += '</div>';
                 }
@@ -492,7 +560,8 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     throw new Error(window.pcmPayloadErrorMessage(resultsPayload, 'Unable to load cacheability results endpoint.'));
                 }
 
-                renderScores(resultsPayload && resultsPayload.success ? resultsPayload.data.results : []);
+                currentRunResults = (resultsPayload && resultsPayload.success && resultsPayload.data && Array.isArray(resultsPayload.data.results)) ? resultsPayload.data.results : [];
+                renderScores(currentRunResults);
 
                 if (!findingsPayload || !findingsPayload.success) {
                     findingsWrap.innerHTML = '<em>Unable to load findings for the latest run.</em>';
@@ -506,10 +575,11 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     renderSensitivity(sensitivityPayload);
                 }
 
-                var firstResult = (resultsPayload && resultsPayload.success && resultsPayload.data && Array.isArray(resultsPayload.data.results)) ? resultsPayload.data.results[0] : null;
+                var firstResult = currentRunResults[0] || null;
                 if (firstResult && firstResult.url) {
-                    return loadRouteDiagnosis(runId, firstResult.url);
+                    return loadRouteDiagnosis(runId, firstResult.url, firstResult);
                 }
+                renderDiagnosisUnavailable('Run a scan to generate route diagnosis details.');
             });
         }
 
@@ -519,6 +589,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     runStatus.textContent = 'No scan runs found yet.';
                     renderScores([]);
                     renderFindings([]);
+                    renderDiagnosisUnavailable('No scan runs found yet. Run a scan to generate route diagnosis details.');
                     return;
                 }
 
@@ -590,6 +661,15 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         });
 
         findingsWrap.addEventListener('click', function(event){
+            var diagnosisTrigger = event.target.closest('[data-action="open-diagnosis"]');
+            if (diagnosisTrigger) {
+                var diagnosisUrl = diagnosisTrigger.getAttribute('data-url') || '';
+                if (diagnosisUrl) {
+                    loadRouteDiagnosis(currentRunId, diagnosisUrl);
+                }
+                return;
+            }
+
             var trigger = event.target.closest('[data-action="open-playbook"]');
             if (!trigger) return;
             var ruleId = trigger.getAttribute('data-rule-id') || '';

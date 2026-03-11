@@ -1,5 +1,5 @@
 /**
- * Layered Probe Runner — Edge, Origin & Object-Cache side-by-side UI.
+ * Layered Probe Runner - Edge, Origin, and Object Cache side-by-side UI.
  *
  * Waits for the lazy-hydrated event on #pcm-feature-layered-probe, then
  * wires up the URL input, run button, and result rendering.
@@ -8,23 +8,38 @@
     'use strict';
 
     var SECTION_ID = 'pcm-feature-layered-probe';
-    var esc = window.pcmEscapeHtml || function(s) { return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+    var esc = window.pcmEscapeHtml || function(s) {
+        return String(s).replace(/[&<>"']/g, function(c) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[c];
+        });
+    };
 
     window.pcmOnSectionReady = window.pcmOnSectionReady || function(id, fn) {
         var el = document.getElementById(id);
         if (!el) return;
-        if (el.getAttribute('data-lazy-loaded')) { fn(el); return; }
-        el.addEventListener('pcm-lazy-hydrated', function() { fn(el); });
+        if (el.getAttribute('data-lazy-loaded')) {
+            fn(el);
+            return;
+        }
+        el.addEventListener('pcm-lazy-hydrated', function() {
+            fn(el);
+        });
     };
 
-    window.pcmOnSectionReady(SECTION_ID, function(card) {
-        var urlInput   = document.getElementById('pcm-probe-url');
-        var runBtn     = document.getElementById('pcm-probe-run-btn');
-        var statusEl   = document.getElementById('pcm-probe-status');
-        var resultsEl  = document.getElementById('pcm-probe-results');
-        var rawWrap    = document.getElementById('pcm-probe-raw-toggle-wrap');
-        var rawToggle  = document.getElementById('pcm-probe-raw-toggle');
-        var rawBody    = document.getElementById('pcm-probe-raw-headers');
+    window.pcmOnSectionReady(SECTION_ID, function() {
+        var urlInput = document.getElementById('pcm-probe-url');
+        var runBtn = document.getElementById('pcm-probe-run-btn');
+        var statusEl = document.getElementById('pcm-probe-status');
+        var resultsEl = document.getElementById('pcm-probe-results');
+        var rawWrap = document.getElementById('pcm-probe-raw-toggle-wrap');
+        var rawToggle = document.getElementById('pcm-probe-raw-toggle');
+        var rawBody = document.getElementById('pcm-probe-raw-headers');
 
         if (!urlInput || !runBtn) return;
 
@@ -32,21 +47,28 @@
 
         runBtn.addEventListener('click', function() {
             if (running) return;
+
             var url = urlInput.value.trim();
-            if (!url) { statusEl.textContent = 'Enter a URL to probe.'; return; }
+            if (!url) {
+                statusEl.textContent = 'Enter a URL to probe.';
+                return;
+            }
 
             running = true;
             runBtn.disabled = true;
-            runBtn.textContent = 'Probing\u2026';
-            statusEl.textContent = 'Running edge, origin, and object-cache probes\u2026';
+            runBtn.textContent = 'Probing...';
+            statusEl.textContent = 'Running edge, origin, and object-cache probes...';
             resultsEl.classList.add('pcm-hidden');
             rawWrap.classList.add('pcm-hidden');
 
-            window.pcmPost({
-                action: 'pcm_layered_probe',
-                nonce: window.pcmGetCacheabilityNonce(),
-                url: url
-            }, { timeout: 35000 }).then(function(res) {
+            window.pcmPost(
+                {
+                    action: 'pcm_layered_probe',
+                    nonce: window.pcmGetCacheabilityNonce(),
+                    url: url
+                },
+                { timeout: 35000 }
+            ).then(function(res) {
                 running = false;
                 runBtn.disabled = false;
                 runBtn.textContent = 'Run Probe';
@@ -57,15 +79,14 @@
                     return;
                 }
 
-                var d = res.data;
-                statusEl.innerHTML = '<small>Probed at ' + esc(d.probed_at) + '</small>';
-                renderEdge(d.edge);
-                renderOrigin(d.origin);
-                renderObjectCache(d.object_cache);
-                renderRawHeaders(d);
+                var data = res.data;
+                statusEl.innerHTML = '<small>Probed at ' + esc(data.probed_at) + '</small>';
+                renderEdge(data.edge);
+                renderOrigin(data.origin);
+                renderObjectCache(data.object_cache);
+                renderRawHeaders(data);
                 resultsEl.classList.remove('pcm-hidden');
                 rawWrap.classList.remove('pcm-hidden');
-
             }).catch(function(err) {
                 running = false;
                 runBtn.disabled = false;
@@ -74,7 +95,6 @@
             });
         });
 
-        // Raw headers toggle
         if (rawToggle && rawBody) {
             rawToggle.addEventListener('click', function() {
                 var hidden = rawBody.classList.toggle('pcm-hidden');
@@ -82,15 +102,15 @@
             });
         }
 
-        // ── Renderers ──────────────────────────────────────────────────────
-
         function renderEdge(data) {
             var el = document.getElementById('pcm-probe-edge-body');
             if (!el) return;
+
             if (data.status === 'error') {
                 el.innerHTML = errBlock(data.error, data.elapsed_ms);
                 return;
             }
+
             el.innerHTML = httpBadge(data.http_code, data.elapsed_ms)
                 + verdictRow(data.headers.verdict)
                 + headerRow('x-cache', data.headers.x_cache)
@@ -106,10 +126,12 @@
         function renderOrigin(data) {
             var el = document.getElementById('pcm-probe-origin-body');
             if (!el) return;
+
             if (data.status === 'error') {
                 el.innerHTML = errBlock(data.error, data.elapsed_ms);
                 return;
             }
+
             el.innerHTML = httpBadge(data.http_code, data.elapsed_ms)
                 + verdictRow(data.headers.verdict)
                 + headerRow('cache-control', data.headers.cache_control)
@@ -143,28 +165,24 @@
                 hitClass = data.hit_ratio >= 80 ? 'pcm-probe-good' : (data.hit_ratio >= 50 ? 'pcm-probe-warn' : 'pcm-probe-bad');
             }
 
-            el.innerHTML = metricCard('Hit Ratio', data.hit_ratio !== null ? data.hit_ratio + '%' : '—', hitClass)
-                + metricCard('Memory Pressure', data.memory_pressure !== null ? data.memory_pressure + '%' : '—',
-                    data.memory_pressure !== null && data.memory_pressure >= 85 ? 'pcm-probe-bad' : 'pcm-probe-neutral')
-                + metricCard('Evictions', data.evictions !== null ? data.evictions.toLocaleString() : '—',
-                    data.evictions !== null && data.evictions >= 100 ? 'pcm-probe-warn' : 'pcm-probe-neutral')
+            el.innerHTML = metricCard('Hit Ratio', data.hit_ratio !== null ? data.hit_ratio + '%' : '-', hitClass)
                 + (data.provider ? '<div class="pcm-probe-kv"><span class="pcm-probe-k">Provider</span><span class="pcm-probe-v">' + esc(data.provider) + '</span></div>' : '')
                 + (data.taken_at ? '<div class="pcm-probe-kv"><span class="pcm-probe-k">Snapshot</span><span class="pcm-probe-v">' + esc(data.taken_at) + '</span></div>' : '');
         }
 
-        function renderRawHeaders(d) {
+        function renderRawHeaders(data) {
             if (!rawBody) return;
+
             var html = '';
-            if (d.edge && d.edge.raw_headers) {
-                html += '<h5>Edge Response Headers</h5>' + headersTable(d.edge.raw_headers);
+            if (data.edge && data.edge.raw_headers) {
+                html += '<h5>Edge Response Headers</h5>' + headersTable(data.edge.raw_headers);
             }
-            if (d.origin && d.origin.raw_headers) {
-                html += '<h5>Origin Response Headers</h5>' + headersTable(d.origin.raw_headers);
+            if (data.origin && data.origin.raw_headers) {
+                html += '<h5>Origin Response Headers</h5>' + headersTable(data.origin.raw_headers);
             }
+
             rawBody.innerHTML = html || '<p>No headers captured.</p>';
         }
-
-        // ── Helpers ────────────────────────────────────────────────────────
 
         function httpBadge(code, ms) {
             var cls = code >= 200 && code < 400 ? 'pcm-probe-good' : 'pcm-probe-bad';
@@ -176,10 +194,12 @@
 
         function verdictRow(verdict) {
             if (!verdict || verdict === 'unknown') return '';
+
             var label = verdict.replace(/_/g, ' ');
             var cls = 'pcm-probe-neutral';
             if (/hit|active/.test(verdict)) cls = 'pcm-probe-good';
             if (/miss|broken/.test(verdict)) cls = 'pcm-probe-warn';
+
             return '<div class="pcm-probe-verdict ' + cls + '">' + esc(label) + '</div>';
         }
 
@@ -211,12 +231,13 @@
         function headersTable(headers) {
             var html = '<table class="pcm-probe-headers-table"><tbody>';
             var keys = Object.keys(headers);
+
             for (var i = 0; i < keys.length; i++) {
                 html += '<tr><td class="pcm-probe-ht-name">' + esc(keys[i]) + '</td><td class="pcm-probe-ht-val">' + esc(headers[keys[i]]) + '</td></tr>';
             }
+
             html += '</tbody></table>';
             return html;
         }
     });
-
 })(window, document);

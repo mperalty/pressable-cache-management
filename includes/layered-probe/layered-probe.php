@@ -182,7 +182,7 @@ function pcm_layered_probe_origin( string $url ): array {
 }
 
 /**
- * Object-cache snapshot: current hit ratio, memory, evictions.
+ * Object-cache snapshot: current hit ratio and provider metadata.
  *
  * @return array Snapshot data.
  */
@@ -210,13 +210,11 @@ function pcm_layered_probe_object_cache(): array {
 	}
 
 	return array(
-		'status'          => ! empty( $snapshot ) ? 'ok' : 'empty',
-		'hit_ratio'       => isset( $snapshot['hit_ratio'] ) ? round( (float) $snapshot['hit_ratio'], 2 ) : null,
-		'memory_pressure' => isset( $snapshot['memory_pressure'] ) ? round( (float) $snapshot['memory_pressure'], 1 ) : null,
-		'evictions'       => isset( $snapshot['evictions'] ) ? (int) $snapshot['evictions'] : null,
-		'uptime'          => $snapshot['uptime'] ?? null,
-		'provider'        => $snapshot['provider'] ?? null,
-		'taken_at'        => $snapshot['taken_at'] ?? null,
+		'status'    => ! empty( $snapshot ) ? 'ok' : 'empty',
+		'hit_ratio' => isset( $snapshot['hit_ratio'] ) ? round( (float) $snapshot['hit_ratio'], 2 ) : null,
+		'uptime'    => $snapshot['uptime'] ?? null,
+		'provider'  => $snapshot['provider'] ?? null,
+		'taken_at'  => $snapshot['taken_at'] ?? null,
 	);
 }
 
