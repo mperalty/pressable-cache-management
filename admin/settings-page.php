@@ -637,9 +637,12 @@ function pressable_cache_management_display_settings_page() {
 		<div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
 		<template class="pcm-lazy-template">
 		<p>
-			<button type="button" class="pcm-btn-primary" id="pcm-advisor-run-btn"><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
+			<button type="button" class="pcm-btn-primary" id="pcm-advisor-run-btn" <?php disabled( ! $advanced_scan_enabled ); ?>><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
 			<span id="pcm-advisor-run-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
 		</p>
+				<?php if ( ! $advanced_scan_enabled ) : ?>
+					<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Rescans are disabled until Advanced Scanning Workflows is enabled in Settings > Feature Flags.', 'pressable_cache_management' ); ?></p>
+				<?php endif; ?>
 		<div class="pcm-advisor-grid pcm-responsive-two-col pcm-grid-2col">
 			<div>
 				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Template Scores', 'pressable_cache_management' ); ?></h4>

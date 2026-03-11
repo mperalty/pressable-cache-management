@@ -157,7 +157,7 @@ window.pcmOnSectionReady = function(sectionId, initFn) {
             } else if (error && error.status === 403) {
                 detail = 'Permission denied or your session expired. Reload the page and try again.';
             } else if (error && error.status >= 400) {
-                detail = 'Request failed (HTTP ' + error.status + ').';
+                detail = raw && !/^http_\d+$/.test(raw) ? raw : 'Request failed (HTTP ' + error.status + ').';
             } else {
                 detail = raw;
             }

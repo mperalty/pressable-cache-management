@@ -40,9 +40,26 @@
         }).then(function(response){
             if (timeoutId) window.clearTimeout(timeoutId);
             if (!response.ok) {
-                var error = new Error('http_' + response.status);
-                error.status = response.status;
-                throw error;
+                return response.text().then(function(text) {
+                    var error = new Error('http_' + response.status);
+                    error.status = response.status;
+
+                    if (text) {
+                        try {
+                            var payload = JSON.parse(text);
+                            error.payload = payload;
+                            if (payload && payload.data && payload.data.message) {
+                                error.message = payload.data.message;
+                            } else if (payload && payload.message) {
+                                error.message = payload.message;
+                            }
+                        } catch (parseError) {
+                            // Keep the default status-based message when the response is not JSON.
+                        }
+                    }
+
+                    throw error;
+                });
             }
             return response.json();
         }).catch(function(error){
