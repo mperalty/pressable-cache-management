@@ -56,7 +56,8 @@ function rrmdir( $dir ) {
 
 
 // Remove batcache manager plugin from mu-plugins directory.
-$mu_plugins = array( 'pcm-batcache-manager.php' );
+// Current filename uses underscores; legacy installs may still have the hyphenated name.
+$mu_plugins = array( 'pcm_batcache_manager.php', 'pcm-batcache-manager.php' );
 
 // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 foreach ( $mu_plugins as $mu_plugin ) {

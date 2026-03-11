@@ -248,12 +248,15 @@ function pcm_flush_batcache_url( string $url ): bool {
     wp_cache_add( "{$url_key}_version", 0, $batcache->group );
     wp_cache_incr( "{$url_key}_version", 1, $batcache->group );
 
-    // Handle sites where the Batcache group is excluded from remote sync
+    // Handle sites where the Batcache group is excluded from remote sync.
+    // Temporarily allow remote writes for the group, re-set the version so
+    // it propagates to remote memcached nodes, then restore the exclusion.
     if ( pcm_batcache_has_remote_groups() ) {
-        $k = array_search( $batcache->group, (array) $wp_object_cache->no_remote_groups );
+        $k = array_search( $batcache->group, (array) $wp_object_cache->no_remote_groups, true );
         if ( false !== $k ) {
             unset( $wp_object_cache->no_remote_groups[ $k ] );
-            wp_cache_set( "{$url_key}_version", $batcache->group );
+            $current_version = wp_cache_get( "{$url_key}_version", $batcache->group );
+            wp_cache_set( "{$url_key}_version", $current_version, $batcache->group );
             $wp_object_cache->no_remote_groups[ $k ] = $batcache->group;
         }
     }

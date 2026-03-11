@@ -326,8 +326,10 @@ function pressable_cache_management_display_settings_page() {
         'pcmSettingsData',
         array(
             'nonces'          => array(
-                'cacheabilityScan'  => wp_create_nonce( 'pcm_cacheability_scan' ),
-                'edgeCacheToggle'   => wp_create_nonce( 'pcm_edge_cache_toggle' ),
+                'cacheabilityScan'    => wp_create_nonce( 'pcm_cacheability_scan' ),
+                'edgeCacheToggle'     => wp_create_nonce( 'pcm_edge_cache_toggle' ),
+                'privacySettings'     => wp_create_nonce( 'pcm_privacy_settings' ),
+                'redirectAssistant'   => wp_create_nonce( 'pcm_redirect_assistant' ),
             ),
             'privacySettings' => $privacy_settings,
             'strings'         => array(

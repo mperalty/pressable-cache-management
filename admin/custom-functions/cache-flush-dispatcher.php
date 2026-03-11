@@ -98,7 +98,11 @@ class PCM_Cache_Flush_Dispatcher {
     // ─── Post Status Change Handler ──────────────────────────────────────────
 
     /**
-     * Full cache flush when a post transitions to/from trash.
+     * Targeted Batcache flush when a post transitions to/from trash.
+     *
+     * Previously this called wp_cache_flush() (full object-cache wipe) which
+     * is too broad for managed persistent cache infrastructure. Now we flush
+     * only the post's permalink — the same approach used for post edits.
      *
      * @param int     $post_ID    Post ID.
      * @param WP_Post $post_after Post after update.
@@ -117,7 +121,12 @@ class PCM_Cache_Flush_Dispatcher {
             return;
         }
 
-        pcm_schedule_deferred_flush();
+        $url = get_permalink( $post_ID );
+        if ( ! empty( $url ) ) {
+            pcm_flush_batcache_url( $url );
+            update_option( PCM_Options::SINGLE_PAGE_URL_FLUSHED->value, set_url_scheme( $url, 'http' ) );
+        }
+
         update_option( PCM_Options::FLUSH_CACHE_PAGE_POST_DELETE_TIMESTAMP->value, pcm_format_flush_timestamp() );
         set_transient( 'pcm-page-post-delete-notice', true, 9 );
     }
@@ -125,7 +134,11 @@ class PCM_Cache_Flush_Dispatcher {
     // ─── Comment Removal Handler ─────────────────────────────────────────────
 
     /**
-     * Flush the object cache when a comment is trashed or permanently deleted.
+     * Flush the Batcache for the parent post when a comment is trashed or deleted.
+     *
+     * Previously this called wp_cache_flush() (full object-cache wipe) which
+     * is too broad for managed persistent cache infrastructure. Now we flush
+     * only the comment's parent post URL.
      *
      * @param string     $comment_id The comment ID.
      * @param WP_Comment $comment    The comment object.
@@ -138,7 +151,13 @@ class PCM_Cache_Flush_Dispatcher {
         }
         $this->flushed_comments[ $comment_id ] = true;
 
-        pcm_schedule_deferred_flush();
+        $post_id = (int) $comment->comment_post_ID;
+        if ( $post_id > 0 ) {
+            $url = get_permalink( $post_id );
+            if ( ! empty( $url ) ) {
+                pcm_flush_batcache_url( $url );
+            }
+        }
 
         update_option( PCM_Options::FLUSH_CACHE_COMMENT_DELETE_TIMESTAMP->value, pcm_format_flush_timestamp() );
     }

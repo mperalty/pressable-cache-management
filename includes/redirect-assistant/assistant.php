@@ -571,9 +571,9 @@ function pcm_redirect_assistant_validate_rules( array $rules, bool $wildcard_con
  */
 function pcm_ajax_redirect_assistant_list_rules(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
+        pcm_ajax_enforce_permissions( 'pcm_redirect_assistant', 'pcm_manage_redirect_rules' );
     } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+        check_ajax_referer( 'pcm_redirect_assistant', 'nonce' );
 
         if ( ! pcm_redirect_assistant_can_manage() ) {
             wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
@@ -593,9 +593,9 @@ add_action( 'wp_ajax_pcm_redirect_assistant_list_rules', 'pcm_ajax_redirect_assi
  */
 function pcm_ajax_redirect_assistant_discover_candidates(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
+        pcm_ajax_enforce_permissions( 'pcm_redirect_assistant', 'pcm_manage_redirect_rules' );
     } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+        check_ajax_referer( 'pcm_redirect_assistant', 'nonce' );
 
         if ( ! pcm_redirect_assistant_can_manage() ) {
             wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
@@ -631,9 +631,9 @@ add_action( 'wp_ajax_pcm_redirect_assistant_discover_candidates', 'pcm_ajax_redi
  */
 function pcm_ajax_redirect_assistant_save_rules(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
+        pcm_ajax_enforce_permissions( 'pcm_redirect_assistant', 'pcm_manage_redirect_rules' );
     } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+        check_ajax_referer( 'pcm_redirect_assistant', 'nonce' );
 
         if ( ! pcm_redirect_assistant_can_manage() ) {
             wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
@@ -684,9 +684,9 @@ add_action( 'wp_ajax_pcm_redirect_assistant_save_rules', 'pcm_ajax_redirect_assi
  */
 function pcm_ajax_redirect_assistant_simulate(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
+        pcm_ajax_enforce_permissions( 'pcm_redirect_assistant', 'pcm_manage_redirect_rules' );
     } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+        check_ajax_referer( 'pcm_redirect_assistant', 'nonce' );
 
         if ( ! pcm_redirect_assistant_can_manage() ) {
             wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
@@ -731,9 +731,9 @@ add_action( 'wp_ajax_pcm_redirect_assistant_simulate', 'pcm_ajax_redirect_assist
  */
 function pcm_ajax_redirect_assistant_export(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
+        pcm_ajax_enforce_permissions( 'pcm_redirect_assistant', 'pcm_manage_redirect_rules' );
     } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+        check_ajax_referer( 'pcm_redirect_assistant', 'nonce' );
 
         if ( ! pcm_redirect_assistant_can_manage() ) {
             wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
@@ -783,9 +783,9 @@ add_action( 'wp_ajax_pcm_redirect_assistant_export', 'pcm_ajax_redirect_assistan
  */
 function pcm_ajax_redirect_assistant_import(): void {
     if ( function_exists( 'pcm_ajax_enforce_permissions' ) ) {
-        pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_redirect_rules' );
+        pcm_ajax_enforce_permissions( 'pcm_redirect_assistant', 'pcm_manage_redirect_rules' );
     } else {
-        check_ajax_referer( 'pcm_cacheability_scan', 'nonce' );
+        check_ajax_referer( 'pcm_redirect_assistant', 'nonce' );
 
         if ( ! pcm_redirect_assistant_can_manage() ) {
             wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );

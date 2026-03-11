@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION' ) ) {
-    define( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION', '1.2.0' );
+    define( 'PCM_CACHEABILITY_ADVISOR_DB_VERSION', '1.3.0' );
 }
 
 /**
@@ -62,6 +62,61 @@ function pcm_cacheability_advisor_maybe_migrate(): void {
 add_action( 'admin_init', 'pcm_cacheability_advisor_maybe_migrate' );
 
 /**
+ * Retention cleanup — delete scan data older than 90 days.
+ *
+ * Runs daily via WP-Cron to prevent unbounded table growth.
+ */
+function pcm_cacheability_advisor_retention_cleanup(): void {
+    global $wpdb;
+
+    $cutoff = gmdate( 'Y-m-d H:i:s', strtotime( '-90 days' ) );
+
+    // Find old runs.
+    $runs_table = $wpdb->prefix . 'pcm_scan_runs';
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+    $old_run_ids = $wpdb->get_col( $wpdb->prepare(
+        "SELECT id FROM {$runs_table} WHERE created_at < %s LIMIT 50",
+        $cutoff
+    ) );
+
+    if ( empty( $old_run_ids ) ) {
+        return;
+    }
+
+    $id_placeholders = implode( ',', array_fill( 0, count( $old_run_ids ), '%d' ) );
+
+    // Delete child rows first.
+    foreach ( array( 'pcm_scan_urls', 'pcm_findings', 'pcm_template_scores' ) as $child_table ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders
+        $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->prefix}{$child_table} WHERE run_id IN ({$id_placeholders})",
+            ...$old_run_ids
+        ) );
+    }
+
+    // Delete the runs themselves.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders
+    $wpdb->query( $wpdb->prepare(
+        "DELETE FROM {$runs_table} WHERE id IN ({$id_placeholders})",
+        ...$old_run_ids
+    ) );
+}
+add_action( 'pcm_cacheability_retention_cleanup', 'pcm_cacheability_advisor_retention_cleanup' );
+
+/**
+ * Schedule daily retention cleanup.
+ */
+function pcm_cacheability_advisor_schedule_cleanup(): void {
+    if ( ! pcm_cacheability_advisor_is_enabled() ) {
+        return;
+    }
+    if ( ! wp_next_scheduled( 'pcm_cacheability_retention_cleanup' ) ) {
+        wp_schedule_event( time() + 300, 'daily', 'pcm_cacheability_retention_cleanup' );
+    }
+}
+add_action( 'init', 'pcm_cacheability_advisor_schedule_cleanup' );
+
+/**
  * Install or update plugin tables.
  *
  * @return void
@@ -95,6 +150,7 @@ function pcm_cacheability_advisor_install_tables(): void {
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
         run_id bigint(20) unsigned NOT NULL,
         url text NOT NULL,
+        url_hash char(32) NOT NULL DEFAULT '',
         template_type varchar(50) NOT NULL,
         status_code smallint(5) unsigned DEFAULT NULL,
         score int(3) unsigned DEFAULT NULL,
@@ -102,6 +158,7 @@ function pcm_cacheability_advisor_install_tables(): void {
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY  (id),
         KEY run_id (run_id),
+        KEY run_url_hash (run_id, url_hash),
         KEY template_type (template_type),
         KEY score (score)
     ) {$charset_collate};";
@@ -110,6 +167,7 @@ function pcm_cacheability_advisor_install_tables(): void {
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
         run_id bigint(20) unsigned NOT NULL,
         url text NOT NULL,
+        url_hash char(32) NOT NULL DEFAULT '',
         rule_id varchar(100) NOT NULL,
         severity varchar(20) NOT NULL,
         evidence_json longtext DEFAULT NULL,
@@ -117,6 +175,7 @@ function pcm_cacheability_advisor_install_tables(): void {
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY  (id),
         KEY run_id (run_id),
+        KEY run_url_hash (run_id, url_hash),
         KEY rule_id (rule_id),
         KEY severity (severity)
     ) {$charset_collate};";
@@ -222,18 +281,20 @@ class PCM_Cacheability_Advisor_Repository {
         $table = $wpdb->prefix . 'pcm_scan_urls';
         $now   = current_time( 'mysql', true );
 
+        $safe_url = esc_url_raw( $url );
         $inserted = $wpdb->insert(
             $table,
             array(
                 'run_id'        => absint( $run_id ),
-                'url'           => esc_url_raw( $url ),
+                'url'           => $safe_url,
+                'url_hash'      => md5( $safe_url ),
                 'template_type' => sanitize_key( $template_type ),
                 'status_code'   => absint( $status_code ),
                 'score'         => max( 0, min( 100, absint( $score ) ) ),
                 'diagnosis_json'=> wp_json_encode( is_array( $diagnosis ) ? $diagnosis : array() ),
                 'created_at'    => $now,
             ),
-            array( '%d', '%s', '%s', '%d', '%d', '%s', '%s' )
+            array( '%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s' )
         );
 
         if ( false === $inserted ) {
@@ -261,18 +322,20 @@ class PCM_Cacheability_Advisor_Repository {
         $table = $wpdb->prefix . 'pcm_findings';
         $now   = current_time( 'mysql', true );
 
+        $safe_url = esc_url_raw( $url );
         $inserted = $wpdb->insert(
             $table,
             array(
                 'run_id'            => absint( $run_id ),
-                'url'               => esc_url_raw( $url ),
+                'url'               => $safe_url,
+                'url_hash'          => md5( $safe_url ),
                 'rule_id'           => sanitize_key( $rule_id ),
                 'severity'          => sanitize_key( $severity ),
                 'evidence_json'     => wp_json_encode( $evidence ),
                 'recommendation_id' => sanitize_key( $recommendation_id ),
                 'created_at'        => $now,
             ),
-            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
+            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
         );
 
         if ( false === $inserted ) {
@@ -445,14 +508,16 @@ class PCM_Cacheability_Advisor_Repository {
 
         $table = $wpdb->prefix . 'pcm_scan_urls';
 
-        $query = $wpdb->prepare(
+        $safe_url = esc_url_raw( $url );
+        $query    = $wpdb->prepare(
             "SELECT id, run_id, url, template_type, status_code, score, diagnosis_json, created_at
              FROM {$table}
-             WHERE run_id = %d AND url = %s
+             WHERE run_id = %d AND url_hash = %s AND url = %s
              ORDER BY id DESC
              LIMIT 1",
             absint( $run_id ),
-            esc_url_raw( $url )
+            md5( $safe_url ),
+            $safe_url
         );
 
         $row = $wpdb->get_row( $query, ARRAY_A );

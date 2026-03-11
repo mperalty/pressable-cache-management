@@ -72,26 +72,27 @@ class Batcache_Manager {
 
         $batcache->configure_groups();
 
-        // Posts
+        // Core hooks: posts, terms, and comments — always registered.
+        // These cover WooCommerce product/order updates and standard editorial changes.
         add_action( 'clean_post_cache', array( $this, 'action_clean_post_cache' ), 15 );
-        // Terms
         add_action( 'clean_term_cache', array( $this, 'action_clean_term_cache' ), 10, 3 );
-        //Comments
-        add_action( 'clean_comment_cache', array( $this, 'action_update_comment' ) ); // Only supported in 4.5
+        add_action( 'clean_comment_cache', array( $this, 'action_update_comment' ) );
         add_action( 'comment_post', array( $this, 'action_update_comment' ) );
         add_action( 'wp_set_comment_status', array( $this, 'action_update_comment' ) );
         add_action( 'edit_comment', array( $this, 'action_update_comment' ) );
-        // Users
-        add_action( 'clean_user_cache', array( $this, 'action_update_user' ) );
-        add_action( 'profile_update', array( $this, 'action_update_user' ) );
-        // Widgets
-        add_filter( 'widget_update_callback', array( $this, 'action_update_widget' ), 50 );
-        // Customiser
-        add_action( 'customize_save_after', array( $this, 'flush_all' ) );
-        // Theme
-        add_action( 'switch_theme', array( $this, 'flush_all' ) );
-        // Nav
-        add_action( 'wp_update_nav_menu', array( $this, 'flush_all' ) );
+
+        // Extended hooks: users, widgets, customizer, theme switches, nav menus.
+        // These are broader and trigger site-wide Batcache invalidation, which can
+        // be expensive on managed infrastructure. Opt-in via filter:
+        //   add_filter( 'pcm_batcache_manager_extended_hooks', '__return_true' );
+        if ( apply_filters( 'pcm_batcache_manager_extended_hooks', false ) ) {
+            add_action( 'clean_user_cache', array( $this, 'action_update_user' ) );
+            add_action( 'profile_update', array( $this, 'action_update_user' ) );
+            add_filter( 'widget_update_callback', array( $this, 'action_update_widget' ), 50 );
+            add_action( 'customize_save_after', array( $this, 'flush_all' ) );
+            add_action( 'switch_theme', array( $this, 'flush_all' ) );
+            add_action( 'wp_update_nav_menu', array( $this, 'flush_all' ) );
+        }
 
         // Add site aliases to list of links
         add_filter( 'batcache_manager_links', array( $this, 'add_site_alias' ) );

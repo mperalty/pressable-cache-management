@@ -5,7 +5,13 @@
  * Handles rule discovery, editing, dry-run simulation, export, and import.
  */
 document.addEventListener('DOMContentLoaded', function() {
-    if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
+    function getRedirectNonce() {
+        if (window.pcmSettingsData && window.pcmSettingsData.nonces && window.pcmSettingsData.nonces.redirectAssistant) {
+            return window.pcmSettingsData.nonces.redirectAssistant;
+        }
+        return (typeof window.pcmGetCacheabilityNonce === 'function') ? getRedirectNonce() : '';
+    }
+    if (!getRedirectNonce()) return;
 
     var out = document.getElementById('pcm-ra-output');
     var candidatesOut = document.getElementById('pcm-ra-candidates-output');
@@ -340,7 +346,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Discover Candidates ---
     document.getElementById('pcm-ra-discover').addEventListener('click', function() {
         if (candidatesOut) candidatesOut.innerHTML = '<em>Discovering candidates...</em>';
-        window.pcmPost({ action: 'pcm_redirect_assistant_discover_candidates', nonce: window.pcmGetCacheabilityNonce(), urls: document.getElementById('pcm-ra-urls').value })
+        window.pcmPost({ action: 'pcm_redirect_assistant_discover_candidates', nonce: getRedirectNonce(), urls: document.getElementById('pcm-ra-urls').value })
             .then(function(res) {
                 requireSuccess(res, 'Unable to load redirect discovery endpoint.');
                 if (res && res.success && res.data && Array.isArray(res.data.candidates)) {
@@ -356,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Load Saved Rules ---
     document.getElementById('pcm-ra-load-rules').addEventListener('click', function() {
-        window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: window.pcmGetCacheabilityNonce() })
+        window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: getRedirectNonce() })
             .then(function(res) {
                 requireSuccess(res, 'Unable to load redirect rules endpoint.');
                 if (res && res.success && res.data) {
@@ -377,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         syncJsonFromState();
-        window.pcmPost({ action: 'pcm_redirect_assistant_save_rules', nonce: window.pcmGetCacheabilityNonce(), rules: rulesBox.value, confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
+        window.pcmPost({ action: 'pcm_redirect_assistant_save_rules', nonce: getRedirectNonce(), rules: rulesBox.value, confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
             .then(function(res) {
                 requireSuccess(res, 'Unable to save redirect rules endpoint.');
                 showStatus(out, 'Rules saved successfully.', false);
@@ -391,7 +397,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('pcm-ra-simulate').addEventListener('click', function() {
         syncJsonFromState();
         if (simOut) simOut.innerHTML = '<em>Running simulation...</em>';
-        window.pcmPost({ action: 'pcm_redirect_assistant_simulate', nonce: window.pcmGetCacheabilityNonce(), urls: document.getElementById('pcm-ra-sim-urls').value, rules: rulesBox.value })
+        window.pcmPost({ action: 'pcm_redirect_assistant_simulate', nonce: getRedirectNonce(), urls: document.getElementById('pcm-ra-sim-urls').value, rules: rulesBox.value })
             .then(function(res) {
                 requireSuccess(res, 'Unable to run redirect simulation endpoint.');
                 renderDryRunTable(res);
@@ -404,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Build Export ---
     document.getElementById('pcm-ra-export').addEventListener('click', function() {
         syncJsonFromState();
-        window.pcmPost({ action: 'pcm_redirect_assistant_export', nonce: window.pcmGetCacheabilityNonce(), confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
+        window.pcmPost({ action: 'pcm_redirect_assistant_export', nonce: getRedirectNonce(), confirm_wildcards: document.getElementById('pcm-ra-confirm-wildcards').checked ? '1' : '0' })
             .then(function(res) {
                 requireSuccess(res, 'Unable to export redirect rules endpoint.');
                 if (res && res.success && res.data && res.data.export && exportBox) {
@@ -455,12 +461,12 @@ document.addEventListener('DOMContentLoaded', function() {
             var raw = importBox ? importBox.value || '' : '';
             var marker = '/* JSON PAYLOAD FOR IMPORT */';
             var payload = raw.indexOf(marker) > -1 ? raw.substring(raw.indexOf(marker) + marker.length).trim() : raw.trim();
-            window.pcmPost({ action: 'pcm_redirect_assistant_import', nonce: window.pcmGetCacheabilityNonce(), payload: payload })
+            window.pcmPost({ action: 'pcm_redirect_assistant_import', nonce: getRedirectNonce(), payload: payload })
                 .then(function(res) {
                     requireSuccess(res, 'Unable to import redirect rules endpoint.');
                     showStatus(out, 'Import successful. Loading updated rules...', false);
                     if (res && res.success) {
-                        return window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: window.pcmGetCacheabilityNonce() });
+                        return window.pcmPost({ action: 'pcm_redirect_assistant_list_rules', nonce: getRedirectNonce() });
                     }
                 })
                 .then(function(res) {

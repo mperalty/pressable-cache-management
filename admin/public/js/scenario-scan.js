@@ -142,6 +142,7 @@
         // ── Run scan ───────────────────────────────────────────────────
 
         function processScenarioQueue(scanToken, total) {
+            var accumulated = [];
             function processNext() {
                 return window.pcmPost({
                     action: 'pcm_scenario_scan_next',
@@ -151,11 +152,16 @@
                     if (!res || !res.success || !res.data) {
                         throw new Error((res && res.data && res.data.message) || 'Processing failed');
                     }
+                    // Results are returned per-step; accumulate client-side.
+                    if (res.data.result) {
+                        accumulated.push(res.data.result);
+                    }
                     if (!res.data.done) {
                         var scanned = total - res.data.remaining;
                         statusEl.textContent = 'Scanning\u2026 ' + scanned + '/' + total + ' URLs probed.';
                         return processNext();
                     }
+                    res.data.results = accumulated;
                     return res.data;
                 });
             }

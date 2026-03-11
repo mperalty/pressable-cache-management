@@ -119,9 +119,17 @@ function pcm_abar_flush_object_callback(): void {
         echo 'You do not have permission to flush the Object Cache.';
         wp_die();
     }
-    wp_cache_flush();
-    if ( function_exists('batcache_clear_cache') ) batcache_clear_cache();
-    update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, pcm_format_flush_timestamp() );
+    // Route through the canonical flush helper so post-flush hooks,
+    // batcache status invalidation, and microcache cleanup all fire.
+    if ( function_exists( 'pcm_flush_all_caches' ) ) {
+        pcm_flush_all_caches();
+    } else {
+        wp_cache_flush();
+        if ( function_exists( 'batcache_clear_cache' ) ) {
+            batcache_clear_cache();
+        }
+        update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, pcm_format_flush_timestamp() );
+    }
     echo esc_html__( 'Object Cache Flushed successfully.', 'pressable_cache_management' );
     wp_die();
 }
@@ -161,10 +169,16 @@ function pcm_abar_flush_combined_callback(): void {
     }
     $messages = array();
 
-    // Object cache
-    wp_cache_flush();
-    if ( function_exists('batcache_clear_cache') ) batcache_clear_cache();
-    update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, pcm_format_flush_timestamp() );
+    // Object cache — route through the canonical flush helper.
+    if ( function_exists( 'pcm_flush_all_caches' ) ) {
+        pcm_flush_all_caches();
+    } else {
+        wp_cache_flush();
+        if ( function_exists( 'batcache_clear_cache' ) ) {
+            batcache_clear_cache();
+        }
+        update_option( PCM_Options::FLUSH_OBJ_CACHE_TIMESTAMP->value, pcm_format_flush_timestamp() );
+    }
     $messages[] = esc_html__( 'Object Cache Flushed successfully.', 'pressable_cache_management' );
 
     // Edge cache

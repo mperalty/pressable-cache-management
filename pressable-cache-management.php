@@ -53,7 +53,13 @@ function pcm_deactivate_cleanup(): void {
         $wp_filesystem->delete( $mu_dir, true ); // true = recursive
     }
 
-    // ── 3. Remove legacy standalone MU-plugin ────────────────────────────────
+    // ── 3. Remove the Woo individual-page batcache MU-plugin ───────────────
+    $batcache_mgr = WP_CONTENT_DIR . '/mu-plugins/pcm_batcache_manager.php';
+    if ( $wp_filesystem->exists( $batcache_mgr ) ) {
+        $wp_filesystem->delete( $batcache_mgr );
+    }
+
+    // ── 3b. Remove legacy hyphenated filename (pre-rename installs) ─────────
     $legacy_file = WP_CONTENT_DIR . '/mu-plugins/pcm-batcache-manager.php';
     if ( $wp_filesystem->exists( $legacy_file ) ) {
         $wp_filesystem->delete( $legacy_file );
@@ -179,7 +185,7 @@ if ( (bool) apply_filters( 'pcm_enable_durable_origin_microcache', (bool) get_op
     require_once plugin_dir_path( __FILE__ ) . 'includes/durable-origin-microcache/microcache.php';
 }
 
-// ─── Defer heavy feature modules to admin_init for admin, or wp_loaded for AJAX ──
+// ─── Defer heavy feature modules — only load on PCM admin pages or AJAX ──────
 function pcm_load_feature_modules(): void {
     $dir = plugin_dir_path( __FILE__ ) . 'includes/';
     require_once $dir . 'cacheability-advisor/storage.php';
@@ -192,8 +198,18 @@ function pcm_load_feature_modules(): void {
     require_once $dir . 'layered-probe/layered-probe.php';
     require_once $dir . 'cacheability-advisor/scenario-scan.php';
 }
-if ( is_admin() || wp_doing_ajax() ) {
+if ( wp_doing_ajax() ) {
+    // AJAX handlers are registered in these modules — always load for AJAX.
     add_action( 'admin_init', 'pcm_load_feature_modules' );
+} elseif ( is_admin() ) {
+    // Only load on the plugin's own settings page to avoid overhead on every admin request.
+    add_action( 'admin_init', function(): void {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+        if ( 'pressable_cache_management' === $page ) {
+            pcm_load_feature_modules();
+        }
+    } );
 }
 
 // ─── Settings link on plugin list page ──────────────────────────────────────

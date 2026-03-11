@@ -162,7 +162,14 @@
     })();
 
 (function(){
-        if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
+        function getPrivacyNonce() {
+            if (window.pcmSettingsData && window.pcmSettingsData.nonces && window.pcmSettingsData.nonces.privacySettings) {
+                return window.pcmSettingsData.nonces.privacySettings;
+            }
+            // Fallback to shared nonce for backward compat.
+            return (typeof window.pcmGetCacheabilityNonce === 'function') ? window.pcmGetCacheabilityNonce() : '';
+        }
+        if (!getPrivacyNonce()) return;
         var initialSettings = (window.pcmSettingsData && window.pcmSettingsData.privacySettings) || {};
         var retentionEl = document.getElementById('pcm-privacy-retention');
         var auditEnabledEl = document.getElementById('pcm-privacy-audit-enabled');
@@ -216,7 +223,7 @@
                 loadMoreEl.style.display = 'none';
             }
 
-            return window.pcmPost({ action: 'pcm_audit_log_list', nonce: window.pcmGetCacheabilityNonce(), limit: pageSize, offset: currentOffset }).then(function(res){
+            return window.pcmPost({ action: 'pcm_audit_log_list', nonce: getPrivacyNonce(), limit: pageSize, offset: currentOffset }).then(function(res){
                 if (!res || !res.success || !res.data || !Array.isArray(res.data.rows)) throw new Error('audit_failed');
                 allRows = allRows.concat(res.data.rows);
                 currentOffset += res.data.rows.length;
@@ -234,7 +241,7 @@
             statusEl.textContent = 'Saving…';
             window.pcmPost({
                 action: 'pcm_privacy_settings_save',
-                nonce: window.pcmGetCacheabilityNonce(),
+                nonce: getPrivacyNonce(),
                 settings: JSON.stringify({
                     retention_days: retentionEl.value,
                     redaction_level: 'standard',

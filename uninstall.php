@@ -96,6 +96,9 @@ $options_to_delete = array(
     // ── Plugin own transients (stored as options by WP) ───────────────────────
     '_transient_pcm_batcache_status',
     '_transient_timeout_pcm_batcache_status',
+
+    // ── Migration flag ──────────────────────────────────────────────────────
+    'pcm_legacy_migration_done',
 );
 
 foreach ( $options_to_delete as $option ) {

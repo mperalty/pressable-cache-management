@@ -424,13 +424,18 @@ function pcm_ajax_enforce_permissions( string $nonce_action, string $capability 
 function pcm_save_privacy_settings( mixed $raw ): array {
     $raw = is_array( $raw ) ? $raw : array();
 
+    // Merge incoming partial payload with existing settings so that fields
+    // not present in the request (e.g. advanced_scan_opt_in, sensitive_keys)
+    // are preserved instead of silently reset to defaults.
+    $existing = pcm_get_privacy_settings();
+
     $settings = array(
-        'retention_days'       => isset( $raw['retention_days'] ) ? absint( $raw['retention_days'] ) : 90,
-        'redaction_level'      => isset( $raw['redaction_level'] ) ? sanitize_key( $raw['redaction_level'] ) : 'standard',
-        'export_restrictions'  => isset( $raw['export_restrictions'] ) ? sanitize_key( $raw['export_restrictions'] ) : 'admin_only',
-        'advanced_scan_opt_in' => ! empty( $raw['advanced_scan_opt_in'] ),
-        'audit_log_enabled'    => ! empty( $raw['audit_log_enabled'] ),
-        'sensitive_keys'       => isset( $raw['sensitive_keys'] ) ? array_filter( array_map( 'sanitize_key', (array) $raw['sensitive_keys'] ) ) : array(),
+        'retention_days'       => isset( $raw['retention_days'] ) ? absint( $raw['retention_days'] ) : $existing['retention_days'],
+        'redaction_level'      => isset( $raw['redaction_level'] ) ? sanitize_key( $raw['redaction_level'] ) : $existing['redaction_level'],
+        'export_restrictions'  => isset( $raw['export_restrictions'] ) ? sanitize_key( $raw['export_restrictions'] ) : $existing['export_restrictions'],
+        'advanced_scan_opt_in' => array_key_exists( 'advanced_scan_opt_in', $raw ) ? ! empty( $raw['advanced_scan_opt_in'] ) : $existing['advanced_scan_opt_in'],
+        'audit_log_enabled'    => array_key_exists( 'audit_log_enabled', $raw ) ? ! empty( $raw['audit_log_enabled'] ) : $existing['audit_log_enabled'],
+        'sensitive_keys'       => isset( $raw['sensitive_keys'] ) ? array_filter( array_map( 'sanitize_key', (array) $raw['sensitive_keys'] ) ) : $existing['sensitive_keys'],
     );
 
     update_option( PCM_Options::PRIVACY_SETTINGS_V1->value, $settings, false );
@@ -464,7 +469,7 @@ function pcm_audit_log( string $action, string $target = '', array $context = ar
  * @return void
  */
 function pcm_ajax_privacy_settings_get(): void {
-    pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_privacy_settings' );
+    pcm_ajax_enforce_permissions( 'pcm_privacy_settings', 'pcm_manage_privacy_settings' );
 
     wp_send_json_success( array( 'settings' => pcm_get_privacy_settings() ) );
 }
@@ -476,7 +481,7 @@ add_action( 'wp_ajax_pcm_privacy_settings_get', 'pcm_ajax_privacy_settings_get' 
  * @return void
  */
 function pcm_ajax_privacy_settings_save(): void {
-    pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_privacy_settings' );
+    pcm_ajax_enforce_permissions( 'pcm_privacy_settings', 'pcm_manage_privacy_settings' );
 
     $payload = isset( $_REQUEST['settings'] ) ? json_decode( wp_unslash( $_REQUEST['settings'] ), true ) : array();
     if ( ! is_array( $payload ) ) {
@@ -497,7 +502,7 @@ add_action( 'wp_ajax_pcm_privacy_settings_save', 'pcm_ajax_privacy_settings_save
  * @return void
  */
 function pcm_ajax_audit_log_list(): void {
-    pcm_ajax_enforce_permissions( 'pcm_cacheability_scan', 'pcm_manage_privacy_settings' );
+    pcm_ajax_enforce_permissions( 'pcm_privacy_settings', 'pcm_manage_privacy_settings' );
 
     $limit   = isset( $_REQUEST['limit'] ) ? max( 1, min( 200, absint( $_REQUEST['limit'] ) ) ) : 20;
     $offset  = isset( $_REQUEST['offset'] ) ? max( 0, absint( $_REQUEST['offset'] ) ) : 0;
@@ -540,7 +545,9 @@ function pcm_ajax_refresh_cacheability_nonce(): void {
 
     wp_send_json_success(
         array(
-            'nonce' => wp_create_nonce( 'pcm_cacheability_scan' ),
+            'nonce'                  => wp_create_nonce( 'pcm_cacheability_scan' ),
+            'privacySettingsNonce'   => wp_create_nonce( 'pcm_privacy_settings' ),
+            'redirectAssistantNonce' => wp_create_nonce( 'pcm_redirect_assistant' ),
         )
     );
 }

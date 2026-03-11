@@ -429,12 +429,14 @@ function pcm_ajax_scenario_scan_run(): void {
         $variants = array_slice( $variants, 0, $allowed_variants );
     }
 
-    // Store the queue in a transient keyed by a unique scan token.
+    // Store only the URL queue and variant config in the transient — results
+    // are returned per-step in the AJAX response so we avoid rewriting a
+    // growing blob to object-cache on every iteration.
     $scan_token = 'pcm_scenario_' . wp_generate_uuid4();
     set_transient( $scan_token, array(
         'urls'      => $urls,
         'variants'  => $variants,
-        'results'   => array(),
+        'total'     => count( $urls ),
     ), HOUR_IN_SECONDS );
 
     if ( function_exists( 'pcm_audit_log' ) ) {
@@ -477,7 +479,7 @@ function pcm_ajax_scenario_scan_next(): void {
         $url_results[] = pcm_scenario_probe_variant( $url, $variant );
     }
 
-    $state['results'][] = array(
+    $step_result = array(
         'url'      => $url,
         'variants' => $url_results,
     );
@@ -486,26 +488,26 @@ function pcm_ajax_scenario_scan_next(): void {
     $remaining = count( $state['urls'] );
 
     if ( $done ) {
-        // Return final results and clean up.
-        $results = $state['results'];
+        // Clean up — results are accumulated client-side, not stored here.
         delete_transient( $scan_token );
 
         wp_send_json_success( array(
             'done'          => true,
             'remaining'     => 0,
             'scanned_at'    => gmdate( 'j M Y, g:ia' ) . ' UTC',
-            'url_count'     => count( $results ),
+            'url_count'     => $state['total'],
             'variant_count' => count( $variants ),
             'variant_ids'   => array_map( function ( $v ) { return array( 'id' => $v['id'], 'label' => $v['label'] ); }, $variants ),
-            'results'       => $results,
+            'result'        => $step_result,
         ) );
     } else {
+        // Only store the remaining URL queue — no accumulated results.
         set_transient( $scan_token, $state, HOUR_IN_SECONDS );
 
         wp_send_json_success( array(
             'done'      => false,
             'remaining' => $remaining,
-            'url'       => $url,
+            'result'    => $step_result,
         ) );
     }
 }

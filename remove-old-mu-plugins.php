@@ -10,7 +10,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit();
 }
 
-// Check if this particular plugin  version is updated.
+// Run the legacy migration only once — skip if already completed.
+if ( get_option( 'pcm_legacy_migration_done' ) ) {
+	return;
+}
+
+// Check if this particular plugin version is updated.
 $current_version = '3.4.4';
 if ( version_compare( $current_version, '3.4.4', '>=' ) ) {
 
@@ -56,3 +61,6 @@ foreach ( $mu_plugins as $mu_plugin ) {
 		$wp_filesystem->delete( $file );
 	}
 }
+
+// Mark migration as complete so it never runs again.
+update_option( 'pcm_legacy_migration_done', true, true );
