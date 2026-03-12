@@ -14,39 +14,89 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class PCM_Cacheability_Advisor_Repository {
 	/**
-	 * Ensure all required tables exist, creating them if needed.
+	 * Ensure all required tables and columns exist, creating or repairing them if needed.
 	 *
-	 * @return bool True if all tables exist after the check.
+	 * @return bool True if all required schema exists after the check.
 	 */
 	public function ensure_tables_exist(): bool {
-		global $wpdb;
+		$required_schema = $this->required_schema();
+		$needs_repair    = PCM_CACHEABILITY_ADVISOR_DB_VERSION !== (string) get_option( PCM_Options::CACHEABILITY_ADVISOR_DB_VERSION->value, '' );
 
-		$required = array(
-			$wpdb->prefix . 'pcm_scan_runs',
-			$wpdb->prefix . 'pcm_scan_urls',
-			$wpdb->prefix . 'pcm_findings',
-			$wpdb->prefix . 'pcm_template_scores',
-		);
-
-		$missing = false;
-		foreach ( $required as $table ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- SHOW TABLES LIKE is used only for plugin-owned schema verification.
-			$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-			if ( ! $exists ) {
-				$missing = true;
+		foreach ( $required_schema as $table => $columns ) {
+			if ( ! $this->table_exists( $table ) || ! $this->table_has_required_columns( $table, $columns ) ) {
+				$needs_repair = true;
 				break;
 			}
 		}
 
-		if ( $missing ) {
+		if ( $needs_repair ) {
+			pcm_cacheability_advisor_log_message( 'PCM Cacheability Advisor: schema check detected missing tables or columns; attempting repair.' );
 			pcm_cacheability_advisor_install_tables();
 			update_option( PCM_Options::CACHEABILITY_ADVISOR_DB_VERSION->value, PCM_CACHEABILITY_ADVISOR_DB_VERSION, false );
 		}
 
-		foreach ( $required as $table ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- SHOW TABLES LIKE is used only for plugin-owned schema verification.
-			$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-			if ( ! $exists ) {
+		foreach ( $required_schema as $table => $columns ) {
+			if ( ! $this->table_exists( $table ) || ! $this->table_has_required_columns( $table, $columns ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Required Cacheability Advisor schema by table.
+	 *
+	 * @return array<string, array<int, string>>
+	 */
+	protected function required_schema(): array {
+		global $wpdb;
+
+		return array(
+			$wpdb->prefix . 'pcm_scan_runs'       => array( 'id', 'started_at', 'finished_at', 'status', 'sample_count', 'initiated_by', 'created_at' ),
+			$wpdb->prefix . 'pcm_scan_urls'       => array( 'id', 'run_id', 'url', 'url_hash', 'template_type', 'status_code', 'score', 'diagnosis_json', 'created_at' ),
+			$wpdb->prefix . 'pcm_findings'        => array( 'id', 'run_id', 'url', 'url_hash', 'rule_id', 'severity', 'evidence_json', 'recommendation_id', 'created_at' ),
+			$wpdb->prefix . 'pcm_template_scores' => array( 'id', 'run_id', 'template_type', 'score', 'url_count', 'created_at' ),
+		);
+	}
+
+	/**
+	 * Determine whether a plugin-owned table exists.
+	 *
+	 * @param string $table Table name.
+	 *
+	 * @return bool
+	 */
+	protected function table_exists( string $table ): bool {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- SHOW TABLES LIKE is used only for plugin-owned schema verification.
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+
+		return ! empty( $exists );
+	}
+
+	/**
+	 * Determine whether a plugin-owned table includes all required columns.
+	 *
+	 * @param string            $table Table name.
+	 * @param array<int,string> $required_columns Required column names.
+	 *
+	 * @return bool
+	 */
+	protected function table_has_required_columns( string $table, array $required_columns ): bool {
+		global $wpdb;
+
+		foreach ( $required_columns as $column ) {
+			$exists = $wpdb->get_var(
+				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is built from the trusted WordPress prefix plus a plugin-owned suffix.
+					"SHOW COLUMNS FROM {$table} LIKE %s",
+					$column
+				)
+			);
+
+			if ( empty( $exists ) ) {
 				return false;
 			}
 		}

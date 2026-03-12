@@ -273,21 +273,25 @@ function pressable_cache_management_display_settings_page() {
 	$is_redirects_tab = ( 'redirects_tab' === $tab );
 	$is_settings_tab  = ( 'settings_tab' === $tab );
 
-	$branding_opts        = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
-	$show_branding        = ! (
+	$branding_opts              = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
+	$show_branding              = ! (
 		is_array( $branding_opts )
 		&& isset( $branding_opts['branding_on_off_radio_button'] )
 		&& 'disable' === $branding_opts['branding_on_off_radio_button']
 	);
-	$pcm_module_available = array(
+	$pcm_module_available       = array(
 		'object_cache' => function_exists( 'pcm_object_cache_intelligence_is_enabled' ),
 		'opcache'      => function_exists( 'pcm_opcache_awareness_is_enabled' ),
 		'cacheability' => function_exists( 'pcm_cacheability_advisor_is_enabled' ),
 		'redirects'    => function_exists( 'pcm_redirect_assistant_is_enabled' ),
 	);
-	$privacy_settings     = function_exists( 'pcm_get_privacy_settings' ) ? pcm_get_privacy_settings() : array();
-	$bc_status            = pcm_get_batcache_status();
-	$bc_is_unknown        = ( 'unknown' === $bc_status );
+	$scenario_scan_enabled      = function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled();
+	$scenario_scan_max_urls     = defined( 'PCM_SCENARIO_MAX_URLS' ) ? (int) PCM_SCENARIO_MAX_URLS : 20;
+	$scenario_scan_max_total    = defined( 'PCM_SCENARIO_MAX_TOTAL_PROBES' ) ? (int) PCM_SCENARIO_MAX_TOTAL_PROBES : 60;
+	$scenario_scan_settings_url = admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' );
+	$privacy_settings           = function_exists( 'pcm_get_privacy_settings' ) ? pcm_get_privacy_settings() : array();
+	$bc_status                  = pcm_get_batcache_status();
+	$bc_is_unknown              = ( 'unknown' === $bc_status );
 
 	$css_path         = dirname( __DIR__ ) . '/public/css/style.css';
 	$plugin_main_path = dirname( __DIR__ ) . '/pressable-cache-management.php';
@@ -376,6 +380,19 @@ function pressable_cache_management_display_settings_page() {
 			array( 'pcm-post', 'pcm-utils', 'pcm-settings-page-deep-dive' ),
 			file_exists( $base_js_path . 'scenario-scan.js' ) ? (string) filemtime( $base_js_path . 'scenario-scan.js' ) : false,
 			true
+		);
+		wp_localize_script(
+			'pcm-scenario-scan',
+			'pcmScenarioScanData',
+			array(
+				'settingsUrl'    => $scenario_scan_settings_url,
+				'siteUrl'        => trailingslashit( get_site_url() ),
+				'siteName'       => wp_strip_all_tags( get_bloginfo( 'name', 'display' ) ),
+				'siteHost'       => wp_parse_url( get_site_url(), PHP_URL_HOST ),
+				'maxUrls'        => $scenario_scan_max_urls,
+				'maxTotal'       => $scenario_scan_max_total,
+				'featureEnabled' => $scenario_scan_enabled,
+			)
 		);
 	}
 
@@ -621,7 +638,7 @@ function pressable_cache_management_display_settings_page() {
 
 
 		<?php if ( $is_deep_dive_tab || $is_redirects_tab ) : ?>
-			<?php if ( $is_deep_dive_tab ) : ?>
+			<?php if ( $is_deep_dive_tab && $scenario_scan_enabled ) : ?>
 	<nav class="pcm-anchor-nav" id="pcm-deep-dive-nav" aria-label="Deep Dive sections">
 		<a href="#pcm-feature-cacheability-advisor">Cacheability</a>
 		<a href="#pcm-feature-cache-overview">Cache Overview</a>
@@ -636,32 +653,32 @@ function pressable_cache_management_display_settings_page() {
 		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
 		<div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
 		<template class="pcm-lazy-template">
-		<p>
-			<button type="button" class="pcm-btn-primary" id="pcm-advisor-run-btn" <?php disabled( ! $advanced_scan_enabled ); ?>><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
-			<span id="pcm-advisor-run-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
-		</p>
-				<?php if ( ! $advanced_scan_enabled ) : ?>
+			<p>
+				<button type="button" class="pcm-btn-primary" id="pcm-advisor-run-btn" <?php disabled( ! $advanced_scan_enabled ); ?>><?php echo esc_html__( 'Rescan now', 'pressable_cache_management' ); ?></button>
+				<span id="pcm-advisor-run-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
+			</p>
+					<?php if ( ! $advanced_scan_enabled ) : ?>
 					<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Rescans are disabled until Advanced Scanning Workflows is enabled in Settings > Feature Flags.', 'pressable_cache_management' ); ?></p>
 				<?php endif; ?>
-		<div class="pcm-advisor-grid pcm-responsive-two-col pcm-grid-2col">
-			<div>
-				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Template Scores', 'pressable_cache_management' ); ?></h4>
-				<div id="pcm-advisor-template-scores" class="pcm-panel-text"></div>
+			<div class="pcm-advisor-grid pcm-responsive-two-col pcm-grid-2col">
+				<div>
+					<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Template Scores', 'pressable_cache_management' ); ?></h4>
+					<div id="pcm-advisor-template-scores" class="pcm-panel-text"></div>
+				</div>
+				<div>
+					<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Latest Findings', 'pressable_cache_management' ); ?></h4>
+					<div id="pcm-advisor-findings" class="pcm-panel-text"></div>
+				</div>
 			</div>
-			<div>
-				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Latest Findings', 'pressable_cache_management' ); ?></h4>
-				<div id="pcm-advisor-findings" class="pcm-panel-text"></div>
+			<div class="pcm-mt-14">
+				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Route Sensitivity', 'pressable_cache_management' ); ?></h4>
+				<div id="pcm-advisor-sensitivity" class="pcm-panel-text"></div>
 			</div>
-		</div>
-		<div class="pcm-mt-14">
-			<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Route Sensitivity', 'pressable_cache_management' ); ?></h4>
-			<div id="pcm-advisor-sensitivity" class="pcm-panel-text"></div>
-		</div>
-		<div class="pcm-mt-14">
-			<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?></h4>
-			<div id="pcm-advisor-diagnosis" class="pcm-advisor-diagnosis pcm-advisor-diagnosis-box"><em><?php echo esc_html__( 'Select a route from findings to view diagnosis.', 'pressable_cache_management' ); ?></em></div>
-		</div>
-		<div id="pcm-advisor-playbook" class="pcm-playbook-panel"></div>
+			<div class="pcm-mt-14">
+				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?></h4>
+				<div id="pcm-advisor-diagnosis" class="pcm-advisor-diagnosis pcm-advisor-diagnosis-box"><em><?php echo esc_html__( 'Select a route from findings to view diagnosis.', 'pressable_cache_management' ); ?></em></div>
+			</div>
+			<div id="pcm-advisor-playbook" class="pcm-playbook-panel"></div>
 		</template>
 	</div>
 	<?php elseif ( $is_deep_dive_tab ) : ?>
@@ -728,63 +745,25 @@ function pressable_cache_management_display_settings_page() {
 	<?php endif; ?>
 
 			<?php if ( $is_deep_dive_tab ) : ?>
-	<div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-scenario-scan" data-section="scenario-scan">
+				<?php $scenario_scan_available = $scenario_scan_enabled && ! empty( $pcm_module_available['cacheability'] ); ?>
+	<div class="pcm-card pcm-card-hover pcm-card-mb-scroll<?php echo $scenario_scan_available ? ' pcm-lazy-section' : ''; ?>" id="pcm-feature-scenario-scan" data-section="scenario-scan" data-site-host="<?php echo esc_attr( (string) wp_parse_url( get_site_url(), PHP_URL_HOST ) ); ?>" data-max-urls="<?php echo esc_attr( (string) $scenario_scan_max_urls ); ?>" data-max-total="<?php echo esc_attr( (string) $scenario_scan_max_total ); ?>">
 		<h3 class="pcm-card-title"><span class="dashicons dashicons-randomize pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Scenario Scan', 'pressable_cache_management' ); ?></h3>
 		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Probe URLs through multiple cache scenarios — warm vs cold, cookie vs anonymous, mobile vs desktop, and query-param variants — to surface WPCloud-specific cache differences.', 'pressable_cache_management' ); ?></p>
+				<?php if ( $scenario_scan_available ) : ?>
 		<div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
 		<template class="pcm-lazy-template">
-
-		<!-- URL Source -->
-		<div class="pcm-scenario-section">
-			<h4 class="pcm-section-subhead"><?php echo esc_html__( 'URL Source', 'pressable_cache_management' ); ?></h4>
-			<div class="pcm-scenario-source-row">
-				<label class="pcm-scenario-radio"><input type="radio" name="pcm_scenario_source" value="top_pages" checked /> <?php echo esc_html__( 'Top Pages', 'pressable_cache_management' ); ?></label>
-				<label class="pcm-scenario-radio"><input type="radio" name="pcm_scenario_source" value="sitemap" /> <?php echo esc_html__( 'Sitemap', 'pressable_cache_management' ); ?></label>
-				<label class="pcm-scenario-radio"><input type="radio" name="pcm_scenario_source" value="custom" /> <?php echo esc_html__( 'Custom List', 'pressable_cache_management' ); ?></label>
-			</div>
-			<textarea id="pcm-scenario-custom-urls" rows="3" class="pcm-textarea-full pcm-hidden" placeholder="<?php echo esc_attr__( "https://yoursite.com/page-1/\nhttps://yoursite.com/page-2/", 'pressable_cache_management' ); ?>"></textarea>
-			<div id="pcm-scenario-url-preview" class="pcm-scenario-url-preview"></div>
-		</div>
-
-		<!-- Variant Options -->
-		<div class="pcm-scenario-section">
-			<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Scan Variants', 'pressable_cache_management' ); ?></h4>
-			<div class="pcm-scenario-variant-grid">
-				<div class="pcm-scenario-variant-group">
-					<span class="pcm-scenario-group-label"><?php echo esc_html__( 'Temperature', 'pressable_cache_management' ); ?></span>
-					<label><input type="checkbox" name="pcm_scenario_warm" value="1" checked /> <?php echo esc_html__( 'Warm (cached)', 'pressable_cache_management' ); ?></label>
-					<label><input type="checkbox" name="pcm_scenario_cold" value="1" /> <?php echo esc_html__( 'Cold (cache-bust)', 'pressable_cache_management' ); ?></label>
-				</div>
-				<div class="pcm-scenario-variant-group">
-					<span class="pcm-scenario-group-label"><?php echo esc_html__( 'Device', 'pressable_cache_management' ); ?></span>
-					<label><input type="checkbox" name="pcm_scenario_desktop" value="1" checked /> <?php echo esc_html__( 'Desktop', 'pressable_cache_management' ); ?></label>
-					<label><input type="checkbox" name="pcm_scenario_mobile" value="1" /> <?php echo esc_html__( 'Mobile', 'pressable_cache_management' ); ?></label>
-				</div>
-				<div class="pcm-scenario-variant-group">
-					<span class="pcm-scenario-group-label"><?php echo esc_html__( 'Cookies', 'pressable_cache_management' ); ?></span>
-					<label><input type="checkbox" name="pcm_scenario_no_cookie" value="1" checked /> <?php echo esc_html__( 'Anonymous', 'pressable_cache_management' ); ?></label>
-					<label><input type="checkbox" name="pcm_scenario_cookie" value="1" /> <?php echo esc_html__( 'With Cookie', 'pressable_cache_management' ); ?></label>
-				</div>
-				<div class="pcm-scenario-variant-group pcm-scenario-variant-group-wide">
-					<span class="pcm-scenario-group-label"><?php echo esc_html__( 'Query Params', 'pressable_cache_management' ); ?></span>
-					<input type="text" id="pcm-scenario-query-params" class="pcm-scenario-qp-input" placeholder="<?php echo esc_attr__( 'e.g. utm_source=google, fbclid=abc', 'pressable_cache_management' ); ?>" />
-					<span class="pcm-scenario-qp-hint"><?php echo esc_html__( 'Comma-separated key=value pairs to test as extra variants.', 'pressable_cache_management' ); ?></span>
-				</div>
-			</div>
-		</div>
-
-		<!-- Run -->
-		<div class="pcm-scenario-run-row">
-			<button type="button" class="pcm-btn-primary" id="pcm-scenario-run-btn"><?php echo esc_html__( 'Run Scenario Scan', 'pressable_cache_management' ); ?></button>
-			<span id="pcm-scenario-run-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
-		</div>
-
-		<!-- Results -->
-		<div id="pcm-scenario-results" class="pcm-hidden">
-			<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Results', 'pressable_cache_management' ); ?></h4>
-			<div id="pcm-scenario-results-body"></div>
-		</div>
+			<div id="pcm-scenario-app" class="pcm-scenario-app-root"></div>
 		</template>
+		<?php else : ?>
+		<div class="pcm-scenario-disabled-state">
+			<span class="dashicons dashicons-lock pcm-scenario-disabled-icon" aria-hidden="true"></span>
+			<div class="pcm-scenario-disabled-copy">
+				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Scenario Scan is currently unavailable', 'pressable_cache_management' ); ?></h4>
+				<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Enable the Caching Suite feature flag and make sure Cacheability Advisor is active before using Scenario Scan.', 'pressable_cache_management' ); ?></p>
+				<p><a href="<?php echo esc_url( $scenario_scan_settings_url ); ?>" class="pcm-btn-secondary"><?php echo esc_html__( 'Open Feature Flags', 'pressable_cache_management' ); ?></a></p>
+			</div>
+		</div>
+		<?php endif; ?>
 	</div>
 	<?php endif; ?>
 

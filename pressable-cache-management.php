@@ -156,6 +156,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/helpers.php';
 
 // ─── Canonical cache service (must load before custom-functions) ─────────────
 require_once plugin_dir_path( __FILE__ ) . 'includes/cache-service.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/cacheability-advisor/popular-url-tracker.php';
 
 // ─── Admin-only includes ─────────────────────────────────────────────────────
 if ( is_admin() ) {
