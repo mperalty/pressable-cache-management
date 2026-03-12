@@ -63,15 +63,17 @@ function pcm_scenario_results_table_name(): string {
 	return $wpdb->prefix . 'pcm_scenario_results';
 }
 
-/**
- * Get the popular URL hit tracker table name.
- *
- * @return string
- */
-function pcm_popular_url_hits_table_name(): string {
-	global $wpdb;
+if ( ! function_exists( 'pcm_popular_url_hits_table_name' ) ) {
+	/**
+	 * Get the popular URL hit tracker table name.
+	 *
+	 * @return string
+	 */
+	function pcm_popular_url_hits_table_name(): string {
+		global $wpdb;
 
-	return $wpdb->prefix . 'pcm_popular_url_hits';
+		return $wpdb->prefix . 'pcm_popular_url_hits';
+	}
 }
 
 /**
