@@ -178,14 +178,13 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         var runStatus = document.getElementById('pcm-advisor-run-status');
         var scoreWrap = document.getElementById('pcm-advisor-template-scores');
         var findingsWrap = document.getElementById('pcm-advisor-findings');
-        var sensitivityWrap = document.getElementById('pcm-advisor-sensitivity');
         var diagnosisWrap = document.getElementById('pcm-advisor-diagnosis');
         var diagnosisSection = document.getElementById('pcm-feature-route-diagnosis');
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
         var section = document.getElementById('pcm-feature-cacheability-advisor');
         var currentRunId = 0;
         var currentRunResults = [];
-        if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !sensitivityWrap || !diagnosisWrap || !playbookWrap || !section) return;
+        if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !diagnosisWrap || !playbookWrap || !section) return;
 
         function showError(targetEl, retryAction, error, fallbackMessage) {
             window.pcmRenderDeepDiveDependencyError(targetEl, 'Cacheability Advisor', retryAction, error, fallbackMessage);
@@ -558,15 +557,12 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         function loadRunDetails(runId) {
             window.pcmRenderSkeletonRows(scoreWrap, 4, ['100%', '100%', '100%', '85%']);
             window.pcmRenderSkeletonRows(findingsWrap, 4, ['100%', '94%', '100%', '88%']);
-            window.pcmRenderSkeletonRows(sensitivityWrap, 4, ['100%', '86%', '92%', '74%']);
             var resultsRequest = window.pcmPost({ action: 'pcm_cacheability_scan_results', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
             var findingsRequest = window.pcmPost({ action: 'pcm_cacheability_scan_findings', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) });
-            var sensitivityRequest = window.pcmPost({ action: 'pcm_route_memcache_sensitivity', nonce: window.pcmGetCacheabilityNonce(), run_id: String(runId) }, { timeout: 30000 });
 
-            return Promise.allSettled([resultsRequest, findingsRequest, sensitivityRequest]).then(function(settled){
+            return Promise.allSettled([resultsRequest, findingsRequest]).then(function(settled){
                 var resultsPayload = settled[0] && settled[0].status === 'fulfilled' ? settled[0].value : null;
                 var findingsPayload = settled[1] && settled[1].status === 'fulfilled' ? settled[1].value : null;
-                var sensitivityPayload = settled[2] && settled[2].status === 'fulfilled' ? settled[2].value : null;
 
                 if (!resultsPayload || !resultsPayload.success) {
                     throw new Error(window.pcmPayloadErrorMessage(resultsPayload, 'Unable to load cacheability results endpoint.'));
@@ -579,12 +575,6 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     findingsWrap.innerHTML = '<em>Unable to load findings for the latest run.</em>';
                 } else {
                     renderFindings(findingsPayload && findingsPayload.success ? findingsPayload.data.findings : []);
-                }
-
-                if (!sensitivityPayload || !sensitivityPayload.success) {
-                    sensitivityWrap.innerHTML = '<em>Route sensitivity insights are unavailable for this run.</em>';
-                } else {
-                    renderSensitivity(sensitivityPayload);
                 }
 
                 var firstResult = currentRunResults[0] || null;

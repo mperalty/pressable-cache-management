@@ -1079,6 +1079,11 @@ div.notice.pcm-branded.pcm-warning {
   align-items: start;
 }
 
+.pcm-wrap .pcm-advisor-grid > *,
+.pcm-wrap .pcm-diagnosis-grid > * {
+  min-width: 0;
+}
+
 /* ---- Score Components ---- */
 .pcm-wrap .pcm-score-list {
   display: flex;
@@ -1100,6 +1105,15 @@ div.notice.pcm-branded.pcm-warning {
   font-size: 12px;
   color: #4b5563;
   margin-bottom: 6px;
+}
+
+.pcm-wrap .pcm-score-meta strong,
+.pcm-wrap .pcm-score-meta span {
+  min-width: 0;
+}
+
+.pcm-wrap .pcm-score-meta strong {
+  word-break: break-word;
 }
 
 .pcm-wrap .pcm-score-bar {
@@ -1404,6 +1418,8 @@ div.notice.pcm-branded.pcm-warning {
   padding: 24px 28px 40px;
   min-height: calc(100vh - 32px);
   font-family: 'Inter', sans-serif;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .pcm-page-inner {
@@ -1637,8 +1653,12 @@ div.notice.pcm-branded.pcm-warning {
 /* ---- Advisor grid layout ---- */
 .pcm-grid-2col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.pcm-grid-2col > * {
+  min-width: 0;
 }
 
 /* ---- Section sub-heading ---- */
@@ -2631,7 +2651,7 @@ body.admin-color-modern .pcm-ra-status-error { background: #2e1a1a; border-color
 /* Three-column results grid */
 .pcm-probe-results-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
 }
@@ -2648,6 +2668,7 @@ body.admin-color-modern .pcm-ra-status-error { background: #2e1a1a; border-color
   border-radius: 8px;
   padding: 16px;
   background: var(--pcm-card-bg, #fff);
+  min-width: 0;
 }
 
 .pcm-probe-col-title {

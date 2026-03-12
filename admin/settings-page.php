@@ -671,10 +671,6 @@ function pressable_cache_management_display_settings_page() {
 					<div id="pcm-advisor-findings" class="pcm-panel-text"></div>
 				</div>
 			</div>
-			<div class="pcm-mt-14">
-				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Route Sensitivity', 'pressable_cache_management' ); ?></h4>
-				<div id="pcm-advisor-sensitivity" class="pcm-panel-text"></div>
-			</div>
 			<div id="pcm-advisor-playbook" class="pcm-playbook-panel"></div>
 		</template>
 	</div>
