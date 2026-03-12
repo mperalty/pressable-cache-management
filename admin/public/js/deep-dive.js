@@ -180,6 +180,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         var findingsWrap = document.getElementById('pcm-advisor-findings');
         var sensitivityWrap = document.getElementById('pcm-advisor-sensitivity');
         var diagnosisWrap = document.getElementById('pcm-advisor-diagnosis');
+        var diagnosisSection = document.getElementById('pcm-feature-route-diagnosis');
         var playbookWrap = document.getElementById('pcm-advisor-playbook');
         var section = document.getElementById('pcm-feature-cacheability-advisor');
         var currentRunId = 0;
@@ -216,6 +217,14 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
             diagnosisWrap.innerHTML = html;
         }
 
+        function scrollDiagnosisIntoView() {
+            if (!diagnosisSection || typeof diagnosisSection.scrollIntoView !== 'function') {
+                return;
+            }
+
+            diagnosisSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         function renderScores(results) {
             if (!Array.isArray(results) || !results.length) {
                 scoreWrap.innerHTML = '<em>No results available yet.</em>';
@@ -247,7 +256,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                 var routesHtml = '<ul style="margin:4px 0 0;padding-left:18px;">';
                 results.slice(0, 20).forEach(function(row){
                     var routeUrl = row.url || '';
-                    routesHtml += '<li><button type="button" class="pcm-btn-text" data-action="open-diagnosis" data-url="' + escapeHtml(routeUrl) + '" style="padding:0;word-break:break-word;text-align:left;">' + escapeHtml(routeUrl) + '</button></li>';
+                    routesHtml += '<li><a href="#" data-action="open-diagnosis" data-url="' + escapeHtml(routeUrl) + '" style="word-break:break-word;text-align:left;">' + escapeHtml(routeUrl) + '</a></li>';
                 });
                 routesHtml += '</ul>';
                 return routesHtml;
@@ -383,8 +392,11 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
             ].join('');
         }
 
-        function loadRouteDiagnosis(runId, url, preferredResult) {
+        function loadRouteDiagnosis(runId, url, preferredResult, options) {
             if (!runId || !url) return Promise.resolve();
+            if (options && options.scroll) {
+                scrollDiagnosisIntoView();
+            }
             var inlineResult = preferredResult || findResultByUrl(url);
             if (hasDiagnosisData(inlineResult)) {
                 renderDiagnosis({
@@ -499,7 +511,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                 if (uniqueUrls.length) {
                     html += '<div class="pcm-finding-urls">';
                     uniqueUrls.forEach(function(url){
-                        html += '<div><button type="button" class="pcm-btn-text" data-action="open-diagnosis" data-url="' + escapeHtml(url) + '" style="padding:0;font-size:12px;word-break:break-word;text-align:left;">' + escapeHtml(url) + '</button></div>';
+                        html += '<div><a href="#" data-action="open-diagnosis" data-url="' + escapeHtml(url) + '" style="font-size:12px;word-break:break-word;text-align:left;">' + escapeHtml(url) + '</a></div>';
                     });
                     html += '</div>';
                 }
@@ -663,9 +675,10 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         findingsWrap.addEventListener('click', function(event){
             var diagnosisTrigger = event.target.closest('[data-action="open-diagnosis"]');
             if (diagnosisTrigger) {
+                event.preventDefault();
                 var diagnosisUrl = diagnosisTrigger.getAttribute('data-url') || '';
                 if (diagnosisUrl) {
-                    loadRouteDiagnosis(currentRunId, diagnosisUrl);
+                    loadRouteDiagnosis(currentRunId, diagnosisUrl, null, { scroll: true });
                 }
                 return;
             }
@@ -767,9 +780,10 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         scoreWrap.addEventListener('click', function(event){
             var trigger = event.target.closest('[data-action="open-diagnosis"]');
             if (!trigger) return;
+            event.preventDefault();
             var url = trigger.getAttribute('data-url') || '';
             if (!url) return;
-            loadRouteDiagnosis(currentRunId, url);
+            loadRouteDiagnosis(currentRunId, url, null, { scroll: true });
         });
 
         loadLatestRun().catch(function(error){

@@ -643,6 +643,7 @@ function pressable_cache_management_display_settings_page() {
 		<a href="#pcm-feature-cacheability-advisor">Cacheability</a>
 		<a href="#pcm-feature-cache-overview">Cache Overview</a>
 		<a href="#pcm-feature-layered-probe">Layered Probe</a>
+		<a href="#pcm-feature-route-diagnosis">Route Diagnosis</a>
 		<a href="#pcm-feature-scenario-scan">Scenario Scan</a>
 	</nav>
 	<?php endif; ?>
@@ -673,10 +674,6 @@ function pressable_cache_management_display_settings_page() {
 			<div class="pcm-mt-14">
 				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Route Sensitivity', 'pressable_cache_management' ); ?></h4>
 				<div id="pcm-advisor-sensitivity" class="pcm-panel-text"></div>
-			</div>
-			<div class="pcm-mt-14">
-				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?></h4>
-				<div id="pcm-advisor-diagnosis" class="pcm-advisor-diagnosis pcm-advisor-diagnosis-box"><em><?php echo esc_html__( 'Select a route from findings to view diagnosis.', 'pressable_cache_management' ); ?></em></div>
 			</div>
 			<div id="pcm-advisor-playbook" class="pcm-playbook-panel"></div>
 		</template>
@@ -741,6 +738,18 @@ function pressable_cache_management_display_settings_page() {
 			<div id="pcm-probe-raw-headers" class="pcm-probe-raw-headers pcm-hidden"></div>
 		</div>
 		</template>
+	</div>
+	<?php endif; ?>
+
+			<?php if ( $is_deep_dive_tab ) : ?>
+	<div class="pcm-card pcm-card-hover pcm-card-mb-scroll" id="pcm-feature-route-diagnosis" data-section="route-diagnosis">
+		<h3 class="pcm-card-title"><span class="dashicons dashicons-search pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?></h3>
+		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Open a sampled route from Cacheability Advisor to inspect cache bypass reasons, response headers, and timing in one place.', 'pressable_cache_management' ); ?></p>
+				<?php if ( $pcm_module_available['cacheability'] && pcm_cacheability_advisor_is_enabled() ) : ?>
+				<div id="pcm-advisor-diagnosis" class="pcm-advisor-diagnosis pcm-advisor-diagnosis-box"><em><?php echo esc_html__( 'Select a route from Cacheability Advisor to view diagnosis details.', 'pressable_cache_management' ); ?></em></div>
+				<?php else : ?>
+				<div class="pcm-panel-text"><em><?php echo esc_html__( 'Route Diagnosis is unavailable until Cacheability Advisor is enabled.', 'pressable_cache_management' ); ?></em></div>
+				<?php endif; ?>
 	</div>
 	<?php endif; ?>
 
