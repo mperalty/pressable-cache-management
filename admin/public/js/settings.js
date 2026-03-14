@@ -151,143 +151,14 @@
                     throw new Error((res && res.data && res.data.message) ? res.data.message : 'toggle_failed');
                 }
                 pcmSyncCachingSuiteUi(!!res.data.enabled);
-                pcmShowToast(res.data.label || (enabled ? 'Caching Suite enabled' : 'Caching Suite disabled'));
+                pcmShowToast(res.data.label || (enabled ? 'Deep Dive diagnostics enabled' : 'Deep Dive diagnostics disabled'));
             }).catch(function(error){
                 toggle.checked = !enabled;
-                pcmShowToast(window.pcmHandleError('Save Caching Suite Setting', error), 'error');
+                pcmShowToast(window.pcmHandleError('Save Deep Dive Setting', error), 'error');
             }).finally(function(){
                 if (sw) { sw.style.pointerEvents = ''; sw.style.opacity = ''; }
             });
         });
-    })();
-
-(function(){
-        function getPrivacyNonce() {
-            if (window.pcmSettingsData && window.pcmSettingsData.nonces && window.pcmSettingsData.nonces.privacySettings) {
-                return window.pcmSettingsData.nonces.privacySettings;
-            }
-            // Fallback to shared nonce for backward compat.
-            return (typeof window.pcmGetCacheabilityNonce === 'function') ? window.pcmGetCacheabilityNonce() : '';
-        }
-        if (!getPrivacyNonce()) return;
-        var initialSettings = (window.pcmSettingsData && window.pcmSettingsData.privacySettings) || {};
-        var retentionEl = document.getElementById('pcm-privacy-retention');
-        var auditEnabledEl = document.getElementById('pcm-privacy-audit-enabled');
-        var statusEl = document.getElementById('pcm-privacy-status');
-        var auditLogEl = document.getElementById('pcm-audit-log');
-        var loadMoreEl = document.getElementById('pcm-audit-load-more');
-
-        var pageSize = 20;
-        var currentOffset = 0;
-        var allRows = [];
-
-        // Privacy controls are only present on the Security & Privacy tab.
-        // Without this guard, attempting to bind events from other tabs throws
-        // and prevents the rest of settings.js (including Edge Cache controls)
-        // from running.
-        if (!retentionEl || !auditEnabledEl || !statusEl || !auditLogEl || !loadMoreEl) {
-            return;
-        }
-
-        function renderSettings(s) {
-            retentionEl.value = s.retention_days || 90;
-            auditEnabledEl.checked = !!s.audit_log_enabled;
-        }
-
-        var escHtml = window.pcmEscapeHtml;
-
-        function renderAuditRows(rows) {
-            if (!rows.length) {
-                auditLogEl.innerHTML = '<em>No audit entries yet.</em>';
-                return;
-            }
-
-            var html = '<table class="widefat striped pcm-audit-table"><thead><tr><th>#</th><th>Action</th><th>User</th><th>Timestamp</th></tr></thead><tbody>';
-            rows.forEach(function(row){
-                html += '<tr>' +
-                    '<td>' + escHtml(row.sequence_id || '?') + '</td>' +
-                    '<td>' + escHtml(row.action || 'action') + '</td>' +
-                    '<td>' + escHtml(row.actor_display || 'System') + '</td>' +
-                    '<td>' + escHtml(row.created_at || 'n/a') + '</td>' +
-                    '</tr>';
-            });
-            html += '</tbody></table>';
-            auditLogEl.innerHTML = html;
-        }
-
-        function loadAudit(reset){
-            if (reset) {
-                currentOffset = 0;
-                allRows = [];
-                auditLogEl.innerHTML = '<em>Loading…</em>';
-                loadMoreEl.style.display = 'none';
-            }
-
-            return window.pcmPost({ action: 'pcm_audit_log_list', nonce: getPrivacyNonce(), limit: pageSize, offset: currentOffset }).then(function(res){
-                if (!res || !res.success || !res.data || !Array.isArray(res.data.rows)) throw new Error('audit_failed');
-                allRows = allRows.concat(res.data.rows);
-                currentOffset += res.data.rows.length;
-                renderAuditRows(allRows);
-                loadMoreEl.style.display = res.data.has_more ? 'inline-block' : 'none';
-            }).catch(function(error){
-                window.pcmHandleError('Load Audit Log', error, auditLogEl);
-            });
-        }
-
-        document.getElementById('pcm-privacy-save').addEventListener('click', function(){
-            var saveBtn = document.getElementById('pcm-privacy-save');
-            saveBtn.disabled = true;
-            saveBtn.style.opacity = '0.6';
-            statusEl.textContent = 'Saving…';
-            window.pcmPost({
-                action: 'pcm_privacy_settings_save',
-                nonce: getPrivacyNonce(),
-                settings: JSON.stringify({
-                    retention_days: retentionEl.value,
-                    audit_log_enabled: auditEnabledEl.checked
-                })
-            }).then(function(res){
-                statusEl.textContent = (res && res.success) ? 'Saved.' : 'Save failed.';
-                loadAudit(true);
-            }).catch(function(error){
-                window.pcmHandleError('Save Privacy Settings', error, statusEl);
-            }).finally(function(){
-                saveBtn.disabled = false;
-                saveBtn.style.opacity = '';
-            });
-        });
-
-        document.getElementById('pcm-audit-refresh').addEventListener('click', function(){ loadAudit(true); });
-        loadMoreEl.addEventListener('click', function(){ loadAudit(false); });
-
-        var exportCsvBtn = document.getElementById('pcm-audit-export-csv');
-        if (exportCsvBtn) {
-            exportCsvBtn.addEventListener('click', function(){
-                if (!allRows.length) return;
-                var header = '#,Action,User,Timestamp';
-                var csvRows = [header];
-                allRows.forEach(function(row){
-                    csvRows.push(
-                        '"' + String(row.sequence_id || '').replace(/"/g, '""') + '",' +
-                        '"' + String(row.action || '').replace(/"/g, '""') + '",' +
-                        '"' + String(row.actor_display || 'System').replace(/"/g, '""') + '",' +
-                        '"' + String(row.created_at || '').replace(/"/g, '""') + '"'
-                    );
-                });
-                var blob = new Blob([csvRows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = 'pcm-audit-log-' + new Date().toISOString().slice(0,10) + '.csv';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            });
-        }
-
-        renderSettings(initialSettings);
-        loadAudit(true);
     })();
 
 jQuery(document).ready(function($){

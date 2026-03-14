@@ -180,11 +180,10 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
         var findingsWrap = document.getElementById('pcm-advisor-findings');
         var diagnosisWrap = document.getElementById('pcm-advisor-diagnosis');
         var diagnosisSection = document.getElementById('pcm-feature-route-diagnosis');
-        var playbookWrap = document.getElementById('pcm-advisor-playbook');
         var section = document.getElementById('pcm-feature-cacheability-advisor');
         var currentRunId = 0;
         var currentRunResults = [];
-        if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !diagnosisWrap || !playbookWrap || !section) return;
+        if (!runBtn || !runStatus || !scoreWrap || !findingsWrap || !diagnosisWrap || !section) return;
 
         function showError(targetEl, retryAction, error, fallbackMessage) {
             window.pcmRenderDeepDiveDependencyError(targetEl, 'Cacheability Advisor', retryAction, error, fallbackMessage);
@@ -427,48 +426,9 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
 
         var escapeHtml = window.pcmEscapeHtml;
 
-        function renderPlaybook(playbook, ruleId, progress) {
-            if (!playbook || !playbook.meta || !playbook.meta.playbook_id) {
-                playbookWrap.style.display = 'none';
-                playbookWrap.innerHTML = '';
-                return;
-            }
-
-            var checklist = (progress && progress.checklist) ? progress.checklist : {};
-            var verification = (progress && progress.verification) ? progress.verification : {};
-            var checkedOne = checklist.step_1 ? 'checked' : '';
-            var checkedTwo = checklist.step_2 ? 'checked' : '';
-            var checkedThree = checklist.verify ? 'checked' : '';
-            var verificationSummary = verification.status ? (verification.status + ' (' + (verification.checked_at || 'n/a') + ')') : 'Not run yet';
-
-            playbookWrap.style.display = 'block';
-            playbookWrap.innerHTML = [
-                '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">',
-                    '<h4 style="margin:0;">Playbook: ' + escapeHtml(playbook.meta.title || playbook.meta.playbook_id) + '</h4>',
-                    '<button type="button" class="pcm-btn-text" data-action="close-playbook">Close</button>',
-                '</div>',
-                '<p style="margin:6px 0 8px;color:#4b5563;"><strong>Severity:</strong> ' + escapeHtml(playbook.meta.severity || 'warning') + '</p>',
-                '<div class="pcm-playbook-body" style="font-size:13px;line-height:1.5;">' + (playbook.html_body || '') + '</div>',
-                '<hr/>',
-                '<div>',
-                    '<label><input type="checkbox" data-check="step_1" ' + checkedOne + '> Step 1 complete</label><br>',
-                    '<label><input type="checkbox" data-check="step_2" ' + checkedTwo + '> Step 2 complete</label><br>',
-                    '<label><input type="checkbox" data-check="verify" ' + checkedThree + '> Verification complete</label>',
-                '</div>',
-                '<p style="margin-top:10px;display:flex;gap:8px;align-items:center;">',
-                    '<button type="button" class="pcm-btn-primary" data-action="save-progress" data-playbook-id="' + escapeHtml(playbook.meta.playbook_id) + '">Save progress</button>',
-                    '<button type="button" class="pcm-btn-secondary" data-action="verify" data-playbook-id="' + escapeHtml(playbook.meta.playbook_id) + '" data-rule-id="' + escapeHtml(ruleId) + '">Run post-fix verification</button>',
-                    '<span data-role="verify-status" style="color:#374151;">Last verification: ' + escapeHtml(verificationSummary) + '</span>',
-                '</p>'
-            ].join('');
-            playbookWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
         function renderFindings(findings) {
             if (!Array.isArray(findings) || !findings.length) {
                 findingsWrap.innerHTML = '<em>No findings on latest run.</em>';
-                playbookWrap.style.display = 'none';
-                playbookWrap.innerHTML = '';
                 return;
             }
 
@@ -481,15 +441,11 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     grouped[key] = {
                         rule: rule,
                         severity: sev,
-                        urls: [],
-                        playbook: row.playbook_lookup || {}
+                        urls: []
                     };
                 }
                 if (row.url) {
                     grouped[key].urls.push(row.url);
-                }
-                if (!grouped[key].playbook.available && row.playbook_lookup && row.playbook_lookup.available) {
-                    grouped[key].playbook = row.playbook_lookup;
                 }
             });
 
@@ -514,45 +470,12 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                     });
                     html += '</div>';
                 }
-                if (group.playbook.available) {
-                    html += '<button type="button" class="pcm-btn-text" data-action="open-playbook" data-rule-id="' + escapeHtml(group.rule) + '">Open playbook</button>';
-                }
                 html += '</div>';
             });
             html += '</div>';
             findingsWrap.innerHTML = html;
         }
 
-
-        function renderSensitivity(payload) {
-            var topRoutes = payload && payload.data && Array.isArray(payload.data.top_routes) ? payload.data.top_routes : [];
-            var summary = payload && payload.data && payload.data.summary ? payload.data.summary : {};
-
-            if (!topRoutes.length) {
-                sensitivityWrap.innerHTML = '<em>No route sensitivity data yet.</em>';
-                return;
-            }
-
-            var html = '';
-            html += '<p style="margin:0 0 8px;color:#4b5563;">High-sensitivity routes: 24h=' + Number(summary.high_24h || 0) + ', 7d=' + Number(summary.high_7d || 0) + '</p>';
-            html += renderCollapsibleSection('pcm-route-sensitivity-panel', 'route sensitivity', (function(){
-                var sensitivityHtml = '<ul style="margin:0;padding-left:18px;">';
-                topRoutes.forEach(function(row){
-                    var metrics = row.metrics || {};
-                    var reasons = Array.isArray(metrics.reasons) ? metrics.reasons.join(', ') : '';
-                    sensitivityHtml += '<li><strong>' + escapeHtml(row.route || row.url || 'unknown') + '</strong> '
-                        + '<span style="text-transform:uppercase;font-size:11px;border:1px solid #d1d5db;padding:1px 4px;border-radius:4px;">' + escapeHtml(row.memcache_sensitivity || 'low') + '</span>'
-                        + ' — score ' + Number(metrics.score || 0)
-                        + ', hit ' + (metrics.hit_ratio === null || typeof metrics.hit_ratio === 'undefined' ? 'n/a' : Number(metrics.hit_ratio).toFixed(2) + '%')
-                        + ', evictions ' + (metrics.evictions === null || typeof metrics.evictions === 'undefined' ? 'n/a' : Number(metrics.evictions))
-                        + (reasons ? '<br><span style="font-size:12px;color:#6b7280;">Signals: ' + escapeHtml(reasons) + '</span>' : '')
-                        + '</li>';
-                });
-                sensitivityHtml += '</ul>';
-                return sensitivityHtml;
-            }()));
-            sensitivityWrap.innerHTML = html;
-        }
 
         function loadRunDetails(runId) {
             window.pcmRenderSkeletonRows(scoreWrap, 4, ['100%', '100%', '100%', '85%']);
@@ -672,22 +595,6 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
                 }
                 return;
             }
-
-            var trigger = event.target.closest('[data-action="open-playbook"]');
-            if (!trigger) return;
-            var ruleId = trigger.getAttribute('data-rule-id') || '';
-            if (!ruleId) return;
-
-            window.pcmPost({ action: 'pcm_playbook_lookup', nonce: window.pcmGetCacheabilityNonce(), rule_id: ruleId })
-                .then(function(payload){
-                    if (!payload || !payload.success || !payload.data || !payload.data.available) {
-                        throw new Error('Playbook unavailable');
-                    }
-                    renderPlaybook(payload.data.playbook, ruleId, payload.data.progress || {});
-                })
-                .catch(function(error){
-                    showError(playbookWrap, 'reload-section', error);
-                });
         });
 
         section.addEventListener('click', function(event){
@@ -709,64 +616,6 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
             loadLatestRun().catch(function(error){ showError(scoreWrap, 'reload-section', error); });
         });
 
-        playbookWrap.addEventListener('click', function(event){
-            var trigger = event.target.closest('[data-action]');
-            if (!trigger) return;
-            var action = trigger.getAttribute('data-action');
-
-            if (action === 'close-playbook') {
-                playbookWrap.style.display = 'none';
-                return;
-            }
-
-            if (action === 'save-progress') {
-                var playbookId = trigger.getAttribute('data-playbook-id') || '';
-                if (!playbookId) return;
-                var checklist = {};
-                playbookWrap.querySelectorAll('input[data-check]').forEach(function(box){
-                    checklist[box.getAttribute('data-check')] = !!box.checked;
-                });
-
-                window.pcmPost({
-                    action: 'pcm_playbook_progress_save',
-                    nonce: window.pcmGetCacheabilityNonce(),
-                    playbook_id: playbookId,
-                    checklist: JSON.stringify(checklist)
-                }).then(function(){
-                    runStatus.textContent = 'Playbook progress saved.';
-                }).catch(function(error){
-                    window.pcmHandleError('Save Playbook Progress', error, runStatus);
-                });
-                return;
-            }
-
-            if (action === 'verify') {
-                var pbId = trigger.getAttribute('data-playbook-id') || '';
-                var ruleId = trigger.getAttribute('data-rule-id') || '';
-                if (!pbId || !ruleId) return;
-
-                var statusEl = playbookWrap.querySelector('[data-role="verify-status"]');
-                if (statusEl) statusEl.textContent = 'Verification running…';
-
-                window.pcmPost({
-                    action: 'pcm_playbook_verify',
-                    nonce: window.pcmGetCacheabilityNonce(),
-                    playbook_id: pbId,
-                    rule_id: ruleId
-                }).then(function(payload){
-                    if (!payload || !payload.success || !payload.data) {
-                        throw new Error('Verification failed');
-                    }
-                    if (statusEl) {
-                        statusEl.textContent = 'Last verification: ' + (payload.data.status || 'unknown') + ' (run #' + (payload.data.run_id || 'n/a') + ')';
-                    }
-                    runStatus.textContent = payload.data.message || 'Verification complete.';
-                }).catch(function(error){
-                    window.pcmHandleError('Run Verification', error, statusEl || runStatus);
-                });
-            }
-        });
-
         scoreWrap.addEventListener('click', function(event){
             var trigger = event.target.closest('[data-action="open-diagnosis"]');
             if (!trigger) return;
@@ -783,267 +632,7 @@ window.pcmOnSectionReady('pcm-feature-cacheability-advisor', function(){
     })();
 });
 
-window.pcmOnSectionReady('pcm-feature-cache-overview', function(){
-(function(){
-    if (typeof window.pcmGetCacheabilityNonce !== 'function' || !window.pcmGetCacheabilityNonce()) return;
-    var escapeHtml = window.pcmEscapeHtml;
-    var refreshBtn = document.getElementById('pcm-cache-overview-refresh');
-    var statusEl   = document.getElementById('pcm-cache-overview-status');
-    var cardsEl    = document.getElementById('pcm-cache-overview-cards');
-    var trendEl    = document.getElementById('pcm-cache-overview-trend');
-    var section    = document.getElementById('pcm-feature-cache-overview');
-    if (!refreshBtn || !cardsEl || !trendEl || !section) return;
-
-    function showError(targetEl, error) {
-        window.pcmRenderDeepDiveDependencyError(targetEl, 'Cache Overview', 'reload-section', error);
-    }
-
-    function renderCard(label, value, statusClass) {
-        return '<div class="pcm-cache-insight-card">' +
-            '<div class="pcm-ci-label">' + escapeHtml(label) + '</div>' +
-            '<div class="pcm-ci-value' + (statusClass ? ' ' + statusClass : '') + '">' + value + '</div>' +
-        '</div>';
-    }
-
-    function statusIcon(ok) {
-        return ok
-            ? '<span class="dashicons dashicons-yes-alt" style="color:#16a34a;vertical-align:middle;margin-right:2px;" aria-hidden="true"></span>'
-            : '<span class="dashicons dashicons-dismiss" style="color:#dc2626;vertical-align:middle;margin-right:2px;" aria-hidden="true"></span>';
-    }
-
-    /* ── SVG line chart (reused from former OCI handler) ── */
-    function lineChartSvg(values, labels, threshold, opts) {
-        opts = opts || {};
-        var width = 520, height = 140;
-        var pad = { top: 12, right: 12, bottom: 20, left: 28 };
-        var valid = values.filter(function(v){ return v != null; });
-        var maxVal = valid.length ? Math.max.apply(null, valid.concat([threshold || 0])) : 100;
-        maxVal = Math.max(maxVal, opts.minMax || 100);
-        var innerW = width - pad.left - pad.right;
-        var innerH = height - pad.top - pad.bottom;
-        var safeLen = Math.max(values.length - 1, 1);
-        function xAt(i) { return pad.left + ((innerW * i) / safeLen); }
-        function yAt(v) { return pad.top + innerH - ((Math.max(v, 0) / maxVal) * innerH); }
-
-        var linePath = '', areaPath = '', started = false;
-        values.forEach(function(v, i){
-            if (v == null) {
-                if (started) { areaPath += ' L ' + xAt(i - 1).toFixed(2) + ' ' + (pad.top + innerH).toFixed(2) + ' Z'; started = false; }
-                return;
-            }
-            var x = xAt(i).toFixed(2), y = yAt(v).toFixed(2);
-            if (!started) {
-                linePath += (linePath ? ' M ' : 'M ') + x + ' ' + y;
-                areaPath += (areaPath ? ' M ' : 'M ') + x + ' ' + (pad.top + innerH).toFixed(2) + ' L ' + x + ' ' + y;
-                started = true;
-            } else {
-                linePath += ' L ' + x + ' ' + y;
-                areaPath += ' L ' + x + ' ' + y;
-            }
-            if (i === values.length - 1) { areaPath += ' L ' + x + ' ' + (pad.top + innerH).toFixed(2) + ' Z'; }
-        });
-
-        var thresholdY = threshold != null ? yAt(threshold).toFixed(2) : null;
-        var xTicks = labels.map(function(l, i){
-            if (i === 0 || i === labels.length - 1 || i === Math.floor(labels.length / 2))
-                return '<text x="' + xAt(i).toFixed(2) + '" y="' + (height - 4) + '" text-anchor="middle" fill="#64748b" font-size="10">' + l + '</text>';
-            return '';
-        }).join('');
-
-        return [
-            '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + (opts.label || 'Trend chart') + '">',
-            '<line x1="' + pad.left + '" y1="' + (pad.top + innerH) + '" x2="' + (width - pad.right) + '" y2="' + (pad.top + innerH) + '" stroke="#e2e8f0" stroke-width="1"/>',
-            thresholdY ? '<line x1="' + pad.left + '" y1="' + thresholdY + '" x2="' + (width - pad.right) + '" y2="' + thresholdY + '" stroke="#dd3a03" stroke-width="1" stroke-dasharray="4 4"/>' : '',
-            areaPath ? '<path d="' + areaPath + '" fill="rgba(3,252,194,0.18)"/>' : '',
-            linePath ? '<path d="' + linePath + '" fill="none" stroke="' + (opts.color || '#03fcc2') + '" stroke-width="2"/>' : '',
-            xTicks,
-            '</svg>'
-        ].join('');
-    }
-
-    /* ── Browser-side Batcache probe ── */
-    var ddBatcacheNonce = (window.pcmDeepDiveData && window.pcmDeepDiveData.nonces && window.pcmDeepDiveData.nonces.batcache) || '';
-    var ddSiteUrl       = (window.pcmDeepDiveData && window.pcmDeepDiveData.siteUrl) || '/';
-    var ddBatcacheMaxAge = (window.pcmDeepDiveData && window.pcmDeepDiveData.batcacheMaxAge) || null;
-
-    function probeBatcacheFromBrowser() {
-        if (!ddBatcacheNonce) return;
-
-        fetch(ddSiteUrl, {
-            method: 'GET',
-            cache: 'reload',
-            credentials: 'omit',
-            redirect: 'follow',
-            headers: { 'Pragma': 'no-cache' }
-        })
-        .then(function(resp) {
-            var xNananana    = resp.headers.get('x-nananana') || '';
-            var serverHdr    = resp.headers.get('server') || '';
-            var isCloudflare = serverHdr.toLowerCase().indexOf('cloudflare') !== -1 ? '1' : '0';
-
-            return window.pcmPost({
-                action: 'pcm_report_batcache_header',
-                nonce: ddBatcacheNonce,
-                x_nananana: xNananana,
-                is_cloudflare: isCloudflare
-            });
-        })
-        .then(function(res) {
-            if (!res || !res.success || !res.data) return;
-            var status = res.data.status || 'unknown';
-            var label  = status.charAt(0).toUpperCase() + status.slice(1);
-            var cls    = status === 'active' ? 'pcm-ci-status-ok' : (status === 'broken' ? 'pcm-ci-status-bad' : 'pcm-ci-status-warn');
-
-            if (ddBatcacheMaxAge) label += ' (TTL ' + ddBatcacheMaxAge + 's)';
-
-            var now = new Date();
-            var timeStr = ('0' + now.getUTCHours()).slice(-2) + ':' + ('0' + now.getUTCMinutes()).slice(-2);
-            label += '<br><span style="font-size:10px;color:#6b7280;">Measured from browser headers. Last checked ' + timeStr + ' UTC.</span>';
-
-            var bcCard = cardsEl.querySelector('.pcm-cache-insight-card:first-child');
-            if (bcCard) {
-                var valueEl = bcCard.querySelector('.pcm-ci-value');
-                if (valueEl) {
-                    valueEl.className = 'pcm-ci-value ' + cls;
-                    valueEl.innerHTML = label;
-                }
-            }
-        })
-        .catch(function() { /* probe failed — keep loopback value */ });
-    }
-
-    /* ── Render status cards from Cache Insights data ── */
-    function renderCards(d) {
-        var cards = [];
-
-        // Batcache — initial render from loopback; browser probe overwrites below
-        var bcStatus = d.batcache_status || 'unknown';
-        var bcLabel = bcStatus.charAt(0).toUpperCase() + bcStatus.slice(1);
-        var bcClass = bcStatus === 'active' ? 'pcm-ci-status-ok' : (bcStatus === 'broken' ? 'pcm-ci-status-bad' : 'pcm-ci-status-warn');
-        if (d.batcache_max_age) bcLabel += ' (TTL ' + d.batcache_max_age + 's)';
-        cards.push(renderCard('Batcache', escapeHtml(bcLabel), bcClass));
-
-        // Object Cache
-        var ocType = d.object_cache_type || 'unknown';
-        var ocClass = (ocType === 'Default (none)' || ocType === 'unknown') ? 'pcm-ci-status-warn' : 'pcm-ci-status-ok';
-        cards.push(renderCard('Object Cache', escapeHtml(ocType), ocClass));
-
-        // Hit Ratio (prefer OCI snapshot value, fall back to insights value)
-        var hr = d._hit_ratio;
-        if (typeof hr === 'number') {
-            var hrClass = hr >= 80 ? 'pcm-ci-status-ok' : (hr >= 50 ? 'pcm-ci-status-warn' : 'pcm-ci-status-bad');
-            cards.push(renderCard('Hit Ratio', hr + '%', hrClass));
-        } else if (typeof d.object_cache_hit_ratio === 'number') {
-            var hrClass2 = d.object_cache_hit_ratio >= 80 ? 'pcm-ci-status-ok' : (d.object_cache_hit_ratio >= 50 ? 'pcm-ci-status-warn' : 'pcm-ci-status-bad');
-            cards.push(renderCard('Hit Ratio', d.object_cache_hit_ratio + '%', hrClass2));
-        }
-
-        // PHP OPcache — dashicons instead of emoji
-        var opcacheOk = d.opcache_enabled;
-        cards.push(renderCard(
-            'PHP OPcache',
-            statusIcon(opcacheOk) + (opcacheOk ? ' Enabled' : ' Disabled'),
-            opcacheOk ? 'pcm-ci-status-ok' : 'pcm-ci-status-bad'
-        ));
-
-        cardsEl.innerHTML = cards.join('');
-    }
-
-    /* ── Render 7-day hit ratio trend chart ── */
-    function renderTrend(points) {
-        if (!Array.isArray(points) || !points.length) {
-            trendEl.innerHTML = '<em>No trend data yet.</em>';
-            return;
-        }
-        var rows = points.slice(-20);
-        var labels = rows.map(function(p){ return (p.taken_at || '').slice(5, 10); });
-        var hitValues = rows.map(function(p){ var v = Number(p.hit_ratio); return Number.isFinite(v) ? v : null; });
-
-        trendEl.innerHTML =
-            '<div class="pcm-trend-charts">' +
-            '<div class="pcm-trend-chart"><h5>Hit Ratio % <span>7-day trend &middot; threshold 70%</span></h5>' +
-            lineChartSvg(hitValues, labels, 70, { label: 'Object cache hit ratio trend', minMax: 100, color: '#03fcc2' }) +
-            '</div></div>';
-    }
-
-    /* ── Data loading ── */
-    var retryCount = 0, maxRetries = 2;
-
-    function loadInsights() {
-        return window.pcmPost({ action: 'pcm_cache_insights', nonce: window.pcmGetCacheabilityNonce() }, { timeout: 10000 });
-    }
-
-    function loadSnapshot(refresh) {
-        return window.pcmPost({ action: 'pcm_object_cache_snapshot', nonce: window.pcmGetCacheabilityNonce(), refresh: refresh ? '1' : '0' }, { timeout: 15000 });
-    }
-
-    function loadTrends() {
-        return window.pcmPost({ action: 'pcm_object_cache_trends', nonce: window.pcmGetCacheabilityNonce(), range: '7d' }, { timeout: 15000 });
-    }
-
-    function loadAll(refresh) {
-        window.pcmRenderSkeletonRows(cardsEl, 4, ['48%', '48%', '48%', '48%']);
-        window.pcmRenderSkeletonRows(trendEl, 3, ['100%', '96%', '98%']);
-
-        return Promise.all([loadInsights(), loadSnapshot(refresh), loadTrends()])
-            .then(function(results) {
-                var insightsRes = results[0];
-                var snapshotRes = results[1];
-                var trendsRes   = results[2];
-
-                // Build card data — merge insights + snapshot hit ratio
-                var cardData = (insightsRes && insightsRes.success && insightsRes.data) ? insightsRes.data : {};
-                if (snapshotRes && snapshotRes.success && snapshotRes.data) {
-                    var snap = snapshotRes.data.snapshot;
-                    if (snap && snap.hit_ratio != null) {
-                        cardData._hit_ratio = Number(snap.hit_ratio);
-                    }
-                }
-                renderCards(cardData);
-                probeBatcacheFromBrowser();
-
-                // Trend chart
-                var trendPoints = (trendsRes && trendsRes.success && trendsRes.data) ? trendsRes.data.points : [];
-                renderTrend(trendPoints);
-
-                retryCount = 0;
-            });
-    }
-
-    function loadWithRetry(refresh) {
-        return loadAll(refresh).catch(function(error) {
-            if (error && (error.isTimeout || error.message === 'timeout') && retryCount < maxRetries) {
-                retryCount++;
-                if (statusEl) statusEl.textContent = 'Retrying\u2026 (attempt ' + (retryCount + 1) + '/' + (maxRetries + 1) + ')';
-                var delay = Math.pow(2, retryCount) * 1000;
-                return new Promise(function(resolve){ setTimeout(resolve, delay); })
-                    .then(function(){ return loadWithRetry(false); });
-            }
-            throw error;
-        });
-    }
-
-    refreshBtn.addEventListener('click', function(){
-        refreshBtn.disabled = true;
-        refreshBtn.style.opacity = '0.6';
-        if (statusEl) statusEl.textContent = 'Refreshing\u2026';
-        retryCount = 0;
-        loadWithRetry(true)
-            .catch(function(error){ showError(cardsEl, error); })
-            .finally(function(){ refreshBtn.disabled = false; refreshBtn.style.opacity = ''; if (statusEl) statusEl.textContent = ''; });
-    });
-
-    section.addEventListener('click', function(event){
-        if (!event.target.closest('[data-action="pcm-retry"]')) return;
-        retryCount = 0;
-        loadWithRetry(false).catch(function(error){ showError(cardsEl, error); });
-    });
-
-    loadWithRetry(false).catch(function(error){
-        showError(cardsEl, error);
-    });
-})();
-});
+/* Cache Overview section removed. */
 
 (function(){
         var nav = document.getElementById('pcm-deep-dive-nav');

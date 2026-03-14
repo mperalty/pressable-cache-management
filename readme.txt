@@ -12,7 +12,7 @@ Pressable cache management made easy.
 
 == Description ==
 
-Pressable Cache Management gives you full control over object cache, Batcache, and Edge Cache directly from the WordPress admin dashboard.
+Pressable Cache Management combines day-to-day cache controls with a focused Deep Dive toolkit for Cacheability Advisor, Route Diagnosis, Layered Probe Runner, and Durable Origin Microcache.
 
 **Features:**
 
@@ -26,10 +26,8 @@ Pressable Cache Management gives you full control over object cache, Batcache, a
 * Flush Batcache for WooCommerce product pages
 * Exclude specific pages from Batcache & Edge Cache
 * Enable / Disable / Purge Edge Cache
-* Deep Dive route analysis with security insight runbooks
-* Cache Insights dashboard (OPcache, Batcache, Object Cache status)
-* Redirect Assistant with rule builder, dry-run simulator, and export/import
-* Object Cache Intelligence with trend analysis and recommendations
+* Deep Dive focused on Cacheability Advisor, Route Diagnosis, Layered Probe Runner, and Durable Origin Microcache
+* Settings tab limited to Deep Dive option toggles
 * Show or Hide Pressable Branding
 * Available in English, Spanish, French, Dutch, Chinese (Simplified), and Hindi
 
@@ -40,6 +38,15 @@ Pressable Cache Management gives you full control over object cache, Batcache, a
 3. Navigate to **Cache Management** in the admin sidebar
 
 == Changelog ==
+
+= Unreleased =
+* Simplify Deep Dive scope to Cacheability Advisor, Route Diagnosis, Layered Probe Runner, and Durable Origin Microcache
+* Remove legacy playbook/remediation wiring from the active Deep Dive experience
+* Stop bootstrapping legacy diagnostics modules that are no longer part of the current scope
+* Expand uninstall cleanup to remove plugin-owned tables, cron hooks, and newer diagnostics storage
+* Refresh plugin documentation to match the focused Deep Dive feature set
+
+Historical changelog entries below are preserved for release history and may mention modules that have since been retired from the current codebase.
 
 = 5.9.0 =
 * Add security insight runbook panels to Deep Dive diagnosis sections with actionable remediation steps

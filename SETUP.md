@@ -45,13 +45,14 @@ Third-party bundled code in `includes/plugin-update-checker/` is excluded from l
 
 ## How to Release an Update
 
-1. Bump `Version:` in `pressable-cache-management.php`, for example `5.2.4`.
-2. Update the `readme.txt` changelog.
-3. Commit and push to `main`.
-4. In GitHub, open Releases and draft a new release.
-5. Tag it as `v5.2.4` with the `v` prefix matching the plugin version.
-6. Attach the plugin `.zip` as a release asset.
-7. Publish the release.
+1. Bump `Version:` in `pressable-cache-management.php`, for example `5.9.1`.
+2. Update `readme.txt` and `changelog.txt` so they match the current plugin scope.
+3. Confirm Deep Dive docs still describe only Cacheability Advisor, Route Diagnosis, Layered Probe Runner, and Durable Origin Microcache.
+4. Commit and push to `main`.
+5. In GitHub, open Releases and draft a new release.
+6. Tag it as `v5.9.1` with the `v` prefix matching the plugin version.
+7. Attach the plugin `.zip` as a release asset.
+8. Publish the release.
 
 WordPress sites detect the new version within about 12 hours and show the standard
 update notice. Clicking it installs exactly like a WordPress.org plugin.

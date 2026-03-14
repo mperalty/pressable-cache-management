@@ -196,18 +196,8 @@ class PCM_Cache_Service {
 	}
 
 	/**
-	 * Write an audit log entry when the audit service is available.
-	 *
-	 * The audit service lives in the security-privacy module which is
-	 * lazy-loaded on PCM admin pages and AJAX requests. On front-end
-	 * automated flushes (save_post etc.) the class won't exist and
-	 * the call is silently skipped; timestamps still record.
+	 * No-op stub — audit logging module has been removed.
 	 */
 	private function audit( string $action, string $target = '', array $context = array() ): void {
-		if ( ! class_exists( 'PCM_Audit_Log_Service' ) ) {
-			return;
-		}
-
-		( new PCM_Audit_Log_Service() )->log( $action, $target, $context );
 	}
 }

@@ -146,28 +146,13 @@
             var el = document.getElementById('pcm-probe-objcache-body');
             if (!el) return;
 
-            if (data.status === 'basic') {
-                el.innerHTML = '<div class="pcm-probe-kv"><span class="pcm-probe-k">Backend</span><span class="pcm-probe-v">'
-                    + esc(data.class) + '</span></div>'
-                    + '<div class="pcm-probe-kv"><span class="pcm-probe-k">Available</span><span class="pcm-probe-v">'
-                    + (data.available ? 'Yes' : 'No') + '</span></div>'
-                    + '<p class="pcm-probe-note">Enable Object Cache Intelligence for detailed metrics.</p>';
-                return;
-            }
-
-            if (data.status === 'empty') {
-                el.innerHTML = '<p class="pcm-probe-note">No snapshot available. Run a refresh from Cache Overview first.</p>';
-                return;
-            }
-
-            var hitClass = 'pcm-probe-neutral';
-            if (data.hit_ratio !== null) {
-                hitClass = data.hit_ratio >= 80 ? 'pcm-probe-good' : (data.hit_ratio >= 50 ? 'pcm-probe-warn' : 'pcm-probe-bad');
-            }
-
-            el.innerHTML = metricCard('Hit Ratio', data.hit_ratio !== null ? data.hit_ratio + '%' : '-', hitClass)
-                + (data.provider ? '<div class="pcm-probe-kv"><span class="pcm-probe-k">Provider</span><span class="pcm-probe-v">' + esc(data.provider) + '</span></div>' : '')
-                + (data.taken_at ? '<div class="pcm-probe-kv"><span class="pcm-probe-k">Snapshot</span><span class="pcm-probe-v">' + esc(data.taken_at) + '</span></div>' : '');
+            el.innerHTML = '<div class="pcm-probe-kv"><span class="pcm-probe-k">Backend</span><span class="pcm-probe-v">'
+                + esc(data.class || 'none') + '</span></div>'
+                + '<div class="pcm-probe-kv"><span class="pcm-probe-k">Available</span><span class="pcm-probe-v">'
+                + (data.available ? 'Yes' : 'No') + '</span></div>'
+                + '<div class="pcm-probe-kv"><span class="pcm-probe-k">External</span><span class="pcm-probe-v">'
+                + (data.external ? 'Yes' : 'No') + '</span></div>'
+                + '<p class="pcm-probe-note">Showing basic object-cache backend detection only.</p>';
         }
 
         function renderRawHeaders(data) {
@@ -211,13 +196,6 @@
         function cookieWarning(hasCookie) {
             if (!hasCookie) return '';
             return '<div class="pcm-probe-kv pcm-probe-warn-row"><span class="pcm-probe-k">set-cookie</span><span class="pcm-probe-v">Present (may break caching)</span></div>';
-        }
-
-        function metricCard(label, value, cls) {
-            return '<div class="pcm-probe-metric ' + (cls || '') + '">'
-                + '<span class="pcm-probe-metric-value">' + esc(String(value)) + '</span>'
-                + '<span class="pcm-probe-metric-label">' + esc(label) + '</span>'
-                + '</div>';
         }
 
         function errBlock(msg, ms) {

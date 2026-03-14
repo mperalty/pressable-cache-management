@@ -83,7 +83,19 @@ function pcm_deactivate_cleanup(): void {
 		delete_option( $opt );
 	}
 	delete_transient( 'pcm_smart_purge_settings_notices' );
-	wp_clear_scheduled_hook( 'pcm_smart_purge_run_queue' );
+
+	foreach (
+		array(
+			'pcm_smart_purge_run_queue',
+			'pcm_cacheability_retention_cleanup',
+			'pcm_object_cache_collect_snapshot',
+			'pcm_opcache_collect_snapshot',
+			'pcm_reporting_daily_rollup',
+			'pcm_reporting_weekly_digest',
+		) as $hook
+	) {
+		wp_clear_scheduled_hook( $hook );
+	}
 }
 register_deactivation_hook( __FILE__, 'pcm_deactivate_cleanup' );
 
@@ -193,14 +205,7 @@ if ( (bool) apply_filters( 'pcm_enable_durable_origin_microcache', (bool) get_op
 function pcm_load_feature_modules(): void {
 	$dir = plugin_dir_path( __FILE__ ) . 'includes/';
 	require_once $dir . 'cacheability-advisor/storage.php';
-	require_once $dir . 'cache-busters/detector-framework.php';
-	require_once $dir . 'object-cache-intelligence/intelligence.php';
-	require_once $dir . 'php-opcache-awareness/opcache-awareness.php';
-	require_once $dir . 'redirect-assistant/assistant.php';
-	require_once $dir . 'security-privacy/security-privacy.php';
-	require_once $dir . 'guided-remediation-playbooks/playbooks.php';
 	require_once $dir . 'layered-probe/layered-probe.php';
-	require_once $dir . 'cacheability-advisor/scenario-scan.php';
 }
 if ( wp_doing_ajax() ) {
 	// AJAX handlers are registered in these modules — always load for AJAX.

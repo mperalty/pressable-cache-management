@@ -185,7 +185,7 @@ add_action( 'wp_ajax_pcm_get_batcache_status', 'pcm_ajax_get_batcache_status' );
 // Keep the old action name as an alias so any cached JS still works
 add_action( 'wp_ajax_pcm_refresh_batcache_status', 'pcm_ajax_get_batcache_status' );
 
-// ── AJAX: toggle Caching Suite feature flag without page reload ───────────────
+// ── AJAX: toggle Deep Dive diagnostics without page reload ────────────────────
 function pcm_ajax_toggle_caching_suite_features() {
 	check_ajax_referer( 'pcm_toggle_caching_suite_features', 'nonce' );
 
@@ -196,27 +196,34 @@ function pcm_ajax_toggle_caching_suite_features() {
 	$enabled = isset( $_POST['enabled'] ) && '1' === (string) wp_unslash( $_POST['enabled'] );
 	update_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, $enabled, false );
 
-	if ( function_exists( 'pcm_audit_log' ) ) {
-		pcm_audit_log(
-			'caching_suite_features_toggled',
-			'settings',
-			array(
-				'enabled' => $enabled,
-				'source'  => 'ajax',
-			)
-		);
-	}
-
 	wp_send_json_success(
 		array(
 			'enabled' => $enabled,
 			'label'   => $enabled
-				? __( 'Caching Suite enabled', 'pressable_cache_management' )
-				: __( 'Caching Suite disabled', 'pressable_cache_management' ),
+				? __( 'Deep Dive diagnostics enabled', 'pressable_cache_management' )
+				: __( 'Deep Dive diagnostics disabled', 'pressable_cache_management' ),
 		)
 	);
 }
 add_action( 'wp_ajax_pcm_toggle_caching_suite_features', 'pcm_ajax_toggle_caching_suite_features' );
+
+/**
+ * AJAX: refresh the cacheability nonce for long-lived Deep Dive sessions.
+ *
+ * @return void
+ */
+function pcm_ajax_refresh_cacheability_nonce(): void {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Unauthorized', 'pressable_cache_management' ) ), 403 );
+	}
+
+	wp_send_json_success(
+		array(
+			'nonce' => wp_create_nonce( 'pcm_cacheability_scan' ),
+		)
+	);
+}
+add_action( 'wp_ajax_pcm_refresh_cacheability_nonce', 'pcm_ajax_refresh_cacheability_nonce' );
 
 /**
  * Clear the cached status immediately after any cache flush
@@ -239,38 +246,26 @@ function pressable_cache_management_display_settings_page() {
 
 	if ( pcm_verify_request( 'pcm_feature_flags_nonce', 'pcm_save_feature_flags' ) ) {
 		$caching_suite_enabled = pcm_settings_post_flag( 'pcm_enable_caching_suite_features' );
-		$redirect_enabled      = pcm_settings_post_flag( 'pcm_enable_redirect_assistant' );
 		$advanced_scan_enabled = pcm_settings_post_flag( 'pcm_enable_advanced_scan_workflows' );
 		$microcache_enabled    = pcm_settings_post_flag( 'pcm_enable_durable_origin_microcache' );
 
 		update_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, $caching_suite_enabled, false );
-		update_option( PCM_Options::ENABLE_REDIRECT_ASSISTANT->value, $redirect_enabled, false );
 		update_option( PCM_Options::ENABLE_ADVANCED_SCAN_WORKFLOWS->value, $advanced_scan_enabled, false );
 		update_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, $microcache_enabled, false );
-
-		if ( function_exists( 'pcm_audit_log' ) ) {
-			pcm_audit_log( 'caching_suite_features_toggled', 'settings', array( 'enabled' => $caching_suite_enabled ) );
-			pcm_audit_log( 'redirect_assistant_toggled', 'settings', array( 'enabled' => $redirect_enabled ) );
-			pcm_audit_log( 'advanced_scan_toggled', 'settings', array( 'enabled' => $advanced_scan_enabled ) );
-			pcm_audit_log( 'durable_microcache_toggled', 'settings', array( 'enabled' => $microcache_enabled ) );
-		}
 	}
 
 	$caching_suite_enabled = (bool) get_option( PCM_Options::ENABLE_CACHING_SUITE_FEATURES->value, false );
-	$redirect_enabled      = (bool) get_option( PCM_Options::ENABLE_REDIRECT_ASSISTANT->value, false );
 	$advanced_scan_enabled = (bool) get_option( PCM_Options::ENABLE_ADVANCED_SCAN_WORKFLOWS->value, false );
 	$tab                   = pcm_settings_current_tab();
 
 	$is_deep_dive_disabled = ( 'deep_dive_tab' === $tab && ! $caching_suite_enabled );
-	$is_redirects_disabled = ( 'redirects_tab' === $tab && ! $redirect_enabled );
 
-	if ( $is_deep_dive_disabled || $is_redirects_disabled ) {
+	if ( $is_deep_dive_disabled ) {
 		$tab = null;
 	}
 
 	$is_object_tab    = ( null === $tab );
 	$is_deep_dive_tab = ( 'deep_dive_tab' === $tab );
-	$is_redirects_tab = ( 'redirects_tab' === $tab );
 	$is_settings_tab  = ( 'settings_tab' === $tab );
 
 	$branding_opts              = get_option( PCM_Options::REMOVE_BRANDING_OPTIONS->value );
@@ -280,16 +275,8 @@ function pressable_cache_management_display_settings_page() {
 		&& 'disable' === $branding_opts['branding_on_off_radio_button']
 	);
 	$pcm_module_available       = array(
-		'object_cache' => function_exists( 'pcm_object_cache_intelligence_is_enabled' ),
-		'opcache'      => function_exists( 'pcm_opcache_awareness_is_enabled' ),
 		'cacheability' => function_exists( 'pcm_cacheability_advisor_is_enabled' ),
-		'redirects'    => function_exists( 'pcm_redirect_assistant_is_enabled' ),
 	);
-	$scenario_scan_enabled      = function_exists( 'pcm_cacheability_advisor_is_enabled' ) && pcm_cacheability_advisor_is_enabled();
-	$scenario_scan_max_urls     = defined( 'PCM_SCENARIO_MAX_URLS' ) ? (int) PCM_SCENARIO_MAX_URLS : 20;
-	$scenario_scan_max_total    = defined( 'PCM_SCENARIO_MAX_TOTAL_PROBES' ) ? (int) PCM_SCENARIO_MAX_TOTAL_PROBES : 60;
-	$scenario_scan_settings_url = admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' );
-	$privacy_settings           = function_exists( 'pcm_get_privacy_settings' ) ? pcm_get_privacy_settings() : array();
 	$bc_status                  = pcm_get_batcache_status();
 	$bc_is_unknown              = ( 'unknown' === $bc_status );
 
@@ -356,7 +343,7 @@ function pressable_cache_management_display_settings_page() {
 		);
 	}
 
-	if ( $is_deep_dive_tab || $is_settings_tab ) {
+	if ( $is_deep_dive_tab ) {
 		wp_enqueue_script(
 			'pcm-settings-page-deep-dive',
 			$base_js_url . 'deep-dive.js',
@@ -374,36 +361,6 @@ function pressable_cache_management_display_settings_page() {
 			file_exists( $base_js_path . 'layered-probe.js' ) ? (string) filemtime( $base_js_path . 'layered-probe.js' ) : false,
 			true
 		);
-		wp_enqueue_script(
-			'pcm-scenario-scan',
-			$base_js_url . 'scenario-scan.js',
-			array( 'pcm-post', 'pcm-utils', 'pcm-settings-page-deep-dive' ),
-			file_exists( $base_js_path . 'scenario-scan.js' ) ? (string) filemtime( $base_js_path . 'scenario-scan.js' ) : false,
-			true
-		);
-		wp_localize_script(
-			'pcm-scenario-scan',
-			'pcmScenarioScanData',
-			array(
-				'settingsUrl'    => $scenario_scan_settings_url,
-				'siteUrl'        => trailingslashit( get_site_url() ),
-				'siteName'       => wp_strip_all_tags( get_bloginfo( 'name', 'display' ) ),
-				'siteHost'       => wp_parse_url( get_site_url(), PHP_URL_HOST ),
-				'maxUrls'        => $scenario_scan_max_urls,
-				'maxTotal'       => $scenario_scan_max_total,
-				'featureEnabled' => $scenario_scan_enabled,
-			)
-		);
-	}
-
-	if ( 'redirects_tab' === $tab ) {
-		wp_enqueue_script(
-			'pcm-redirects-tab',
-			$base_js_url . 'redirects-tab.js',
-			array( 'pcm-post' ),
-			file_exists( $base_js_path . 'redirects-tab.js' ) ? (string) filemtime( $base_js_path . 'redirects-tab.js' ) : false,
-			true
-		);
 	}
 
 	wp_localize_script(
@@ -413,10 +370,7 @@ function pressable_cache_management_display_settings_page() {
 			'nonces'          => array(
 				'cacheabilityScan'  => wp_create_nonce( 'pcm_cacheability_scan' ),
 				'edgeCacheToggle'   => wp_create_nonce( 'pcm_edge_cache_toggle' ),
-				'privacySettings'   => wp_create_nonce( 'pcm_privacy_settings' ),
-				'redirectAssistant' => wp_create_nonce( 'pcm_redirect_assistant' ),
 			),
-			'privacySettings' => $privacy_settings,
 			'strings'         => array(
 				'failedRetrieveStatus' => __( 'Failed to retrieve status.', 'pressable_cache_management' ),
 				'couldNotConnect'      => __( 'Could not connect to server.', 'pressable_cache_management' ),
@@ -488,10 +442,6 @@ function pressable_cache_management_display_settings_page() {
 		<a href="admin.php?page=pressable_cache_management&tab=deep_dive_tab"
 			class="nav-tab <?php echo $is_deep_dive_tab ? 'nav-tab-active' : ''; ?>" id="pcm-deep-dive-tab">Deep Dive</a>
 		<?php endif; ?>
-		<?php if ( $redirect_enabled ) : ?>
-		<a href="admin.php?page=pressable_cache_management&tab=redirects_tab"
-			class="nav-tab <?php echo $is_redirects_tab ? 'nav-tab-active' : ''; ?>" id="pcm-redirects-tab">Redirects</a>
-		<?php endif; ?>
 		<a href="admin.php?page=pressable_cache_management&tab=settings_tab"
 			class="nav-tab <?php echo $is_settings_tab ? 'nav-tab-active' : ''; ?>">Settings</a>
 		<a href="admin.php?page=pressable_cache_management&tab=remove_pressable_branding_tab"
@@ -505,7 +455,7 @@ function pressable_cache_management_display_settings_page() {
 			<?php esc_html_e( 'Deep Dive is locked', 'pressable_cache_management' ); ?>
 		</h3>
 		<p class="pcm-deep-dive-disabled-text">
-			<?php esc_html_e( 'Enable Caching Suite in Feature Flags to use Deep Dive.', 'pressable_cache_management' ); ?>
+			<?php esc_html_e( 'Enable Deep Dive diagnostics in Settings to use Deep Dive.', 'pressable_cache_management' ); ?>
 		</p>
 		<a href="admin.php?page=pressable_cache_management&tab=settings_tab"
 			class="pcm-btn-primary pcm-btn-inline-flex">
@@ -515,7 +465,7 @@ function pressable_cache_management_display_settings_page() {
 	<?php endif; ?>
 
 	<?php
-	if ( $is_object_tab || $is_deep_dive_tab || $is_redirects_tab || $is_settings_tab ) :
+	if ( $is_object_tab || $is_deep_dive_tab || $is_settings_tab ) :
 		$options = pcm_get_options();
 
 		// Batcache status badge
@@ -534,26 +484,26 @@ function pressable_cache_management_display_settings_page() {
 		<?php if ( $is_settings_tab ) : ?>
 			<?php $microcache_enabled = (bool) get_option( PCM_Options::ENABLE_DURABLE_ORIGIN_MICROCACHE->value, false ); ?>
 	<div class="pcm-card pcm-card-mb">
-		<h3 class="pcm-card-title"><span class="dashicons dashicons-flag pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Feature Flags', 'pressable_cache_management' ); ?></h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Control which major Caching Suite modules are active for diagnostics, automation, and deep-dive insights.', 'pressable_cache_management' ); ?></p>
+		<h3 class="pcm-card-title"><span class="dashicons dashicons-flag pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Deep Dive Options', 'pressable_cache_management' ); ?></h3>
+		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Toggle the focused Deep Dive tools exposed by this plugin. The active scope is Cacheability Advisor, Route Diagnosis, Layered Probe Runner, and Durable Origin Microcache.', 'pressable_cache_management' ); ?></p>
 		<form method="post">
 			<input type="hidden" name="pcm_feature_flags_nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_save_feature_flags' ) ); ?>" />
 			<input type="hidden" id="pcm-caching-suite-toggle-nonce" value="<?php echo esc_attr( wp_create_nonce( 'pcm_toggle_caching_suite_features' ) ); ?>" />
 
 			<div class="pcm-toggle-row">
 				<label class="switch pcm-switch-label">
-					<input type="checkbox" name="pcm_enable_caching_suite_features" id="pcm-caching-suite-toggle" value="1" <?php checked( $caching_suite_enabled ); ?> aria-label="<?php echo esc_attr__( 'Enable Caching Suite', 'pressable_cache_management' ); ?>" />
+					<input type="checkbox" name="pcm_enable_caching_suite_features" id="pcm-caching-suite-toggle" value="1" <?php checked( $caching_suite_enabled ); ?> aria-label="<?php echo esc_attr__( 'Enable Deep Dive Diagnostics', 'pressable_cache_management' ); ?>" />
 					<span class="slider round"></span>
 				</label>
 				<div>
-					<div class="pcm-toggle-title"><?php echo esc_html__( 'Caching Suite', 'pressable_cache_management' ); ?>
+					<div class="pcm-toggle-title"><?php echo esc_html__( 'Deep Dive Diagnostics', 'pressable_cache_management' ); ?>
 						<span class="pcm-status-badge <?php echo $caching_suite_enabled ? 'is-active' : 'is-inactive'; ?>" id="pcm-caching-suite-status-badge"><?php echo $caching_suite_enabled ? esc_html__( 'Active', 'pressable_cache_management' ) : esc_html__( 'Inactive', 'pressable_cache_management' ); ?></span>
 					</div>
-					<div class="pcm-toggle-desc"><?php echo esc_html__( 'Turns on the full diagnostics and remediation toolset used across Deep Dive analysis.', 'pressable_cache_management' ); ?></div>
+					<div class="pcm-toggle-desc"><?php echo esc_html__( 'Turns on Cacheability Advisor, Route Diagnosis, and Layered Probe Runner inside the Deep Dive tab.', 'pressable_cache_management' ); ?></div>
 					<div class="pcm-feature-chips">
 						<span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Analyzes headers and cache directives to highlight uncached opportunities." aria-describedby="pcm-chip-desc-1"><?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-1" role="tooltip"><?php echo esc_html__( 'Analyzes headers and cache directives to highlight uncached opportunities.', 'pressable_cache_management' ); ?></span></span>
-						<span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Surfaces noisy query strings and cookie patterns that break cache hit rates." aria-describedby="pcm-chip-desc-2"><?php echo esc_html__( 'Cache-Busting Detector', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-2" role="tooltip"><?php echo esc_html__( 'Surfaces noisy query strings and cookie patterns that break cache hit rates.', 'pressable_cache_management' ); ?></span></span>
-						<span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Generates recommended next actions when anti-patterns are detected." aria-describedby="pcm-chip-desc-3"><?php echo esc_html__( 'Guided Remediation', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-3" role="tooltip"><?php echo esc_html__( 'Generates recommended next actions when anti-patterns are detected.', 'pressable_cache_management' ); ?></span></span>
+						<span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Opens a sampled route so you can inspect bypass reasons, headers, and timing." aria-describedby="pcm-chip-desc-2"><?php echo esc_html__( 'Route Diagnosis', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-2" role="tooltip"><?php echo esc_html__( 'Opens a sampled route so you can inspect bypass reasons, headers, and timing.', 'pressable_cache_management' ); ?></span></span>
+						<span class="pcm-chip-tooltip-wrap" tabindex="0" role="button" title="Runs a side-by-side edge, origin, and object-cache probe for a single URL." aria-describedby="pcm-chip-desc-3"><?php echo esc_html__( 'Layered Probe Runner', 'pressable_cache_management' ); ?> <span class="dashicons dashicons-info-outline pcm-chip-info-icon" aria-hidden="true"></span><span class="pcm-chip-tooltip" id="pcm-chip-desc-3" role="tooltip"><?php echo esc_html__( 'Runs a side-by-side edge, origin, and object-cache probe for a single URL.', 'pressable_cache_management' ); ?></span></span>
 					</div>
 					<span class="pcm-ts-inline" id="pcm-caching-suite-inline-status"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $caching_suite_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
 				</div>
@@ -561,24 +511,12 @@ function pressable_cache_management_display_settings_page() {
 
 			<div class="pcm-toggle-row">
 				<label class="switch pcm-switch-label">
-					<input type="checkbox" name="pcm_enable_redirect_assistant" value="1" <?php checked( $redirect_enabled ); ?> aria-label="<?php echo esc_attr__( 'Enable Redirect Assistant', 'pressable_cache_management' ); ?>" />
+					<input type="checkbox" name="pcm_enable_advanced_scan_workflows" value="1" <?php checked( $advanced_scan_enabled ); ?> aria-label="<?php echo esc_attr__( 'Enable Cacheability Rescans', 'pressable_cache_management' ); ?>" />
 					<span class="slider round"></span>
 				</label>
 				<div>
-					<div class="pcm-toggle-title"><?php echo esc_html__( 'Redirect Assistant', 'pressable_cache_management' ); ?></div>
-					<div class="pcm-toggle-desc"><?php echo esc_html__( 'Enables the Redirects tab for discovering, managing, simulating, and exporting redirect rules.', 'pressable_cache_management' ); ?></div>
-					<span class="pcm-ts-inline"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $redirect_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
-				</div>
-			</div>
-
-			<div class="pcm-toggle-row">
-				<label class="switch pcm-switch-label">
-					<input type="checkbox" name="pcm_enable_advanced_scan_workflows" value="1" <?php checked( $advanced_scan_enabled ); ?> aria-label="<?php echo esc_attr__( 'Enable Advanced Scanning Workflows', 'pressable_cache_management' ); ?>" />
-					<span class="slider round"></span>
-				</label>
-				<div>
-					<div class="pcm-toggle-title"><?php echo esc_html__( 'Advanced Scanning Workflows', 'pressable_cache_management' ); ?></div>
-					<div class="pcm-toggle-desc"><?php echo esc_html__( 'Allows deep header inspection and multi-URL scanning in Cacheability Advisor. Requires privacy opt-in.', 'pressable_cache_management' ); ?></div>
+					<div class="pcm-toggle-title"><?php echo esc_html__( 'Cacheability Rescans', 'pressable_cache_management' ); ?></div>
+					<div class="pcm-toggle-desc"><?php echo esc_html__( 'Allows Cacheability Advisor to queue and process sampled URL rescans.', 'pressable_cache_management' ); ?></div>
 					<span class="pcm-ts-inline"><strong><?php echo esc_html__( 'Status:', 'pressable_cache_management' ); ?></strong> <?php echo $advanced_scan_enabled ? esc_html__( 'Enabled', 'pressable_cache_management' ) : esc_html__( 'Disabled', 'pressable_cache_management' ); ?></span>
 				</div>
 			</div>
@@ -596,7 +534,7 @@ function pressable_cache_management_display_settings_page() {
 			</div>
 
 			<div class="pcm-feature-flags-save-row">
-				<button type="submit" class="pcm-btn-primary"><?php echo esc_html__( 'Save Feature Flags', 'pressable_cache_management' ); ?></button>
+				<button type="submit" class="pcm-btn-primary"><?php echo esc_html__( 'Save Deep Dive Options', 'pressable_cache_management' ); ?></button>
 				<span class="pcm-feature-flags-note"><?php echo esc_html__( 'Changes take effect immediately after save.', 'pressable_cache_management' ); ?></span>
 			</div>
 		</form>
@@ -637,21 +575,20 @@ function pressable_cache_management_display_settings_page() {
 	<?php endif; ?>
 
 
-		<?php if ( $is_deep_dive_tab || $is_redirects_tab ) : ?>
-			<?php if ( $is_deep_dive_tab && $scenario_scan_enabled ) : ?>
+		<?php if ( $is_deep_dive_tab ) : ?>
 	<nav class="pcm-anchor-nav" id="pcm-deep-dive-nav" aria-label="Deep Dive sections">
 		<a href="#pcm-feature-cacheability-advisor">Cacheability</a>
-		<a href="#pcm-feature-cache-overview">Cache Overview</a>
 		<a href="#pcm-feature-layered-probe">Layered Probe</a>
 		<a href="#pcm-feature-route-diagnosis">Route Diagnosis</a>
-		<a href="#pcm-feature-scenario-scan">Scenario Scan</a>
+		<?php if ( function_exists( 'pcm_microcache_render_deep_dive_card' ) ) : ?>
+		<a href="#pcm-feature-durable-origin-microcache">Durable Microcache</a>
+		<?php endif; ?>
 	</nav>
-	<?php endif; ?>
 
 			<?php if ( $is_deep_dive_tab && $pcm_module_available['cacheability'] && pcm_cacheability_advisor_is_enabled() ) : ?>
 	<div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-cacheability-advisor" data-section="cacheability">
 		<h3 class="pcm-card-title"><span class="dashicons dashicons-performance pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, URL results, and findings.', 'pressable_cache_management' ); ?></p>
+		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Run a cacheability scan and review per-template scores, sampled URLs, and latest findings.', 'pressable_cache_management' ); ?></p>
 		<div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
 		<template class="pcm-lazy-template">
 			<p>
@@ -659,7 +596,7 @@ function pressable_cache_management_display_settings_page() {
 				<span id="pcm-advisor-run-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
 			</p>
 					<?php if ( ! $advanced_scan_enabled ) : ?>
-					<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Rescans are disabled until Advanced Scanning Workflows is enabled in Settings > Feature Flags.', 'pressable_cache_management' ); ?></p>
+					<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Rescans are disabled until Cacheability Rescans is enabled in Settings > Deep Dive Options.', 'pressable_cache_management' ); ?></p>
 				<?php endif; ?>
 			<div class="pcm-advisor-grid pcm-responsive-two-col pcm-grid-2col">
 				<div>
@@ -671,34 +608,17 @@ function pressable_cache_management_display_settings_page() {
 					<div id="pcm-advisor-findings" class="pcm-panel-text"></div>
 				</div>
 			</div>
-			<div id="pcm-advisor-playbook" class="pcm-playbook-panel"></div>
 		</template>
 	</div>
 	<?php elseif ( $is_deep_dive_tab ) : ?>
 	<div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-cacheability-advisor">
 		<h3 class="pcm-card-title"><span class="dashicons dashicons-performance pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Cacheability Advisor', 'pressable_cache_management' ); ?></h3>
 		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
-		<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
+		<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Deep Dive Options in Settings', 'pressable_cache_management' ); ?></a></p>
 	</div>
 	<?php endif; ?>
 
-			<?php if ( $is_deep_dive_tab ) : ?>
-	<div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-cache-overview" data-section="cache-overview">
-		<h3 class="pcm-card-title"><span class="dashicons dashicons-performance pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Cache Overview', 'pressable_cache_management' ); ?></h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Caching stack status, object cache hit ratio, and 7-day trend.', 'pressable_cache_management' ); ?></p>
-		<div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
-		<template class="pcm-lazy-template">
-		<p>
-			<button type="button" class="pcm-btn-secondary" id="pcm-cache-overview-refresh"><?php echo esc_html__( 'Refresh', 'pressable_cache_management' ); ?></button>
-			<span id="pcm-cache-overview-status" class="pcm-inline-status" aria-live="polite" role="status"></span>
-		</p>
-		<div id="pcm-cache-overview-cards" class="pcm-cache-insights-grid"></div>
-		<div id="pcm-cache-overview-trend" class="pcm-trend-panel pcm-panel-text" style="margin-top:16px;"></div>
-		</template>
-	</div>
-	<?php endif; ?>
-
-			<?php if ( $is_deep_dive_tab ) : ?>
+		<?php if ( $is_deep_dive_tab ) : ?>
 	<div class="pcm-card pcm-card-hover pcm-card-mb-scroll pcm-lazy-section" id="pcm-feature-layered-probe" data-section="layered-probe">
 		<h3 class="pcm-card-title"><span class="dashicons dashicons-admin-site-alt3 pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Layered Probe Runner', 'pressable_cache_management' ); ?></h3>
 		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Probe a single URL through Edge, Origin, and Object Cache layers side by side to isolate WPCloud-specific cache issues.', 'pressable_cache_management' ); ?></p>
@@ -744,192 +664,17 @@ function pressable_cache_management_display_settings_page() {
 				<?php if ( $pcm_module_available['cacheability'] && pcm_cacheability_advisor_is_enabled() ) : ?>
 				<div id="pcm-advisor-diagnosis" class="pcm-advisor-diagnosis pcm-advisor-diagnosis-box"><em><?php echo esc_html__( 'Select a route from Cacheability Advisor to view diagnosis details.', 'pressable_cache_management' ); ?></em></div>
 				<?php else : ?>
-				<div class="pcm-panel-text"><em><?php echo esc_html__( 'Route Diagnosis is unavailable until Cacheability Advisor is enabled.', 'pressable_cache_management' ); ?></em></div>
+				<div class="pcm-panel-text"><em><?php echo esc_html__( 'Route Diagnosis is unavailable until Deep Dive diagnostics are enabled.', 'pressable_cache_management' ); ?></em></div>
 				<?php endif; ?>
 	</div>
 	<?php endif; ?>
 
-			<?php if ( $is_deep_dive_tab ) : ?>
-				<?php $scenario_scan_available = $scenario_scan_enabled && ! empty( $pcm_module_available['cacheability'] ); ?>
-	<div class="pcm-card pcm-card-hover pcm-card-mb-scroll<?php echo $scenario_scan_available ? ' pcm-lazy-section' : ''; ?>" id="pcm-feature-scenario-scan" data-section="scenario-scan" data-site-host="<?php echo esc_attr( (string) wp_parse_url( get_site_url(), PHP_URL_HOST ) ); ?>" data-max-urls="<?php echo esc_attr( (string) $scenario_scan_max_urls ); ?>" data-max-total="<?php echo esc_attr( (string) $scenario_scan_max_total ); ?>">
-		<h3 class="pcm-card-title"><span class="dashicons dashicons-randomize pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Scenario Scan', 'pressable_cache_management' ); ?></h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Probe URLs through multiple cache scenarios — warm vs cold, cookie vs anonymous, mobile vs desktop, and query-param variants — to surface WPCloud-specific cache differences.', 'pressable_cache_management' ); ?></p>
-				<?php if ( $scenario_scan_available ) : ?>
-		<div class="pcm-lazy-skeleton pcm-skeleton-panel" aria-hidden="true"></div>
-		<template class="pcm-lazy-template">
-			<div id="pcm-scenario-app" class="pcm-scenario-app-root"></div>
-		</template>
-		<?php else : ?>
-		<div class="pcm-scenario-disabled-state">
-			<span class="dashicons dashicons-lock pcm-scenario-disabled-icon" aria-hidden="true"></span>
-			<div class="pcm-scenario-disabled-copy">
-				<h4 class="pcm-section-subhead"><?php echo esc_html__( 'Scenario Scan is currently unavailable', 'pressable_cache_management' ); ?></h4>
-				<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Enable the Caching Suite feature flag and make sure Cacheability Advisor is active before using Scenario Scan.', 'pressable_cache_management' ); ?></p>
-				<p><a href="<?php echo esc_url( $scenario_scan_settings_url ); ?>" class="pcm-btn-secondary"><?php echo esc_html__( 'Open Feature Flags', 'pressable_cache_management' ); ?></a></p>
-			</div>
-		</div>
-		<?php endif; ?>
-	</div>
-	<?php endif; ?>
 
 			<?php if ( $is_deep_dive_tab && function_exists( 'pcm_microcache_render_deep_dive_card' ) ) : ?>
 				<?php pcm_microcache_render_deep_dive_card(); ?>
 	<?php endif; ?>
 
 	<?php endif; ?>
-
-		<?php if ( $is_redirects_tab && $redirect_enabled && $pcm_module_available['redirects'] && pcm_redirect_assistant_is_enabled() ) : ?>
-	<div class="pcm-redirects-grid">
-		<div class="pcm-col-stack">
-			<!-- Card 1: Discover Candidates -->
-			<div class="pcm-card">
-				<h3 class="pcm-card-title">
-					<span class="dashicons dashicons-search pcm-title-icon" aria-hidden="true"></span>
-					<?php echo esc_html__( 'Discover Candidates', 'pressable_cache_management' ); ?>
-				</h3>
-				<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Paste URLs from your old site or analytics to auto-generate redirect rule suggestions.', 'pressable_cache_management' ); ?></p>
-				<textarea id="pcm-ra-urls" rows="4" class="pcm-textarea-full" placeholder="https://example.com/Page?utm_source=x&#10;https://example.com/page/"></textarea>
-				<p>
-					<button type="button" class="pcm-btn-primary" id="pcm-ra-discover"><?php echo esc_html__( 'Discover Candidates', 'pressable_cache_management' ); ?></button>
-				</p>
-				<div id="pcm-ra-candidates-output" class="pcm-output-panel"></div>
-			</div>
-		</div>
-
-		<div class="pcm-col-stack">
-			<!-- Card 2: Dry-Run Simulator -->
-			<div class="pcm-card">
-				<h3 class="pcm-card-title">
-					<span class="dashicons dashicons-controls-play pcm-title-icon" aria-hidden="true"></span>
-					<?php echo esc_html__( 'Dry-Run Simulator', 'pressable_cache_management' ); ?>
-				</h3>
-				<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Test URLs against your current rules without affecting production.', 'pressable_cache_management' ); ?></p>
-				<textarea id="pcm-ra-sim-urls" rows="4" class="pcm-textarea-full" placeholder="https://example.com/old&#10;https://example.com/OLD/"></textarea>
-				<p>
-					<button type="button" class="pcm-btn-primary" id="pcm-ra-simulate"><?php echo esc_html__( 'Run Simulation', 'pressable_cache_management' ); ?></button>
-				</p>
-				<div id="pcm-ra-sim-output" class="pcm-output-panel"></div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Rule Builder — full width -->
-	<div class="pcm-card" style="margin-top:20px;">
-		<h3 class="pcm-card-title">
-			<span class="dashicons dashicons-editor-table pcm-title-icon" aria-hidden="true"></span>
-			<?php echo esc_html__( 'Rule Builder', 'pressable_cache_management' ); ?>
-		</h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Create and manage your redirect rules. Load existing rules or add new ones manually.', 'pressable_cache_management' ); ?></p>
-		<p>
-			<button type="button" class="pcm-btn-secondary" id="pcm-ra-load-rules"><?php echo esc_html__( 'Load Saved Rules', 'pressable_cache_management' ); ?></button>
-			<button type="button" class="pcm-btn-text" id="pcm-ra-add-rule"><?php echo esc_html__( '+ Add Rule', 'pressable_cache_management' ); ?></button>
-		</p>
-		<div id="pcm-ra-rule-editor" class="pcm-rule-editor-box">
-			<div class="pcm-overflow-auto">
-				<table class="pcm-table-full" id="pcm-ra-rules-table">
-					<thead>
-						<tr>
-							<th class="pcm-th-cell"><?php echo esc_html__( 'Source', 'pressable_cache_management' ); ?></th>
-							<th class="pcm-th-cell"><?php echo esc_html__( 'Target', 'pressable_cache_management' ); ?></th>
-							<th class="pcm-th-cell"><?php echo esc_html__( 'Match', 'pressable_cache_management' ); ?></th>
-							<th class="pcm-th-cell"><?php echo esc_html__( 'Code', 'pressable_cache_management' ); ?></th>
-							<th class="pcm-th-cell"><?php echo esc_html__( 'On', 'pressable_cache_management' ); ?></th>
-							<th class="pcm-th-cell"><?php echo esc_html__( 'Actions', 'pressable_cache_management' ); ?></th>
-						</tr>
-					</thead>
-					<tbody id="pcm-ra-rules-body"></tbody>
-				</table>
-			</div>
-			<div id="pcm-ra-rule-errors" class="pcm-rule-errors" role="alert" aria-live="assertive"></div>
-		</div>
-		<p class="pcm-mt-8">
-			<button type="button" class="pcm-btn-text pcm-toggle-advanced-btn" id="pcm-ra-toggle-advanced"><?php echo esc_html__( 'Show Advanced JSON', 'pressable_cache_management' ); ?></button>
-		</p>
-		<textarea id="pcm-ra-rules-json" rows="10" class="pcm-textarea-mono pcm-hidden" placeholder='[ {"enabled":true,"match_type":"exact","source_pattern":"/old","target_pattern":"https://example.com/new"} ]'></textarea>
-		<p>
-			<label><input type="checkbox" id="pcm-ra-confirm-wildcards" /> <?php echo esc_html__( 'I confirm wildcard/regex rules have been reviewed.', 'pressable_cache_management' ); ?></label>
-		</p>
-		<p>
-			<button type="button" class="pcm-btn-primary" id="pcm-ra-save"><?php echo esc_html__( 'Save Rules', 'pressable_cache_management' ); ?></button>
-		</p>
-	</div>
-
-	<!-- Export & Import — full width -->
-	<div class="pcm-card" style="margin-top:20px;">
-		<h3 class="pcm-card-title">
-			<span class="dashicons dashicons-download pcm-title-icon" aria-hidden="true"></span>
-			<?php echo esc_html__( 'Export & Import', 'pressable_cache_management' ); ?>
-		</h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Generate deployable redirect payloads or import rules from another site.', 'pressable_cache_management' ); ?></p>
-
-		<div class="pcm-ra-export-import-grid">
-			<div class="pcm-ra-export-section">
-				<h5><?php echo esc_html__( 'Export', 'pressable_cache_management' ); ?></h5>
-				<p>
-					<button type="button" class="pcm-btn-secondary" id="pcm-ra-export"><?php echo esc_html__( 'Build Export', 'pressable_cache_management' ); ?></button>
-				</p>
-				<textarea id="pcm-ra-export-content" rows="8" class="pcm-textarea-mono" readonly placeholder="Generated custom-redirects.php content will appear here"></textarea>
-				<p>
-					<button type="button" class="pcm-btn-text" id="pcm-ra-copy"><?php echo esc_html__( 'Copy to Clipboard', 'pressable_cache_management' ); ?></button>
-					<button type="button" class="pcm-btn-secondary" id="pcm-ra-download"><?php echo esc_html__( 'Download custom-redirects.php', 'pressable_cache_management' ); ?></button>
-				</p>
-			</div>
-
-			<div class="pcm-ra-import-section">
-				<h5><?php echo esc_html__( 'Import', 'pressable_cache_management' ); ?></h5>
-				<textarea id="pcm-ra-import-content" rows="4" class="pcm-textarea-mono" placeholder="Paste JSON payload here to import rules"></textarea>
-				<p>
-					<button type="button" class="pcm-btn-secondary" id="pcm-ra-import"><?php echo esc_html__( 'Import JSON Payload', 'pressable_cache_management' ); ?></button>
-				</p>
-			</div>
-		</div>
-
-		<div id="pcm-ra-output" class="pcm-output-panel"></div>
-	</div>
-	<?php elseif ( $is_redirects_tab ) : ?>
-	<div class="pcm-card">
-		<h3 class="pcm-card-title"><span class="dashicons dashicons-redo pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Redirects', 'pressable_cache_management' ); ?></h3>
-		<?php if ( ! $redirect_enabled ) : ?>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Enable Redirect Assistant in Feature Flags to use Redirects.', 'pressable_cache_management' ); ?></p>
-		<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>" class="pcm-btn-primary pcm-btn-inline-flex"><?php echo esc_html__( 'Go to Settings', 'pressable_cache_management' ); ?></a></p>
-		<?php else : ?>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'This module is not available. It may be disabled or failed to load.', 'pressable_cache_management' ); ?></p>
-		<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=pressable_cache_management&tab=settings_tab' ) ); ?>"><?php echo esc_html__( 'Check Feature Flags in Settings', 'pressable_cache_management' ); ?></a></p>
-		<?php endif; ?>
-	</div>
-	<?php endif; ?>
-
-		<?php if ( $is_settings_tab ) : ?>
-	<div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-security-privacy">
-		<h3 class="pcm-card-title"><span class="dashicons dashicons-shield pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Privacy & Security', 'pressable_cache_management' ); ?></h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Configure retention policy for diagnostics data and audit logs.', 'pressable_cache_management' ); ?></p>
-			<?php if ( function_exists( 'pcm_security_privacy_is_enabled' ) && ! pcm_security_privacy_is_enabled() ) : ?>
-		<div class="pcm-warning-banner">
-			<span aria-hidden="true" class="pcm-warning-banner-icon"><span class="dashicons dashicons-warning"></span></span>
-			<span><?php echo esc_html__( 'Privacy & Security is currently disabled by feature filter. Enable pcm_enable_security_privacy to use retention controls and audit logs.', 'pressable_cache_management' ); ?></span>
-		</div>
-		<?php else : ?>
-				<p><label><?php echo esc_html__( 'Retention Days', 'pressable_cache_management' ); ?> <input type="number" id="pcm-privacy-retention" min="7" max="365" value="<?php echo esc_attr( (string) ( isset( $privacy_settings['retention_days'] ) ? (int) $privacy_settings['retention_days'] : 90 ) ); ?>" /></label></p>
-				<p><label><input type="checkbox" id="pcm-privacy-audit-enabled" <?php checked( ! empty( $privacy_settings['audit_log_enabled'] ) ); ?> /> <?php echo esc_html__( 'Enable audit logging', 'pressable_cache_management' ); ?></label></p>
-				<p><button type="button" class="pcm-btn-primary" id="pcm-privacy-save"><?php echo esc_html__( 'Save Privacy Settings', 'pressable_cache_management' ); ?></button>
-				<span id="pcm-privacy-status" class="pcm-privacy-status" aria-live="polite" role="status"></span></p>
-		<?php endif; ?>
-	</div>
-	<?php endif; ?>
-
-		<?php if ( $is_settings_tab && ( ! function_exists( 'pcm_security_privacy_is_enabled' ) || pcm_security_privacy_is_enabled() ) ) : ?>
-	<div class="pcm-card pcm-card-mb-scroll" id="pcm-feature-audit-log">
-		<h3 class="pcm-card-title"><span class="dashicons dashicons-list-view pcm-title-icon" aria-hidden="true"></span> <?php echo esc_html__( 'Audit Log', 'pressable_cache_management' ); ?></h3>
-		<p class="pcm-text-muted-intro"><?php echo esc_html__( 'Review privileged actions performed within the plugin.', 'pressable_cache_management' ); ?></p>
-		<p>
-			<button type="button" class="pcm-btn-secondary" id="pcm-audit-refresh"><?php echo esc_html__( 'Refresh Audit Log', 'pressable_cache_management' ); ?></button>
-			<button type="button" class="pcm-btn-secondary" id="pcm-audit-export-csv"><?php echo esc_html__( 'Export CSV', 'pressable_cache_management' ); ?></button>
-		</p>
-		<div id="pcm-audit-log" class="pcm-audit-panel" aria-live="polite"></div>
-		<p class="pcm-mt-8"><button type="button" class="pcm-btn-secondary pcm-hidden" id="pcm-audit-load-more"><?php echo esc_html__( 'Load More', 'pressable_cache_management' ); ?></button></p>
-	</div>
-	<?php endif; ?>
-
 
 		<?php if ( $is_object_tab ) : ?>
 

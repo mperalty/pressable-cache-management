@@ -69,10 +69,6 @@ function pcm_ajax_layered_probe(): void {
 	$origin_result = pcm_layered_probe_origin( $raw_url );
 	$oc_result     = pcm_layered_probe_object_cache();
 
-	if ( function_exists( 'pcm_audit_log' ) ) {
-		pcm_audit_log( 'layered_probe_run', 'diagnostics', array( 'url' => $raw_url ) );
-	}
-
 	wp_send_json_success(
 		array(
 			'url'          => $raw_url,
@@ -182,39 +178,18 @@ function pcm_layered_probe_origin( string $url ): array {
 }
 
 /**
- * Object-cache snapshot: current hit ratio and provider metadata.
+ * Object-cache probe: basic backend presence and drop-in detection.
  *
  * @return array Snapshot data.
  */
 function pcm_layered_probe_object_cache(): array {
-	if ( ! function_exists( 'pcm_object_cache_intelligence_is_enabled' ) || ! pcm_object_cache_intelligence_is_enabled() ) {
-		// Fallback: provide basic wp_object_cache info.
-		global $wp_object_cache;
-
-		$info = array(
-			'status'    => 'basic',
-			'available' => is_object( $wp_object_cache ),
-			'class'     => is_object( $wp_object_cache ) ? get_class( $wp_object_cache ) : 'none',
-		);
-
-		return $info;
-	}
-
-	// Use the existing OCI snapshot infrastructure.
-	$snapshot = function_exists( 'pcm_object_cache_get_cached_snapshot' )
-		? pcm_object_cache_get_cached_snapshot()
-		: array();
-
-	if ( empty( $snapshot ) && function_exists( 'pcm_object_cache_collect_and_store_snapshot' ) ) {
-		$snapshot = pcm_object_cache_collect_and_store_snapshot( 3.0 );
-	}
+	global $wp_object_cache;
 
 	return array(
-		'status'    => ! empty( $snapshot ) ? 'ok' : 'empty',
-		'hit_ratio' => isset( $snapshot['hit_ratio'] ) ? round( (float) $snapshot['hit_ratio'], 2 ) : null,
-		'uptime'    => $snapshot['uptime'] ?? null,
-		'provider'  => $snapshot['provider'] ?? null,
-		'taken_at'  => $snapshot['taken_at'] ?? null,
+		'status'    => 'basic',
+		'available' => is_object( $wp_object_cache ),
+		'class'     => is_object( $wp_object_cache ) ? get_class( $wp_object_cache ) : 'none',
+		'external'  => function_exists( 'wp_using_ext_object_cache' ) ? (bool) wp_using_ext_object_cache() : false,
 	);
 }
 

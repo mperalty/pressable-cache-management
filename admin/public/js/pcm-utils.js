@@ -2,7 +2,7 @@
  * Pressable Cache Management - Shared JS Utilities
  *
  * Consolidates duplicated utility functions from across the plugin:
- * - escapeHtml (was in deep-dive.js, redirects-tab.js, pcm-post.js, settings.js)
+ * - escapeHtml (was in deep-dive.js, pcm-post.js, settings.js)
  * - showModal (was in column.js)
  *
  * Public API (on window):

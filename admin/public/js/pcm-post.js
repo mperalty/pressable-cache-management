@@ -136,12 +136,6 @@
             if (!nextNonce) return;
             if (window.pcmSettingsData && window.pcmSettingsData.nonces) {
                 window.pcmSettingsData.nonces.cacheabilityScan = nextNonce;
-                if (data && data.privacySettingsNonce) {
-                    window.pcmSettingsData.nonces.privacySettings = data.privacySettingsNonce;
-                }
-                if (data && data.redirectAssistantNonce) {
-                    window.pcmSettingsData.nonces.redirectAssistant = data.redirectAssistantNonce;
-                }
             }
             if (window.pcmDeepDiveData && window.pcmDeepDiveData.nonces) {
                 window.pcmDeepDiveData.nonces.cacheabilityScan = nextNonce;

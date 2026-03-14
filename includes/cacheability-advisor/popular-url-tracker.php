@@ -1,6 +1,6 @@
 <?php
 /**
- * Lightweight popular URL tracker for Scenario Scan.
+ * Lightweight popular URL tracker for Cacheability Advisor sampling.
  *
  * @package PressableCacheManagement
  */

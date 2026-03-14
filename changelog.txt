@@ -1,5 +1,13 @@
 === Pressable Cache Management Change log ===
 
+= Unreleased =
+* Simplify Deep Dive to Cacheability Advisor, Route Diagnosis, Layered Probe Runner, and Durable Origin Microcache
+* Stop loading legacy diagnostics modules that are no longer part of the active scope
+* Remove legacy playbook wiring from the current Deep Dive experience
+* Expand deactivation and uninstall cleanup for scheduled hooks, diagnostics storage, and plugin-owned tables
+
+Historical entries below are preserved for release history and may mention modules that have since been retired from the current codebase.
+
 = Version 5.9.0 (Mar 09, 2026) =
 
 **Security Insight Runbooks**

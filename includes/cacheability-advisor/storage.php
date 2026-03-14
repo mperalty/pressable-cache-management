@@ -41,28 +41,6 @@ function pcm_cacheability_advisor_is_enabled(): bool {
 	return $cached;
 }
 
-/**
- * Get the scenario run table name.
- *
- * @return string
- */
-function pcm_scenario_runs_table_name(): string {
-	global $wpdb;
-
-	return $wpdb->prefix . 'pcm_scenario_runs';
-}
-
-/**
- * Get the scenario results table name.
- *
- * @return string
- */
-function pcm_scenario_results_table_name(): string {
-	global $wpdb;
-
-	return $wpdb->prefix . 'pcm_scenario_results';
-}
-
 if ( ! function_exists( 'pcm_popular_url_hits_table_name' ) ) {
 	/**
 	 * Get the popular URL hit tracker table name.
@@ -89,8 +67,6 @@ function pcm_cacheability_advisor_required_schema(): array {
 		$wpdb->prefix . 'pcm_scan_urls'       => array( 'id', 'run_id', 'url', 'url_hash', 'template_type', 'status_code', 'score', 'diagnosis_json', 'created_at' ),
 		$wpdb->prefix . 'pcm_findings'        => array( 'id', 'run_id', 'url', 'url_hash', 'rule_id', 'severity', 'evidence_json', 'recommendation_id', 'created_at' ),
 		$wpdb->prefix . 'pcm_template_scores' => array( 'id', 'run_id', 'template_type', 'score', 'url_count', 'created_at' ),
-		pcm_scenario_runs_table_name()        => array( 'id', 'scan_token', 'started_at', 'completed_at', 'status', 'url_count', 'variant_count', 'variant_config', 'created_at' ),
-		pcm_scenario_results_table_name()     => array( 'id', 'run_id', 'url', 'url_hash', 'variant_id', 'variant_label', 'status', 'http_code', 'elapsed_ms', 'cache_headers_json', 'verdict', 'error_message', 'created_at' ),
 		pcm_popular_url_hits_table_name()     => array( 'id', 'post_id', 'url', 'url_hash', 'hit_date', 'view_count', 'last_seen_at', 'created_at' ),
 	);
 }
@@ -221,29 +197,6 @@ function pcm_cacheability_advisor_retention_cleanup(): void {
 		}
 	}
 
-	$scenario_runs_table    = pcm_scenario_runs_table_name();
-	$scenario_results_table = pcm_scenario_results_table_name();
-	if ( pcm_cacheability_advisor_table_exists( $scenario_runs_table ) && pcm_cacheability_advisor_table_exists( $scenario_results_table ) ) {
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned table name with dynamic prefix.
-		$old_scenario_run_ids = $wpdb->get_col(
-			$wpdb->prepare(
-				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned table name with dynamic prefix.
-				"SELECT id FROM {$scenario_runs_table} WHERE COALESCE(completed_at, started_at, created_at) < %s LIMIT 50",
-				$cutoff_datetime
-			)
-		);
-
-		if ( ! empty( $old_scenario_run_ids ) ) {
-			$scenario_placeholders = implode( ',', array_fill( 0, count( $old_scenario_run_ids ), '%d' ) );
-
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Plugin-owned table name with dynamic placeholder list.
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$scenario_results_table} WHERE run_id IN ({$scenario_placeholders})", ...$old_scenario_run_ids ) );
-
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Plugin-owned table name with dynamic placeholder list.
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$scenario_runs_table} WHERE id IN ({$scenario_placeholders})", ...$old_scenario_run_ids ) );
-		}
-	}
-
 	$popular_hits_table = pcm_popular_url_hits_table_name();
 	if ( function_exists( 'pcm_popular_url_tracker_cleanup' ) ) {
 		pcm_popular_url_tracker_cleanup( 90 );
@@ -289,8 +242,6 @@ function pcm_cacheability_advisor_install_tables(): void {
 	$urls_table             = $wpdb->prefix . 'pcm_scan_urls';
 	$findings_table         = $wpdb->prefix . 'pcm_findings';
 	$template_scores_table  = $wpdb->prefix . 'pcm_template_scores';
-	$scenario_runs_table    = pcm_scenario_runs_table_name();
-	$scenario_results_table = pcm_scenario_results_table_name();
 	$popular_hits_table     = pcm_popular_url_hits_table_name();
 
 	$sql_runs = "CREATE TABLE {$runs_table} (
@@ -353,45 +304,6 @@ function pcm_cacheability_advisor_install_tables(): void {
         KEY created_at (created_at)
     ) {$charset_collate};";
 
-	$sql_scenario_runs = "CREATE TABLE {$scenario_runs_table} (
-        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-        scan_token varchar(64) NOT NULL,
-        started_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        completed_at datetime DEFAULT NULL,
-        status varchar(20) NOT NULL DEFAULT 'running',
-        url_count int(11) unsigned NOT NULL DEFAULT 0,
-        variant_count int(11) unsigned NOT NULL DEFAULT 0,
-        variant_config longtext DEFAULT NULL,
-        created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY scan_token (scan_token),
-        KEY status (status),
-        KEY started_at (started_at),
-        KEY completed_at (completed_at)
-    ) {$charset_collate};";
-
-	$sql_scenario_results = "CREATE TABLE {$scenario_results_table} (
-        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-        run_id bigint(20) unsigned NOT NULL,
-        url text NOT NULL,
-        url_hash char(32) NOT NULL DEFAULT '',
-        variant_id varchar(100) NOT NULL,
-        variant_label varchar(191) DEFAULT NULL,
-        status varchar(20) NOT NULL DEFAULT 'ok',
-        http_code smallint(5) unsigned DEFAULT NULL,
-        elapsed_ms int(11) unsigned DEFAULT NULL,
-        cache_headers_json longtext DEFAULT NULL,
-        verdict varchar(50) NOT NULL DEFAULT 'unknown',
-        error_message text DEFAULT NULL,
-        created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY run_url_variant (run_id, url_hash, variant_id),
-        KEY run_id (run_id),
-        KEY run_variant (run_id, variant_id),
-        KEY verdict (verdict),
-        KEY created_at (created_at)
-    ) {$charset_collate};";
-
 	$sql_popular_hits = "CREATE TABLE {$popular_hits_table} (
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
         post_id bigint(20) unsigned NOT NULL,
@@ -412,284 +324,9 @@ function pcm_cacheability_advisor_install_tables(): void {
 	dbDelta( $sql_urls );
 	dbDelta( $sql_findings );
 	dbDelta( $sql_template_scores );
-	dbDelta( $sql_scenario_runs );
-	dbDelta( $sql_scenario_results );
 	dbDelta( $sql_popular_hits );
 
 	delete_transient( 'pcm_popular_url_tracker_schema_ready' );
-}
-
-/**
- * Normalize a stored scenario run row.
- *
- * @param array<string,mixed> $row Raw DB row.
- *
- * @return array<string,mixed>
- */
-function pcm_scenario_storage_normalize_run_row( array $row ): array {
-	$variant_config = array();
-	if ( isset( $row['variant_config'] ) && is_string( $row['variant_config'] ) && '' !== $row['variant_config'] ) {
-		$decoded = json_decode( $row['variant_config'], true );
-		if ( is_array( $decoded ) ) {
-			$variant_config = $decoded;
-		}
-	}
-
-	return array(
-		'id'             => isset( $row['id'] ) ? absint( $row['id'] ) : 0,
-		'scan_token'     => isset( $row['scan_token'] ) ? sanitize_text_field( (string) $row['scan_token'] ) : '',
-		'started_at'     => isset( $row['started_at'] ) ? sanitize_text_field( (string) $row['started_at'] ) : '',
-		'completed_at'   => isset( $row['completed_at'] ) ? sanitize_text_field( (string) $row['completed_at'] ) : '',
-		'status'         => isset( $row['status'] ) ? sanitize_key( (string) $row['status'] ) : 'unknown',
-		'url_count'      => isset( $row['url_count'] ) ? absint( $row['url_count'] ) : 0,
-		'variant_count'  => isset( $row['variant_count'] ) ? absint( $row['variant_count'] ) : 0,
-		'variant_config' => $variant_config,
-		'created_at'     => isset( $row['created_at'] ) ? sanitize_text_field( (string) $row['created_at'] ) : '',
-	);
-}
-
-/**
- * Normalize a stored scenario result row.
- *
- * @param array<string,mixed> $row Raw DB row.
- *
- * @return array<string,mixed>
- */
-function pcm_scenario_storage_normalize_result_row( array $row ): array {
-	$cache_headers = array();
-	if ( isset( $row['cache_headers_json'] ) && is_string( $row['cache_headers_json'] ) && '' !== $row['cache_headers_json'] ) {
-		$decoded = json_decode( $row['cache_headers_json'], true );
-		if ( is_array( $decoded ) ) {
-			$cache_headers = $decoded;
-		}
-	}
-
-	return array(
-		'id'            => isset( $row['id'] ) ? absint( $row['id'] ) : 0,
-		'run_id'        => isset( $row['run_id'] ) ? absint( $row['run_id'] ) : 0,
-		'url'           => isset( $row['url'] ) ? esc_url_raw( (string) $row['url'] ) : '',
-		'variant_id'    => isset( $row['variant_id'] ) ? sanitize_key( (string) $row['variant_id'] ) : '',
-		'variant_label' => isset( $row['variant_label'] ) ? sanitize_text_field( (string) $row['variant_label'] ) : '',
-		'status'        => isset( $row['status'] ) ? sanitize_key( (string) $row['status'] ) : 'unknown',
-		'http_code'     => isset( $row['http_code'] ) ? absint( $row['http_code'] ) : 0,
-		'elapsed_ms'    => isset( $row['elapsed_ms'] ) ? absint( $row['elapsed_ms'] ) : 0,
-		'cache_headers' => $cache_headers,
-		'verdict'       => isset( $row['verdict'] ) ? sanitize_key( (string) $row['verdict'] ) : 'unknown',
-		'error_message' => isset( $row['error_message'] ) ? sanitize_text_field( (string) $row['error_message'] ) : '',
-		'created_at'    => isset( $row['created_at'] ) ? sanitize_text_field( (string) $row['created_at'] ) : '',
-	);
-}
-
-/**
- * Get a persisted scenario run by scan token.
- *
- * @param string $scan_token Scan token.
- *
- * @return array<string,mixed>|null
- */
-function pcm_scenario_storage_get_run_by_token( string $scan_token ): ?array {
-	global $wpdb;
-
-	$token = sanitize_text_field( $scan_token );
-	if ( '' === $token ) {
-		return null;
-	}
-
-	$table = pcm_scenario_runs_table_name();
-	$row   = $wpdb->get_row(
-		$wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned table name with dynamic prefix.
-			"SELECT * FROM {$table} WHERE scan_token = %s LIMIT 1",
-			$token
-		),
-		ARRAY_A
-	);
-
-	if ( ! is_array( $row ) || empty( $row ) ) {
-		return null;
-	}
-
-	return pcm_scenario_storage_normalize_run_row( $row );
-}
-
-/**
- * Create or return a persisted scenario run.
- *
- * @param string $scan_token Scan token.
- * @param int    $url_count URL count.
- * @param int    $variant_count Variant count.
- * @param array  $variant_config Variant configuration.
- * @param string $status Initial status.
- *
- * @return int|false
- */
-function pcm_scenario_storage_create_run( string $scan_token, int $url_count, int $variant_count, array $variant_config = array(), string $status = 'running' ): int|false {
-	global $wpdb;
-
-	$existing = pcm_scenario_storage_get_run_by_token( $scan_token );
-	if ( is_array( $existing ) && ! empty( $existing['id'] ) ) {
-		return absint( $existing['id'] );
-	}
-
-	$table               = pcm_scenario_runs_table_name();
-	$variant_config_json = wp_json_encode( $variant_config );
-	$inserted            = $wpdb->insert(
-		$table,
-		array(
-			'scan_token'     => sanitize_text_field( $scan_token ),
-			'started_at'     => current_time( 'mysql', true ),
-			'status'         => sanitize_key( $status ),
-			'url_count'      => max( 0, $url_count ),
-			'variant_count'  => max( 0, $variant_count ),
-			'variant_config' => is_string( $variant_config_json ) ? $variant_config_json : '[]',
-			'created_at'     => current_time( 'mysql', true ),
-		),
-		array( '%s', '%s', '%s', '%d', '%d', '%s', '%s' )
-	);
-
-	if ( false === $inserted ) {
-		return false;
-	}
-
-	return (int) $wpdb->insert_id;
-}
-
-/**
- * Update scenario run status.
- *
- * @param int    $run_id Run ID.
- * @param string $status New status.
- *
- * @return bool
- */
-function pcm_scenario_storage_update_run_status( int $run_id, string $status ): bool {
-	global $wpdb;
-
-	$table          = pcm_scenario_runs_table_name();
-	$completed_at   = null;
-	$normalized     = sanitize_key( $status );
-	$terminal_state = in_array( $normalized, array( 'complete', 'completed', 'cancelled', 'failed' ), true );
-	if ( $terminal_state ) {
-		$completed_at = current_time( 'mysql', true );
-	}
-
-	$updated = $wpdb->update(
-		$table,
-		array(
-			'status'       => $normalized,
-			'completed_at' => $completed_at,
-		),
-		array( 'id' => absint( $run_id ) ),
-		array( '%s', '%s' ),
-		array( '%d' )
-	);
-
-	return false !== $updated;
-}
-
-/**
- * Persist per-URL scenario variant results.
- *
- * @param int    $run_id Scenario run ID.
- * @param string $url URL that was probed.
- * @param array  $variant_results Variant result rows.
- *
- * @return bool
- */
-function pcm_scenario_storage_store_results( int $run_id, string $url, array $variant_results ): bool {
-	global $wpdb;
-
-	$table    = pcm_scenario_results_table_name();
-	$safe_url = esc_url_raw( $url );
-	if ( $run_id <= 0 || '' === $safe_url ) {
-		return false;
-	}
-
-	foreach ( $variant_results as $variant_result ) {
-		if ( ! is_array( $variant_result ) ) {
-			continue;
-		}
-
-		$cache_headers      = isset( $variant_result['cache_headers'] ) && is_array( $variant_result['cache_headers'] ) ? $variant_result['cache_headers'] : array();
-		$cache_headers_json = wp_json_encode( $cache_headers );
-		$status             = isset( $variant_result['status'] ) ? sanitize_key( (string) $variant_result['status'] ) : 'ok';
-		$verdict            = isset( $cache_headers['verdict'] ) ? sanitize_key( (string) $cache_headers['verdict'] ) : ( 'error' === $status ? 'error' : 'unknown' );
-
-		$wpdb->replace(
-			$table,
-			array(
-				'run_id'             => absint( $run_id ),
-				'url'                => $safe_url,
-				'url_hash'           => md5( $safe_url ),
-				'variant_id'         => isset( $variant_result['variant_id'] ) ? sanitize_key( (string) $variant_result['variant_id'] ) : 'unknown',
-				'variant_label'      => isset( $variant_result['label'] ) ? sanitize_text_field( (string) $variant_result['label'] ) : '',
-				'status'             => $status,
-				'http_code'          => isset( $variant_result['http_code'] ) ? absint( $variant_result['http_code'] ) : 0,
-				'elapsed_ms'         => isset( $variant_result['elapsed_ms'] ) ? absint( $variant_result['elapsed_ms'] ) : 0,
-				'cache_headers_json' => is_string( $cache_headers_json ) ? $cache_headers_json : '{}',
-				'verdict'            => $verdict,
-				'error_message'      => isset( $variant_result['error'] ) ? sanitize_text_field( (string) $variant_result['error'] ) : '',
-				'created_at'         => current_time( 'mysql', true ),
-			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s' )
-		);
-	}
-
-	return true;
-}
-
-/**
- * Fetch recent persisted scenario runs.
- *
- * @param int $limit Maximum rows.
- *
- * @return array<int, array<string,mixed>>
- */
-function pcm_scenario_storage_get_recent_runs( int $limit = 10 ): array {
-	global $wpdb;
-
-	$table = pcm_scenario_runs_table_name();
-	$rows  = $wpdb->get_results(
-		$wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned table name with dynamic prefix.
-			"SELECT * FROM {$table} ORDER BY started_at DESC, id DESC LIMIT %d",
-			max( 1, $limit )
-		),
-		ARRAY_A
-	);
-
-	if ( ! is_array( $rows ) ) {
-		return array();
-	}
-
-	return array_map( 'pcm_scenario_storage_normalize_run_row', $rows );
-}
-
-/**
- * Fetch persisted scenario results for a run.
- *
- * @param int $run_id Run ID.
- *
- * @return array<int, array<string,mixed>>
- */
-function pcm_scenario_storage_get_run_results( int $run_id ): array {
-	global $wpdb;
-
-	$table = pcm_scenario_results_table_name();
-	$rows  = $wpdb->get_results(
-		$wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Plugin-owned table name with dynamic prefix.
-			"SELECT * FROM {$table} WHERE run_id = %d ORDER BY created_at ASC, id ASC",
-			absint( $run_id )
-		),
-		ARRAY_A
-	);
-
-	if ( ! is_array( $rows ) ) {
-		return array();
-	}
-
-	return array_map( 'pcm_scenario_storage_normalize_result_row', $rows );
 }
 
 /**
@@ -714,10 +351,6 @@ function pcm_cacheability_advisor_log_message( string $message ): void {
  * @return bool
  */
 function pcm_cacheability_advisor_ajax_can_manage(): bool {
-	if ( function_exists( 'pcm_current_user_can' ) ) {
-		return pcm_current_user_can( 'pcm_run_scans' );
-	}
-
 	return current_user_can( 'manage_options' );
 }
 
@@ -742,7 +375,7 @@ function pcm_ajax_cacheability_scan_start(): void {
 	}
 
 	if ( ! (bool) get_option( PCM_Options::ENABLE_ADVANCED_SCAN_WORKFLOWS->value, false ) ) {
-		wp_send_json_error( array( 'message' => 'Advanced scanning workflows are disabled. Enable them in Feature Flags.' ), 400 );
+		wp_send_json_error( array( 'message' => 'Cacheability rescans are disabled. Enable them in Settings > Deep Dive Options.' ), 400 );
 	}
 
 	$service = new PCM_Cacheability_Advisor_Run_Service();
@@ -750,10 +383,6 @@ function pcm_ajax_cacheability_scan_start(): void {
 
 	if ( ! $run_id ) {
 		wp_send_json_error( array( 'message' => 'Unable to create scan run.' ), 500 );
-	}
-
-	if ( function_exists( 'pcm_audit_log' ) ) {
-		pcm_audit_log( 'cacheability_scan_started', 'cacheability_advisor', array( 'run_id' => (int) $run_id ) );
 	}
 
 	$queue = get_transient( 'pcm_scan_queue_' . $run_id );
@@ -867,33 +496,6 @@ function pcm_ajax_cacheability_scan_findings(): void {
 
 	$repository = new PCM_Cacheability_Advisor_Repository();
 	$findings   = $repository->list_findings( $run_id );
-
-	if ( class_exists( 'PCM_Playbook_Lookup_Service' ) ) {
-		$lookup = new PCM_Playbook_Lookup_Service();
-
-		foreach ( $findings as $index => $finding ) {
-			$rule_id = isset( $finding['rule_id'] ) ? sanitize_key( $finding['rule_id'] ) : '';
-			if ( '' === $rule_id ) {
-				continue;
-			}
-
-			$playbook_lookup = $lookup->lookup_for_finding( $rule_id );
-			if ( ! empty( $playbook_lookup['available'] ) && ! empty( $playbook_lookup['playbook']['meta'] ) ) {
-				$meta                                  = $playbook_lookup['playbook']['meta'];
-				$findings[ $index ]['playbook_lookup'] = array(
-					'available'   => true,
-					'playbook_id' => isset( $meta['playbook_id'] ) ? $meta['playbook_id'] : '',
-					'title'       => isset( $meta['title'] ) ? $meta['title'] : '',
-					'severity'    => isset( $meta['severity'] ) ? $meta['severity'] : '',
-				);
-			} else {
-				$findings[ $index ]['playbook_lookup'] = array(
-					'available' => false,
-					'reason'    => isset( $playbook_lookup['reason'] ) ? $playbook_lookup['reason'] : 'no_playbook',
-				);
-			}
-		}
-	}
 
 	wp_send_json_success(
 		array(
