@@ -1,91 +1,66 @@
 /**
  * Pressable Cache Management - Flush cache for individual page column
- * Branded modal popup replaces browser alert()
+ * Uses shared pcmShowModal from pcm-utils.js
+ *
+ * Public API: none (all behaviour is event-driven)
  */
+(function(window, document) {
+    'use strict';
 
-if (window.attachEvent) {
-    window.attachEvent('onload', flush_object_cache_column_button_action);
-} else {
-    if (window.onload) {
-        var curronload_1 = window.onload;
-        var newonload_1 = function(evt) { curronload_1(evt); flush_object_cache_column_button_action(evt); };
-        window.onload = newonload_1;
-    } else {
-        window.onload = flush_object_cache_column_button_action;
-    }
-}
+    function flush_object_cache_column_button_action() {
+        jQuery(document).ready(function($) {
+            $("a[id^='flush-object-cache-url']").on('click', function(e) {
+                e.preventDefault();
+                var triggerEl = e.currentTarget;
 
-/* ── Branded modal (injected once) ─────────────────────────────────────── */
-function pcmEnsureModal() {
-    if (document.getElementById('pcm-col-modal-overlay')) return;
+                // Prevent duplicate requests while AJAX is in-flight
+                if ($(triggerEl).data('pcm-busy')) return false;
+                $(triggerEl).data('pcm-busy', true);
+                $(triggerEl).css({ cursor: 'wait', opacity: 0.6, pointerEvents: 'none' });
 
-    var overlay = document.createElement('div');
-    overlay.id  = 'pcm-col-modal-overlay';
-    overlay.style.cssText =
-        'display:none;position:fixed;inset:0;background:rgba(4,0,36,.45);'
-        + 'z-index:999999;align-items:center;justify-content:center;';
+                var post_id = $(triggerEl).attr('data-id');
+                var nonce   = $(triggerEl).attr('data-nonce');
 
-    overlay.innerHTML =
-        '<div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:90%;'
-        + 'box-shadow:0 8px 40px rgba(4,0,36,.18);font-family:sans-serif;position:relative;">'
-        + '<div style="width:48px;height:4px;background:#03fcc2;border-radius:4px;margin-bottom:16px;"></div>'
-        + '<p id="pcm-col-modal-msg" style="margin:0 0 22px;font-size:14px;color:#040024;line-height:1.6;"></p>'
-        + '<button id="pcm-col-modal-ok" style="background:#dd3a03;color:#fff;border:none;border-radius:8px;'
-        + 'padding:10px 28px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:sans-serif;'
-        + 'transition:background .2s;">OK</button>'
-        + '</div>';
+                // Retrieve the post title from the row for contextual error messages
+                var $row = $(triggerEl).closest('tr');
+                var postTitle = $row.find('.row-title').text() || $row.find('.column-title a').first().text() || ('post #' + post_id);
 
-    document.body.appendChild(overlay);
-
-    overlay.style.display = 'flex'; overlay.style.display = 'none'; // force style parse
-
-    document.getElementById('pcm-col-modal-ok').addEventListener('click', function() {
-        overlay.style.display = 'none';
-    });
-    overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) overlay.style.display = 'none';
-    });
-    // hover on OK button
-    var okBtn = document.getElementById('pcm-col-modal-ok');
-    okBtn.addEventListener('mouseenter', function() { okBtn.style.background = '#b82f00'; });
-    okBtn.addEventListener('mouseleave', function() { okBtn.style.background = '#dd3a03'; });
-}
-
-function pcmShowColumnModal(msg) {
-    pcmEnsureModal();
-    document.getElementById('pcm-col-modal-msg').textContent = msg;
-    document.getElementById('pcm-col-modal-overlay').style.display = 'flex';
-}
-
-function flush_object_cache_column_button_action() {
-    jQuery(document).ready(function($) {
-        $("a[id^='flush-object-cache-url']").on('click', function(e) {
-            e.preventDefault();
-            var post_id = $(e.currentTarget).attr('data-id');
-            var nonce   = $(e.currentTarget).attr('data-nonce');
-
-            $('#flush-object-cache-url-' + post_id).css('cursor', 'wait');
-
-            $.ajax({
-                type:     'GET',
-                url:      ajaxurl,
-                data:     { action: 'pcm_flush_object_cache_column', id: post_id, nonce: nonce },
-                dataType: 'json',
-                cache:    false,
-                success: function(data) {
-                    $('#flush-object-cache-url-' + post_id).css('cursor', 'pointer');
-                    if (typeof data.success !== 'undefined' && data.success === true) {
-                        pcmShowColumnModal('Batcache flushed successfully \u2705');
-                    } else {
-                        pcmShowColumnModal('Something went wrong while trying to flush the cache for this page.');
+                $.ajax({
+                    type:     'GET',
+                    url:      ajaxurl,
+                    data:     { action: 'pcm_flush_object_cache_column', id: post_id, nonce: nonce },
+                    dataType: 'json',
+                    cache:    false,
+                    timeout:  15000,
+                    success: function(data) {
+                        $('#flush-object-cache-url-' + post_id).css({ cursor: 'pointer', opacity: 1, pointerEvents: 'auto' }).data('pcm-busy', false);
+                        if (typeof data.success !== 'undefined' && data.success === true) {
+                            window.pcmShowModal('Batcache flushed successfully \u2705', triggerEl);
+                        } else {
+                            window.pcmShowModal("Failed to flush cache for '" + postTitle + "'. The server returned an unexpected response.", triggerEl);
+                        }
+                    },
+                    error: function(jqXHR, textStatus) {
+                        $('#flush-object-cache-url-' + post_id).css({ cursor: 'pointer', opacity: 1, pointerEvents: 'auto' }).data('pcm-busy', false);
+                        var msg;
+                        if (textStatus === 'timeout') {
+                            msg = "Flush request for '" + postTitle + "' timed out. Please try again.";
+                        } else if (jqXHR.status >= 500) {
+                            msg = "Server error while flushing cache for '" + postTitle + "'. Check your PHP error logs.";
+                        } else if (jqXHR.status === 403) {
+                            msg = "Permission denied flushing cache for '" + postTitle + "'. Reload the page and try again.";
+                        } else {
+                            msg = "Could not connect. Check your site is accessible.";
+                        }
+                        window.pcmShowModal(msg, triggerEl);
                     }
-                },
-                error: function() {
-                    $('#flush-object-cache-url-' + post_id).css('cursor', 'pointer');
-                    pcmShowColumnModal('Request failed. Please try again.');
-                }
+                });
+                return false;
             });
-            return false;
         });
-    });
-}
+    }
+
+    // Use addEventListener instead of window.onload chaining to avoid globals
+    document.addEventListener('DOMContentLoaded', flush_object_cache_column_button_action);
+
+})(window, document);

@@ -1,17 +1,61 @@
 === Pressable Cache Management Change log ===
 
-= Version 6.1.0 (Mar 16, 2026) =
-* Added new features to enhance Edge Cache
+= Unreleased =
+* Simplify Deep Dive to Cacheability Advisor, Route Diagnosis, Layered Probe Runner, and Durable Origin Microcache
+* Stop loading legacy diagnostics modules that are no longer part of the active scope
+* Remove legacy playbook wiring from the current Deep Dive experience
+* Expand deactivation and uninstall cleanup for scheduled hooks, diagnostics storage, and plugin-owned tables
 
-= Version 6.0.0 (Mar 12, 2026) =
-* Added defensive mode feature for Edge Cache
+Historical entries below are preserved for release history and may mention modules that have since been retired from the current codebase.
 
-= Version 5.9.9 (Mar 08, 2026) =
+= Version 5.9.0 (Mar 09, 2026) =
+
+**Security Insight Runbooks**
+* Add contextual runbook panels beneath Deep Dive diagnosis sections (Edge bypass, Batcache bypass, Poisoning cookies, Poisoning headers, Route risk badges)
+* Each panel explains what the diagnosis means and provides actionable remediation steps
+* Panels only render when actual values are present (hidden when "None")
+
+**Cache Insights**
+* Replace full OPcache Awareness module with compact "Cache Insights" card
+* New pcm_cache_insights AJAX endpoint returns OPcache status, Batcache status/max-age, Object Cache type/hit-ratio
+* Render results as a responsive grid of status cards with color-coded indicators
+
+**Redirects Tab**
+* Move Redirect Assistant from Deep Dive card to its own top-level tab between Deep Dive and Settings
+* Redesigned 4-card layout: Discover Candidates, Rule Builder, Dry-Run Simulator, Export & Import
+* Discover candidates now renders per-item "Add" buttons for adding to rules
+* Dry-run simulator shows color-coded result rows (green/yellow/red for ok/warning/loop)
+* Separate import textarea from export for clearer workflow
+* New redirects-tab.js loaded conditionally only on Redirects tab
+
+**Styles**
+* Add pcm-insight-panel styles with dark mode support
+* Add pcm-cache-insights-grid and pcm-cache-insight-card styles
+* Add redirect tab styles: candidate lists, dry-run rows, status dots, export/import sections
+* Responsive breakpoint at 960px for redirects grid
+
+= Version 5.8.9 (Mar 09, 2026) =
+* Fix Object Cache Intelligence timeout: add 2s connection timeouts to Memcached/Memcache providers
+* Cache resolved provider metrics to eliminate duplicate network round-trips
+* Add static caching to all feature flag functions (7 modules) to reduce redundant get_option() calls
+* Add instance-level row caching to all storage classes (snapshots, sensitivity, purge events, rollups)
+* Batch rollup writes in daily cron (10 DB writes reduced to 1)
+* Add microcache index instance cache to avoid repeated get_option() reads
+* Fix OPcache feature flag: remove current_user_can() gate that blocked cron scheduling
+* Optimize route sensitivity endpoint: single-pass 24h/7d summary instead of double storage load
+* Remove summary grid from Deep Dive tab
+* Replace text emoji with dashicon on Durable Origin Microcache card
+* Style collapsible section buttons consistently with pcm-btn-text class
+* Add smooth scroll-into-view when opening playbooks
+* Add background color to sticky Deep Dive nav for readability when scrolling
+* Extend JS timeout for Object Cache and Route Sensitivity AJAX calls to 30s
+* Support custom timeout in pcmPost() AJAX helper
+
+= Version 5.8.8 (Mar 08, 2026) =
 * Updated language string to support admin menu
 * Add features to track max age
 * Updated transcient for status checker
-* Updated settings
-* Updated validation method for exclude cache
+
 
 = Version 5.8.7 (Mar 07, 2026) =
 * Fix botton bug
